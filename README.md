@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project Visual — Dashboard ejecutivo de Jira
 
-## Getting Started
+Plataforma interna que conecta con Jira Cloud y muestra el estado de proyectos para audiencias no técnicas (C-level, Customer Success, Implementations).
 
-First, run the development server:
+Esta primera iteración expone una vista `/projects` con todos los proyectos accesibles y, por cada uno, su lead, total de issues y porcentaje en `Done`.
+
+## Requisitos
+
+- Node 20+ (probado en 22)
+- pnpm 10
+- Una cuenta de Jira Cloud con un API token
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Editá `.env.local` con tus credenciales:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+JIRA_BASE_URL=https://tu-empresa.atlassian.net
+JIRA_EMAIL=tu-email@empresa.com
+JIRA_API_TOKEN=...
+# Opcional — si está vacío se listan todos los proyectos accesibles
+JIRA_PROJECT_KEYS=ENG,OPS,CS
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Generá un API token en https://id.atlassian.com/manage-profile/security/api-tokens.
 
-## Learn More
+## Correr en desarrollo
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Abrí http://localhost:3000/projects.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Verificar la conexión con Jira
 
-## Deploy on Vercel
+- ✅ **OK:** la página muestra cards con el nombre y key de cada proyecto, el lead, el total de issues y el % en `Done`.
+- ❌ **Falta `JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_API_TOKEN`:** la pantalla de error indica qué variable falta.
+- ❌ **Credenciales inválidas (401):** la pantalla de error sugiere revisar `.env.local`.
+- ❌ **Sin permisos sobre los proyectos (403):** el usuario del API token necesita permiso "Browse projects" en cada proyecto.
+- ❌ **Rate limit (429):** el cliente reintenta hasta 3 veces con backoff antes de fallar.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Build de producción
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm build
+pnpm start
+```
+
+## Stack
+
+Next.js 16 (App Router) · TypeScript · React 19 · HeroUI v3 · Tailwind CSS v4 · pnpm.
+
+Detalles de arquitectura, convenciones, deuda técnica y scope de la próxima iteración: ver [`CLAUDE.md`](./CLAUDE.md).
