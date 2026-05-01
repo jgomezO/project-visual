@@ -254,7 +254,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      project_dashboard: {
+        Args: { p_project_key: string }
+        Returns: {
+          blocked_count: number
+          done_count: number
+          in_progress_count: number
+          last_synced_at: string
+          lead_display_name: string
+          overdue_count: number
+          project_id: string
+          project_key: string
+          project_name: string
+          todo_count: number
+          total: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
