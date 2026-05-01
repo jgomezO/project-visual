@@ -2,7 +2,7 @@ export interface JiraProject {
   id: string;
   key: string;
   name: string;
-  lead?: { displayName?: string } | null;
+  lead?: { accountId?: string; displayName?: string } | null;
 }
 
 export interface JiraProjectSearchResponse {
@@ -57,4 +57,27 @@ export interface JiraIssueSearchResponse {
   issues: JiraSearchIssue[];
   nextPageToken?: string;
   isLast?: boolean;
+}
+
+// Field shapes within JiraSearchIssue.fields. The sync layer reads these.
+export interface JiraIssueFields {
+  summary?: string;
+  issuetype?: { name?: string };
+  status?: {
+    name?: string;
+    statusCategory?: { name?: string; key?: string };
+  };
+  assignee?: { accountId?: string; displayName?: string } | null;
+  priority?: { name?: string } | null;
+  parent?: { id?: string; key?: string } | null;
+  duedate?: string | null;
+  created?: string;
+  updated?: string;
+  issuelinks?: JiraIssueLink[];
+}
+
+export interface JiraIssueLink {
+  type: { name: string; inward: string; outward: string };
+  inwardIssue?: { id: string; key: string };
+  outwardIssue?: { id: string; key: string };
 }
