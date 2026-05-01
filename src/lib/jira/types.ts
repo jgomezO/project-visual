@@ -38,3 +38,23 @@ export class JiraApiError extends Error {
     this.endpoint = endpoint;
   }
 }
+
+export interface JiraSearchIssue {
+  id: string;
+  key: string;
+  fields: Record<string, unknown>;
+}
+
+export interface JiraIssueSearchRequest {
+  jql: string;
+  fields?: string[];
+  expand?: string[];
+  maxResults?: number;
+  nextPageToken?: string;
+}
+
+export interface JiraIssueSearchResponse {
+  issues: JiraSearchIssue[];
+  nextPageToken?: string;
+  isLast?: boolean;
+}

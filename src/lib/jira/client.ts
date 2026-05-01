@@ -3,8 +3,11 @@ import { getJiraEnv } from "./env";
 import {
   JiraApiError,
   type JiraApproximateCountResponse,
+  type JiraIssueSearchRequest,
+  type JiraIssueSearchResponse,
   type JiraProject,
   type JiraProjectSearchResponse,
+  type JiraSearchIssue,
   type ProjectStats,
 } from "./types";
 
@@ -74,6 +77,50 @@ export class JiraClient {
     ]);
     const donePct = total === 0 ? 0 : Math.round((done / total) * 100);
     return { total, done, donePct };
+  }
+
+  // Cursor-paginated POST /rest/api/3/search/jql. Yields each page of issues
+  // so the caller can stream-process (e.g., upsert in batches) instead of
+  // buffering the whole result. The legacy GET /rest/api/3/search was removed
+  // by Atlassian in May 2025; cursor pagination is the only supported way.
+  async *searchIssuesPaginated(
+    request: JiraIssueSearchRequest,
+  ): AsyncGenerator<JiraSearchIssue[], void, unknown> {
+    let nextPageToken: string | undefined = request.nextPageToken;
+
+    while (true) {
+      const body = {
+        jql: request.jql,
+        fields: request.fields ?? ["*all"],
+        expand: request.expand,
+        maxResults: request.maxResults ?? 100,
+        nextPageToken,
+      };
+
+      const res = await this.request<JiraIssueSearchResponse>(
+        "/rest/api/3/search/jql",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      yield res.issues;
+
+      if (res.isLast || !res.nextPageToken) break;
+      nextPageToken = res.nextPageToken;
+    }
+  }
+
+  async searchIssues(
+    request: JiraIssueSearchRequest,
+  ): Promise<JiraSearchIssue[]> {
+    const all: JiraSearchIssue[] = [];
+    for await (const page of this.searchIssuesPaginated(request)) {
+      all.push(...page);
+    }
+    return all;
   }
 
   private async approximateCount(jql: string): Promise<number> {
