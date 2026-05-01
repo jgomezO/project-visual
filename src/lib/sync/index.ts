@@ -21,11 +21,37 @@ export interface RunSyncResult {
   errorMessage?: string;
 }
 
+// Supabase's PostgrestError is a plain object (not an Error instance), so a
+// naive String(e) yields "[object Object]". Extract a readable message.
+function describeError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object") {
+    const obj = e as Record<string, unknown>;
+    if (typeof obj.message === "string" && obj.message.length > 0) {
+      const code = typeof obj.code === "string" ? ` (${obj.code})` : "";
+      const details =
+        typeof obj.details === "string" && obj.details.length > 0
+          ? ` — ${obj.details}`
+          : "";
+      const hint =
+        typeof obj.hint === "string" && obj.hint.length > 0
+          ? ` [hint: ${obj.hint}]`
+          : "";
+      return `${obj.message}${code}${details}${hint}`;
+    }
+    try {
+      return JSON.stringify(e);
+    } catch {
+      return String(e);
+    }
+  }
+  return String(e);
+}
+
 export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
   const declaredType: "full" | "incremental" = args.type ?? "incremental";
   const projectKeyFilter = args.projectKey ?? null;
 
-  // Open the run early so we always have a row to update on failure.
   const runId = await openRun({
     syncType: declaredType,
     projectKey: projectKeyFilter,
@@ -79,7 +105,7 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
       linksSkipped: stats.linksSkipped,
     };
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const message = describeError(e);
     await failRun(runId, message, lastJql);
     return {
       syncRunId: runId,

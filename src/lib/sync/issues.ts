@@ -37,6 +37,9 @@ function statusCategoryName(
   return "To Do";
 }
 
+// parent_id is set to null on insert and backfilled in a second pass — this
+// avoids self-FK violations when an issue and its parent are in the same
+// upsert batch (e.g., a story and its epic in the same Jira page response).
 function toIssueRow(issue: JiraSearchIssue, projectId: string) {
   const fields = issue.fields as JiraIssueFields;
   return {
@@ -50,7 +53,7 @@ function toIssueRow(issue: JiraSearchIssue, projectId: string) {
     assignee_account_id: fields.assignee?.accountId ?? null,
     assignee_display_name: fields.assignee?.displayName ?? null,
     priority: fields.priority?.name ?? null,
-    parent_id: fields.parent?.id ?? null,
+    parent_id: null as string | null,
     due_date: fields.duedate ?? null,
     created_at_jira: fields.created ?? null,
     updated_at_jira: fields.updated ?? null,
@@ -124,6 +127,8 @@ export async function syncIssuesForProject(
   let issuesCreated = 0;
   let issuesUpdated = 0;
   let linksSkipped = 0;
+  // Collected during pass 1, applied in pass 2 to avoid self-FK violations.
+  const parentUpdates: Array<{ id: string; parentId: string }> = [];
 
   for await (const page of jira.searchIssuesPaginated({
     jql,
@@ -153,11 +158,15 @@ export async function syncIssuesForProject(
       else issuesCreated++;
     }
 
-    // Upsert links from this page. target_issue_id stays null here; we
-    // backfill below once all pages are synced (the target may be in a
-    // later page or in another already-synced project).
     for (const issue of page) {
       const fields = issue.fields as JiraIssueFields;
+      if (fields.parent?.id) {
+        parentUpdates.push({ id: issue.id, parentId: fields.parent.id });
+      }
+
+      // Upsert links from this page. target_issue_id stays null here; we
+      // backfill below once all pages are synced (the target may be in a
+      // later page or in another already-synced project).
       const links = fields.issuelinks ?? [];
       for (const link of links) {
         const row = toLinkRow(issue.id, link);
@@ -180,8 +189,11 @@ export async function syncIssuesForProject(
     }
   }
 
-  // Backfill target_issue_id on null-targeted links whose target now exists
-  // in DB (synced just now or in an earlier project sync).
+  // Pass 2: backfill parent_id on all issues that have a parent now that
+  // every issue has been inserted (avoids self-FK violations).
+  await backfillParentIds(parentUpdates);
+
+  // Backfill target_issue_id for links whose target now exists in DB.
   await backfillIssueLinkTargets();
 
   const { error: stampError } = await supabase
@@ -197,6 +209,40 @@ export async function syncIssuesForProject(
     issuesUpdated,
     linksSkipped,
   };
+}
+
+async function backfillParentIds(
+  updates: Array<{ id: string; parentId: string }>,
+): Promise<void> {
+  if (updates.length === 0) return;
+  const supabase = getServiceSupabase();
+
+  // Filter to parents that actually exist in DB. Cross-project parents
+  // (e.g., outside JIRA_PROJECT_KEYS) stay unset; we don't have the row.
+  const parentIds = [...new Set(updates.map((u) => u.parentId))];
+  const { data: existing, error: existsErr } = await supabase
+    .from("issues")
+    .select("id")
+    .in("id", parentIds);
+  if (existsErr) throw existsErr;
+  const existingSet = new Set((existing ?? []).map((r) => r.id));
+
+  // Group child ids by parent_id; one UPDATE per parent.
+  const groups = new Map<string, string[]>();
+  for (const { id, parentId } of updates) {
+    if (!existingSet.has(parentId)) continue;
+    const ids = groups.get(parentId) ?? [];
+    ids.push(id);
+    groups.set(parentId, ids);
+  }
+
+  for (const [parentId, childIds] of groups) {
+    const { error } = await supabase
+      .from("issues")
+      .update({ parent_id: parentId })
+      .in("id", childIds);
+    if (error) throw error;
+  }
 }
 
 async function backfillIssueLinkTargets(): Promise<void> {
@@ -235,7 +281,7 @@ async function backfillIssueLinkTargets(): Promise<void> {
       .in("id", linkIds);
     if (error) {
       console.error(
-        `[sync] backfill failed for target ${targetId}: ${error.message}`,
+        `[sync] link backfill failed for target ${targetId}: ${error.message}`,
       );
     }
   }
