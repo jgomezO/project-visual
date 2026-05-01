@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { Card } from "@heroui/react";
 import { SyncButton } from "@/components/SyncButton";
+import { relativeFromNow } from "@/lib/format/relativeTime";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 
 export const dynamic = "force-dynamic";
@@ -66,20 +68,6 @@ async function loadDashboard(): Promise<DashboardData> {
   return { projects: projectsWithStats, lastSyncFinishedAt };
 }
 
-function relativeFromNow(iso: string | null | undefined): string {
-  if (!iso) return "nunca";
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return "ahora mismo";
-  const sec = Math.floor(ms / 1000);
-  if (sec < 60) return "hace unos segundos";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `hace ${min} minuto${min === 1 ? "" : "s"}`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `hace ${hr} hora${hr === 1 ? "" : "s"}`;
-  const days = Math.floor(hr / 24);
-  return `hace ${days} día${days === 1 ? "" : "s"}`;
-}
-
 export default async function ProjectsPage() {
   const { projects, lastSyncFinishedAt } = await loadDashboard();
 
@@ -117,7 +105,13 @@ export default async function ProjectsPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((project) => (
-          <ProjectCard key={project.id} project={project} />
+          <Link
+            key={project.id}
+            href={`/projects/${project.key}`}
+            className="block transition-opacity hover:opacity-80"
+          >
+            <ProjectCard project={project} />
+          </Link>
         ))}
       </div>
     </main>
