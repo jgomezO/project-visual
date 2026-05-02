@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@heroui/react";
+import { Button, Popover } from "@heroui/react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   addDaysUTC,
   addMonthsUTC,
@@ -11,6 +12,7 @@ import {
   endOfMonthUTC,
   endOfQuarterUTC,
   formatMonthLabel,
+  formatShortDate,
   isValidISODate,
   parseISODate,
   startOfMonthUTC,
@@ -23,9 +25,63 @@ import type { IssueRow } from "./ProjectTable";
 
 const PX_PER_DAY = 8;
 const ROW_HEIGHT = 48;
+const BAR_HEIGHT = 28;
 const LEFT_COL_WIDTH = 240;
 const HEADER_HEIGHT = 40;
 const WEEK_TICKS_THRESHOLD_DAYS = 365;
+
+type EpicStatus = "overdue" | "inProgress" | "future" | "done";
+
+interface PlannedEpic {
+  row: IssueRow;
+  start: Date;
+  due: Date;
+  status: EpicStatus;
+}
+
+const STATUS_ORDER: Record<EpicStatus, number> = {
+  overdue: 0,
+  inProgress: 1,
+  future: 2,
+  done: 3,
+};
+
+function classifyEpic(start: Date, due: Date, statusCategory: string, today: Date): EpicStatus {
+  if (statusCategory === "Done") return "done";
+  if (due.getTime() < today.getTime()) return "overdue";
+  if (start.getTime() > today.getTime()) return "future";
+  return "inProgress";
+}
+
+function buildPlannedEpics(
+  rows: IssueRow[],
+  today: Date,
+  showCompleted: boolean,
+): PlannedEpic[] {
+  const list: PlannedEpic[] = [];
+  for (const r of rows) {
+    if (r.issue_type !== "Epic") continue;
+    if (!r.start_date || !r.due_date) continue;
+    const start = parseISODate(r.start_date);
+    const due = parseISODate(r.due_date);
+    const status = classifyEpic(start, due, r.status_category, today);
+    if (status === "done" && !showCompleted) continue;
+    list.push({ row: r, start, due, status });
+  }
+  list.sort((a, b) => {
+    const so = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    if (so !== 0) return so;
+    return a.due.getTime() - b.due.getTime();
+  });
+  return list;
+}
+
+function isInVisibleRange(epic: PlannedEpic, from: Date, to: Date): boolean {
+  return (
+    epic.due.getTime() >= from.getTime() &&
+    epic.start.getTime() <= to.getTime()
+  );
+}
 
 interface RoadmapRange {
   from: Date;
@@ -123,9 +179,24 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
+  const today = todayUTC();
+  const allPlanned = useMemo(
+    () => buildPlannedEpics(rows, today, false),
+    [rows, today],
+  );
+  const visible = useMemo(
+    () => allPlanned.filter((e) => isInVisibleRange(e, range.from, range.to)),
+    [allPlanned, range.from, range.to],
+  );
+  const outOfRange = useMemo(
+    () => allPlanned.filter((e) => !isInVisibleRange(e, range.from, range.to)),
+    [allPlanned, range.from, range.to],
+  );
+
   const days = daysBetween(range.from, range.to);
   const chartWidth = Math.max(LEFT_COL_WIDTH, days * PX_PER_DAY);
   const showWeekTicks = days <= WEEK_TICKS_THRESHOLD_DAYS;
+  const chartBodyHeight = Math.max(ROW_HEIGHT, ROW_HEIGHT * visible.length);
 
   const { labelTicks, lineTicks } = useMemo(
     () => buildMonthTicks(range.from, range.to),
@@ -145,6 +216,10 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
         onPick={(next) => setRange(next)}
       />
 
+      {outOfRange.length > 0 ? (
+        <OutOfRangeCounter epics={outOfRange} />
+      ) : null}
+
       <div className="flex overflow-hidden rounded-2xl border border-default-200">
         <div
           className="shrink-0 border-r border-default-200 bg-surface"
@@ -159,7 +234,9 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
           >
             Épica
           </div>
-          {/* Bars rows are added in a follow-up commit. */}
+          {visible.map((epic) => (
+            <EpicLabel key={epic.row.id} epic={epic} />
+          ))}
         </div>
 
         <div className="flex-1 overflow-x-auto">
@@ -170,24 +247,150 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
               from={range.from}
               to={range.to}
             />
-            <div
-              className="relative"
-              style={{ height: ROW_HEIGHT * 2 }}
-              aria-hidden="true"
-            >
+            <div className="relative" style={{ height: chartBodyHeight }}>
               <GridLines
                 weekTicks={weekTicks}
                 lineTicks={lineTicks}
                 chartWidth={chartWidth}
-                height={ROW_HEIGHT * 2}
+                height={chartBodyHeight}
                 from={range.from}
                 to={range.to}
               />
+              {visible.map((epic, idx) => (
+                <EpicBar
+                  key={epic.row.id}
+                  epic={epic}
+                  rowIndex={idx}
+                  chartWidth={chartWidth}
+                  from={range.from}
+                  to={range.to}
+                  today={today}
+                />
+              ))}
             </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function EpicLabel({ epic }: { epic: PlannedEpic }) {
+  return (
+    <div
+      className="flex flex-col justify-center border-b border-default-100 px-3 last:border-b-0"
+      style={{ height: ROW_HEIGHT }}
+      title={epic.row.summary}
+    >
+      <span className="truncate text-sm font-medium">{epic.row.summary}</span>
+      <span className="font-mono text-xs text-muted">{epic.row.key}</span>
+    </div>
+  );
+}
+
+const STATUS_BG: Record<EpicStatus, string> = {
+  overdue: "bg-red-500",
+  inProgress: "bg-blue-200",
+  future: "bg-zinc-200",
+  done: "bg-emerald-200",
+};
+
+function EpicBar({
+  epic,
+  rowIndex,
+  chartWidth,
+  from,
+  to,
+  today,
+}: {
+  epic: PlannedEpic;
+  rowIndex: number;
+  chartWidth: number;
+  from: Date;
+  to: Date;
+  today: Date;
+}) {
+  const x1 = dateToX(epic.start, from, to, chartWidth);
+  const x2 = dateToX(epic.due, from, to, chartWidth);
+  const left = Math.max(0, x1);
+  const right = Math.min(chartWidth, x2);
+  const width = Math.max(2, right - left);
+  const clippedLeft = x1 < 0;
+  const clippedRight = x2 > chartWidth;
+  const top = rowIndex * ROW_HEIGHT + (ROW_HEIGHT - BAR_HEIGHT) / 2;
+
+  const todayX = dateToX(today, from, to, chartWidth);
+  const showProgress =
+    epic.status === "inProgress" &&
+    todayX > left &&
+    todayX < right;
+  const progressWidth = showProgress ? todayX - left : 0;
+
+  return (
+    <div
+      className={`absolute rounded-md ${STATUS_BG[epic.status]}`}
+      style={{
+        left,
+        top,
+        width,
+        height: BAR_HEIGHT,
+      }}
+    >
+      {showProgress ? (
+        <div
+          className="absolute inset-y-0 left-0 rounded-l-md bg-blue-600"
+          style={{ width: progressWidth }}
+        />
+      ) : null}
+      {clippedLeft ? (
+        <ChevronLeft
+          className="pointer-events-none absolute -left-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
+          aria-label="Continúa antes del rango visible"
+        />
+      ) : null}
+      {clippedRight ? (
+        <ChevronRight
+          className="pointer-events-none absolute -right-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
+          aria-label="Continúa después del rango visible"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function OutOfRangeCounter({ epics }: { epics: PlannedEpic[] }) {
+  return (
+    <Popover>
+      <Button size="sm" variant="tertiary">
+        {epics.length}{" "}
+        {epics.length === 1
+          ? "épica fuera del rango actual"
+          : "épicas fuera del rango actual"}
+      </Button>
+      <Popover.Content className="max-w-md">
+        <Popover.Dialog>
+          <Popover.Heading>Fuera del rango actual</Popover.Heading>
+          <ul className="mt-2 flex max-h-80 flex-col gap-1.5 overflow-y-auto">
+            {epics.map((e) => (
+              <li
+                key={e.row.id}
+                className="flex flex-col gap-0.5 rounded-md bg-default-50 px-2 py-1.5 text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-muted">
+                    {e.row.key}
+                  </span>
+                  <span className="truncate">{e.row.summary}</span>
+                </div>
+                <span className="text-xs text-muted">
+                  {formatShortDate(e.start)} → {formatShortDate(e.due)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Popover.Dialog>
+      </Popover.Content>
+    </Popover>
   );
 }
 
