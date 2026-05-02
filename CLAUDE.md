@@ -139,6 +139,19 @@ supabase/
     └── 20260501174714_add_project_dashboard_function.sql
 ```
 
+### Custom field mapping
+
+Jira custom-field ids are tenant-specific. The mapping lives in
+`src/lib/jira/types.ts` as named constants so a re-targeting to another
+Jira instance only requires re-running `GET /rest/api/3/field` and
+updating the constants — no scattered string matches.
+
+| DB column        | Jira field          | Constant                     | Type / format    |
+| ---------------- | ------------------- | ---------------------------- | ---------------- |
+| `issues.start_date` | `customfield_10015` ("Start date") | `JIRA_START_DATE_FIELD_ID` | `YYYY-MM-DD`     |
+
+Sync requests `fields=["*all"]`, so adding a new mapping is type/parse-only — the value is already in the response. Always parse with a regex / type-guard helper (e.g. `parseJiraDate`) and fall back to NULL on malformed values rather than letting a one-off bad string break the whole upsert. **TODO:** parametrize via env if a second Jira instance ever gets onboarded.
+
 ### Sync flow
 
 1. `runSync()` opens a `sync_runs` row with `status='running'`.
@@ -195,7 +208,7 @@ supabase/
 Schema in `supabase/migrations/20260501113500_init_jira_dashboard_schema.sql`. Tables:
 
 - `projects` — PK = Jira project id (TEXT), unique `key`, lead, `raw` jsonb, `last_synced_at`.
-- `issues` — PK = Jira issue id (TEXT), unique `key`, `project_id` FK CASCADE, `status_category` CHECK ('To Do' | 'In Progress' | 'Done'), `parent_id` self-FK SET NULL, `due_date`, jira+local timestamps, `raw` jsonb.
+- `issues` — PK = Jira issue id (TEXT), unique `key`, `project_id` FK CASCADE, `status_category` CHECK ('To Do' | 'In Progress' | 'Done'), `parent_id` self-FK SET NULL, `due_date`, `start_date`, jira+local timestamps, `raw` jsonb.
 - `issue_links` — BIGINT identity PK, `source_issue_id` FK, `target_issue_id` nullable FK, `target_issue_key` NOT NULL, unique on `(source, target_key, link_type)`.
 - `sync_runs` — `status` running/success/failed, `sync_type` full/incremental, `project_key` (NULL = all), stats counters, `jql_used`, `error_message`.
 
