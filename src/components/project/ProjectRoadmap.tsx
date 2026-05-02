@@ -187,9 +187,17 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
   };
 
   const today = todayUTC();
+  const allEpics = useMemo(
+    () => rows.filter((r) => r.issue_type === "Epic"),
+    [rows],
+  );
   const allPlanned = useMemo(
     () => buildPlannedEpics(rows, today, showCompleted),
     [rows, today, showCompleted],
+  );
+  const unplannedCount = useMemo(
+    () => buildUnplanned(rows).length,
+    [rows],
   );
   const visible = useMemo(
     () => allPlanned.filter((e) => isInVisibleRange(e, range.from, range.to)),
@@ -200,10 +208,22 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
     [allPlanned, range.from, range.to],
   );
 
+  if (allEpics.length === 0) {
+    return <NoEpicsEmpty />;
+  }
+
   const days = daysBetween(range.from, range.to);
   const chartWidth = Math.max(LEFT_COL_WIDTH, days * PX_PER_DAY);
   const showWeekTicks = days <= WEEK_TICKS_THRESHOLD_DAYS;
-  const chartBodyHeight = Math.max(ROW_HEIGHT, ROW_HEIGHT * visible.length);
+  const isEmptyChart = visible.length === 0;
+  // The empty-state slot sits where bars would otherwise go; give it a
+  // floor height so it reads as a proper message panel, not a sliver.
+  const chartBodyHeight = isEmptyChart
+    ? ROW_HEIGHT * 3
+    : ROW_HEIGHT * visible.length;
+  const noneArePlanned = allPlanned.length === 0;
+  const allPreset = PRESETS.find((p) => p.id === "all");
+  const allPresetRange = allPreset?.compute(rows) ?? null;
 
   const { labelTicks, lineTicks } = useMemo(
     () => buildMonthTicks(range.from, range.to),
@@ -287,6 +307,15 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
                   onSelect={() => setSelectedIssue(epic.row)}
                 />
               ))}
+              {isEmptyChart ? (
+                <ChartEmptyOverlay
+                  variant={noneArePlanned ? "no-planned" : "none-in-range"}
+                  unplannedCount={unplannedCount}
+                  onPickAll={
+                    allPresetRange ? () => setRange(allPresetRange) : null
+                  }
+                />
+              ) : null}
             </div>
             {todayInRange ? (
               <TodayLine
@@ -454,6 +483,54 @@ function TodayLine({
         aria-hidden="true"
       />
     </>
+  );
+}
+
+function NoEpicsEmpty() {
+  return (
+    <div className="rounded-2xl border border-dashed border-default-300 p-10 text-center">
+      <p className="text-sm font-medium">
+        Este proyecto no tiene épicas todavía.
+      </p>
+      <p className="mt-1 text-sm text-muted">
+        Cuando se sincronice una épica desde Jira aparecerá acá.
+      </p>
+    </div>
+  );
+}
+
+function ChartEmptyOverlay({
+  variant,
+  unplannedCount,
+  onPickAll,
+}: {
+  variant: "no-planned" | "none-in-range";
+  unplannedCount: number;
+  onPickAll: (() => void) | null;
+}) {
+  if (variant === "no-planned") {
+    const message =
+      unplannedCount > 0
+        ? "No hay épicas planificadas. Las que están sin fechas aparecen abajo."
+        : "Sin épicas planificadas en este momento.";
+    return (
+      <div className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center">
+        <p className="max-w-sm text-sm text-muted">{message}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-6 text-center">
+      <p className="max-w-sm text-sm text-muted">
+        No hay épicas en este rango. Probá ajustar las fechas o ver
+        &ldquo;Todo&rdquo;.
+      </p>
+      {onPickAll ? (
+        <Button size="sm" variant="secondary" onPress={onPickAll}>
+          Ver todo
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
