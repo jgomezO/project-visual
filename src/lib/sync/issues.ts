@@ -1,6 +1,7 @@
 import "server-only";
 import type { JiraClient } from "@/lib/jira/client";
 import {
+  JIRA_START_DATE_FIELD_ID,
   type JiraIssueFields,
   type JiraIssueLink,
   type JiraSearchIssue,
@@ -37,6 +38,15 @@ function statusCategoryName(
   return "To Do";
 }
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseJiraDate(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") return null;
+  if (!DATE_RE.test(value)) return null;
+  return value;
+}
+
 // parent_id is set to null on insert and backfilled in a second pass — this
 // avoids self-FK violations when an issue and its parent are in the same
 // upsert batch (e.g., a story and its epic in the same Jira page response).
@@ -55,6 +65,7 @@ function toIssueRow(issue: JiraSearchIssue, projectId: string) {
     priority: fields.priority?.name ?? null,
     parent_id: null as string | null,
     due_date: fields.duedate ?? null,
+    start_date: parseJiraDate(fields[JIRA_START_DATE_FIELD_ID]),
     created_at_jira: fields.created ?? null,
     updated_at_jira: fields.updated ?? null,
     raw: issue as unknown as Json,

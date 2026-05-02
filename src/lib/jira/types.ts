@@ -60,6 +60,10 @@ export interface JiraIssueSearchResponse {
 }
 
 // Field shapes within JiraSearchIssue.fields. The sync layer reads these.
+// Custom fields are addressed by their tenant-specific id (see
+// JIRA_START_DATE_FIELD_ID below). If running against another Jira
+// instance with different field ids, those constants must be updated
+// (TODO: parametrize via env).
 export interface JiraIssueFields {
   summary?: string;
   issuetype?: { name?: string };
@@ -74,7 +78,15 @@ export interface JiraIssueFields {
   created?: string;
   updated?: string;
   issuelinks?: JiraIssueLink[];
+  // Custom field for "Start date" (system datepicker). Tenant-specific
+  // id; see src/lib/sync/issues.ts for the constant.
+  [customField: `customfield_${number}`]: string | null | undefined;
 }
+
+// Jira field id for "Start date" in this tenant. Verified via
+// GET /rest/api/3/field. If you swap to another Jira Cloud instance,
+// re-query and update this value.
+export const JIRA_START_DATE_FIELD_ID = "customfield_10015" as const;
 
 export interface JiraIssueLink {
   type: { name: string; inward: string; outward: string };
