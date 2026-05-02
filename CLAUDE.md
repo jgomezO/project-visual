@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Internal Veevart dashboard that connects to Jira Cloud and surfaces project status, dependencies, and delivery dates for **non-technical audiences** (C-level, Customer Success, Implementations). The product question is "is this project on time?" / "what's blocking it?" / "what changed this week?" — NOT a 200-ticket backlog.
 
-**Iteration 2 (current):** Supabase persists projects, issues, issue_links, and sync_runs. `/projects` reads from Supabase. `POST /api/sync` (or the in-page "Resincronizar" button) pulls fresh data from Jira and upserts. Sync supports incremental mode via a per-project watermark.
+**Iteration 2:** Supabase persists projects, issues, issue_links, and sync_runs. `/projects` reads from Supabase. `POST /api/sync` (or the in-page "Resincronizar" button) pulls fresh data from Jira and upserts. Sync supports incremental mode via a per-project watermark.
+
+**Iteration 3a (current):** `/projects/[key]` detail view with KPI header (total / % done / overdue / blocked), an expandable issues table grouped by epic with two filter toggles, and a right-side drawer with lazy-loaded relations (parent epic, children, sub-tasks, blocked-by / blocks links). Iteration 3b will add a roadmap view (out of scope).
 
 ## Stack
 
@@ -15,6 +17,7 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 - HeroUI v3 (`@heroui/react`, `@heroui/styles`, `tailwind-variants`)
 - Tailwind CSS v4 (CSS-first config, `@tailwindcss/postcss` plugin)
 - Supabase (cloud), `@supabase/supabase-js` direct — no ORM
+- `lucide-react` for icons
 - pnpm 10, ESLint 9
 - Node 20+ (verified on 22)
 
@@ -47,10 +50,11 @@ No test runner configured yet.
 
 | Variable                          | Side    | Purpose                                                       |
 | --------------------------------- | ------- | ------------------------------------------------------------- |
-| `JIRA_BASE_URL`                   | server  | `https://<tenant>.atlassian.net`                              |
+| `JIRA_BASE_URL`                   | server  | `https://<tenant>.atlassian.net` — used by `JiraClient`       |
 | `JIRA_EMAIL`                      | server  | Atlassian account email tied to the API token                 |
 | `JIRA_API_TOKEN`                  | server  | https://id.atlassian.com/manage-profile/security/api-tokens   |
 | `JIRA_PROJECT_KEYS`               | server  | (optional) comma-separated keys to scope `listProjects()`     |
+| `NEXT_PUBLIC_JIRA_BASE_URL`       | client  | Same value as `JIRA_BASE_URL`, exposed to the browser only to build "Abrir en Jira" links. Kept separate from `JIRA_BASE_URL` so a renamed server var never leaks the token-bearing host into the client bundle. |
 | `NEXT_PUBLIC_SUPABASE_URL`        | client  | Project URL (Project Settings → API)                          |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`   | client  | Safe to ship to browser; gated by RLS                         |
 | `SUPABASE_SERVICE_ROLE_KEY`       | server  | **SERVER-ONLY**, bypasses RLS, never log                      |
@@ -98,10 +102,22 @@ src/
 │       ├── page.tsx                Server Component, reads from Supabase
 │       ├── actions.ts              Server Action triggerSync()
 │       ├── loading.tsx
-│       └── error.tsx
+│       ├── error.tsx
+│       └── [key]/
+│           ├── page.tsx            Server Component: project_dashboard RPC + issues query
+│           └── not-found.tsx       Custom 404 for unknown project keys
 ├── components/
-│   └── SyncButton.tsx              Client Component invoking the Server Action
+│   ├── SyncButton.tsx              Client Component invoking the Server Action
+│   └── project/
+│       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
+│       ├── ProjectTable.tsx        Client: filter toggles + epic-grouped table; owns drawer state
+│       ├── IssueDrawer.tsx         Client: lazy-fetches parent / kids / sub-tasks / links
+│       ├── StatusChip.tsx          Plain (no "use client") — bundled to client by importers
+│       ├── AssigneeCell.tsx        Plain
+│       └── DueDateCell.tsx         Plain
 └── lib/
+    ├── format/
+    │   └── relativeTime.ts         relativeFromNow() — Spanish relative dates
     ├── jira/
     │   ├── client.ts               JiraClient: listProjects, getProjectStats, searchIssues(Paginated)
     │   ├── env.ts                  getJiraEnv()
@@ -119,7 +135,8 @@ src/
 supabase/
 ├── config.toml
 └── migrations/
-    └── 20260501113500_init_jira_dashboard_schema.sql
+    ├── 20260501113500_init_jira_dashboard_schema.sql
+    └── 20260501174714_add_project_dashboard_function.sql
 ```
 
 ### Sync flow
@@ -134,9 +151,42 @@ supabase/
    - Updates `projects.last_synced_at` on success.
 4. Aggregated stats (`issuesCreated`, `issuesUpdated`, `linksSkipped`) plus `jql_used` are written by `succeedRun` / `failRun`. On any thrown exception, the run is marked `failed` with `error_message` — never left in `running`.
 
+### `/projects/[key]` detail view
+
+- **`project_dashboard(p_project_key TEXT)` RPC** (in
+  `20260501174714_add_project_dashboard_function.sql`, granted to `anon`
+  + `authenticated`): one round-trip aggregate that returns
+  `{project_id, project_key, project_name, lead_display_name, last_synced_at, total, todo_count, in_progress_count, done_count, overdue_count, blocked_count}`.
+  When the project key doesn't exist it returns zero rows — the page
+  treats that (and a null `project_id`) as `notFound()`.
+- **`overdue_count` semantics:** `due_date < CURRENT_DATE AND status_category <> 'Done'`. Done issues never count as overdue, even if the due date has passed.
+- **`blocked_count` semantics:** distinct count of issues that have an
+  outgoing `issue_links` row with `lower(link_type) = 'is blocked by'`
+  AND the issue's own `status_category <> 'Done'`. Counts the
+  *blocked* issue, not the blocker. `lower()` is intentional — Jira
+  occasionally returns mixed-case link types.
+- **Issues table query:** filters out sub-tasks at the SQL boundary
+  (`.not("issue_type", "ilike", "%Sub-task%")`) so they only appear
+  inside the drawer. Sort: `due_date ASC NULLS LAST, key ASC`.
+- **Bucketing into "Sin épica":** stories / tasks / bugs whose
+  `parent_id` is NULL **or** whose parent is *not* an Epic (e.g. a
+  Story under a Task — unusual but possible) bucket into "Sin épica".
+  Only Epics show as group headers.
+- **Epic expansion default:** epics expand by default unless
+  `status_category = 'Done'`. Per-epic overrides live in a `Map<id,
+  boolean>` inside `ProjectTable` so toggling one epic doesn't affect
+  others.
+- **Drawer (`IssueDrawer`):** controlled via
+  `<Drawer.Backdrop isOpen onOpenChange>` — HeroUI v3's controlled API
+  does **not** wrap with `<Drawer>`. The drawer renders the
+  `IssueRow`'s data instantly and lazy-fetches parent / kids /
+  sub-tasks / links via the browser-side anon Supabase client.
+  Sub-tasks are matched with `/sub-?task/i`.
+
 ### Server vs Client
 
-- Server Components by default. `"use client"` only when strictly necessary (today: `error.tsx`, `SyncButton.tsx`).
+- Server Components by default. `"use client"` only when strictly necessary (today: `error.tsx`, `SyncButton.tsx`, `ProjectTable.tsx`, `IssueDrawer.tsx`).
+- The leaf cells `StatusChip` / `AssigneeCell` / `DueDateCell` are **plain components** (no `"use client"` directive) — they get bundled to the client when imported by `ProjectTable`, but they don't add new Server/Client boundaries. Don't add `"use client"` to them.
 - `src/lib/jira/*`, `src/lib/sync/*`, `src/lib/supabase/service.ts` import `"server-only"`. Guards the Jira API token and the Supabase service-role key from accidental client bundling.
 - `/api/sync` is the HTTP entry point (gated by `SYNC_SECRET`) for external callers (ops, future cron). The dashboard's "Resincronizar" button uses a Server Action (`triggerSync`) that calls `runSync()` directly — no `SYNC_SECRET` exposed to the browser.
 
@@ -166,7 +216,9 @@ RLS: enabled on all four tables; SELECT policy `USING(true)` for `anon`. Service
 
 ### Next.js 16 caveat
 
-`AGENTS.md` (created by the scaffold) warns: "This is NOT the Next.js you know — APIs may differ from your training data." Read `node_modules/next/dist/docs/` before using App Router APIs that may have changed. `/projects` and `/api/sync` are intentionally `force-dynamic`. `next.config.ts` pins `turbopack.root` to `process.cwd()` to ignore an ancestor `package-lock.json` (`/Users/veevart/`).
+`AGENTS.md` (created by the scaffold) warns: "This is NOT the Next.js you know — APIs may differ from your training data." Read `node_modules/next/dist/docs/` before using App Router APIs that may have changed. `/projects`, `/projects/[key]`, and `/api/sync` are intentionally `force-dynamic`. `next.config.ts` pins `turbopack.root` to `process.cwd()` to ignore an ancestor `package-lock.json` (`/Users/veevart/`).
+
+In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-found UI — production correctly returns 404. Custom `not-found.tsx` files render in both modes.
 
 ## Conventions
 
@@ -185,9 +237,11 @@ RLS: enabled on all four tables; SELECT policy `USING(true)` for `anon`. Service
 - **Watermark uses a 1-day buffer (date-only)** to dodge JQL TZ ambiguity. Refine to a TZ-aware timestamp (using the token user's `/myself.timeZone`) when volume justifies it.
 - **Issue link backfill is a global SELECT each sync.** Fine while link counts are low; switch to per-source filtering or a SQL function when slow.
 - **`/projects` aggregations are computed in app code** (one query for all issues, group in JS). Promote to a Postgres view (`project_stats`) once project count grows.
+- **`/projects/[key]` issues table is not virtualized.** Fine for the current scale (NOXSCRUM has ~813 issues, render is snappy). At ~2000+ rows, switch to a virtualized renderer or paginate server-side. The bucketize/filter passes are O(n); the cost is in the DOM.
+- **Drawer link enrichment runs a second `in()` query** to fetch summary/status for linked targets. At ~10s of links per issue this is fine; consider a single SQL function with JOINs if drawers feel slow.
 - **No tests, no CI yet.**
 - **No realtime updates** — the page is a static-ish render until reload or a click on Resincronizar.
 
 ## Out of scope (do NOT add without asking)
 
-User-level auth, cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, new routes beyond `/projects` and `/api/sync`, any library outside the locked stack.
+User-level auth, cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, new routes beyond `/projects`, `/projects/[key]`, and `/api/sync`, any library outside the locked stack.
