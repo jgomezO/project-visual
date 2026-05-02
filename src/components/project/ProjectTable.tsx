@@ -22,6 +22,8 @@ export interface IssueRow {
   priority: string | null;
   parent_id: string | null;
   due_date: string | null;
+  start_date: string | null;
+  updated_at_jira: string | null;
 }
 
 interface Buckets {

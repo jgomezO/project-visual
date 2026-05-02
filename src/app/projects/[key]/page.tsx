@@ -1,20 +1,30 @@
 import { notFound } from "next/navigation";
 import { KpiHeader, type DashboardData } from "@/components/project/KpiHeader";
 import {
-  ProjectTable,
   type IssueRow,
   type StatusCategory,
 } from "@/components/project/ProjectTable";
+import { ProjectViews, type ViewKey } from "@/components/project/ProjectViews";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 
 export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ key: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function ProjectDetailPage({ params }: PageProps) {
-  const { key } = await params;
+function parseView(raw: string | string[] | undefined): ViewKey {
+  return raw === "roadmap" ? "roadmap" : "list";
+}
+
+export default async function ProjectDetailPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const [{ key }, sp] = await Promise.all([params, searchParams]);
+  const view = parseView(sp.view);
+
   const supabase = getAnonSupabase();
 
   const { data: rows, error: rpcError } = await supabase.rpc(
@@ -30,7 +40,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   const { data: issueRows, error: issuesError } = await supabase
     .from("issues")
     .select(
-      "id, key, summary, issue_type, status_name, status_category, assignee_account_id, assignee_display_name, priority, parent_id, due_date",
+      "id, key, summary, issue_type, status_name, status_category, assignee_account_id, assignee_display_name, priority, parent_id, due_date, start_date, updated_at_jira",
     )
     .eq("project_id", dashboard.project_id)
     .not("issue_type", "ilike", "%Sub-task%")
@@ -48,7 +58,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   return (
     <main className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8">
       <KpiHeader data={dashboard} />
-      <ProjectTable rows={tableRows} />
+      <ProjectViews rows={tableRows} view={view} />
     </main>
   );
 }
