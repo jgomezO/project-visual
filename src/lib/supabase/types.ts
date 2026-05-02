@@ -98,6 +98,7 @@ export type Database = {
           priority: string | null
           project_id: string
           raw: Json | null
+          start_date: string | null
           status_category: string
           status_name: string
           summary: string
@@ -118,6 +119,7 @@ export type Database = {
           priority?: string | null
           project_id: string
           raw?: Json | null
+          start_date?: string | null
           status_category: string
           status_name: string
           summary: string
@@ -138,6 +140,7 @@ export type Database = {
           priority?: string | null
           project_id?: string
           raw?: Json | null
+          start_date?: string | null
           status_category?: string
           status_name?: string
           summary?: string
