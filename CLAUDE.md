@@ -8,7 +8,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 2:** Supabase persists projects, issues, issue_links, and sync_runs. `/projects` reads from Supabase. `POST /api/sync` (or the in-page "Resincronizar" button) pulls fresh data from Jira and upserts. Sync supports incremental mode via a per-project watermark.
 
-**Iteration 3a (current):** `/projects/[key]` detail view with KPI header (total / % done / overdue / blocked), an expandable issues table grouped by epic with two filter toggles, and a right-side drawer with lazy-loaded relations (parent epic, children, sub-tasks, blocked-by / blocks links). Iteration 3b will add a roadmap view (out of scope).
+**Iteration 3a:** `/projects/[key]` detail view with KPI header (total / % done / overdue / blocked), an expandable issues table grouped by epic with two filter toggles, and a right-side drawer with lazy-loaded relations (parent epic, children, sub-tasks, blocked-by / blocks links).
+
+**Iteration 3b (current):** Roadmap view alongside the list inside `/projects/[key]`. Tabs (Lista | Roadmap) with URL state, range presets and manual date pickers (URL state), epic bars with overdue/in-progress/future colors, today line, clickable out-of-range counter, "Sin planificar" section for active epics missing dates, and reuse of the IssueDrawer for detail. Custom SVG + HTML rendering — no Gantt library.
 
 ## Stack
 
@@ -104,20 +106,23 @@ src/
 │       ├── loading.tsx
 │       ├── error.tsx
 │       └── [key]/
-│           ├── page.tsx            Server Component: project_dashboard RPC + issues query
+│           ├── page.tsx            Server Component: project_dashboard RPC + issues query, parses ?view
 │           └── not-found.tsx       Custom 404 for unknown project keys
 ├── components/
 │   ├── SyncButton.tsx              Client Component invoking the Server Action
 │   └── project/
 │       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
+│       ├── ProjectViews.tsx        Client: HeroUI Tabs (Lista | Roadmap), URL state for ?view
 │       ├── ProjectTable.tsx        Client: filter toggles + epic-grouped table; owns drawer state
+│       ├── ProjectRoadmap.tsx     Client: timeline + bars + Sin planificar; owns drawer state
 │       ├── IssueDrawer.tsx         Client: lazy-fetches parent / kids / sub-tasks / links
 │       ├── StatusChip.tsx          Plain (no "use client") — bundled to client by importers
 │       ├── AssigneeCell.tsx        Plain
 │       └── DueDateCell.tsx         Plain
 └── lib/
     ├── format/
-    │   └── relativeTime.ts         relativeFromNow() — Spanish relative dates
+    │   ├── relativeTime.ts         relativeFromNow() — Spanish relative dates
+    │   └── roadmapDates.ts         UTC date math + dateToX for the roadmap chart
     ├── jira/
     │   ├── client.ts               JiraClient: listProjects, getProjectStats, searchIssues(Paginated)
     │   ├── env.ts                  getJiraEnv()
@@ -138,6 +143,59 @@ supabase/
     ├── 20260501113500_init_jira_dashboard_schema.sql
     └── 20260501174714_add_project_dashboard_function.sql
 ```
+
+### Roadmap view (`?view=roadmap`)
+
+`/projects/[key]` has two tabs — **Lista** (the issues table) and
+**Roadmap** (epics on a timeline). State lives entirely in URL query
+params:
+
+| Param   | Values                          | Default                                |
+| ------- | ------------------------------- | -------------------------------------- |
+| `view`  | `list` (default) \| `roadmap`   | `list`                                 |
+| `from`  | `YYYY-MM-DD`                    | today (UTC)                            |
+| `to`    | `YYYY-MM-DD`                    | today + 6 months (UTC)                 |
+
+`from` / `to` are validated server-side; malformed or `from >= to` falls
+back to the default. Range presets ("Este trimestre", "Próximos 6 meses",
+"Próximo año", "Todo") write absolute dates to the URL — there is no
+"preset code" persisted, so a shared link is a deterministic snapshot.
+Manual `<input type="date">` pickers commit on click ("Aplicar"); the
+draft state is local until applied. Toggles that are *not* persisted in
+URL: **show-completed** (default OFF on every load) — design
+decision to keep shareable links anchored to planned work.
+
+Rendering: **custom SVG + HTML, no Gantt library** (gantt-task-react,
+frappe-gantt etc.). Bars are absolutely-positioned `<button>`s inside a
+flex container with a sticky 240px label column on the left and a
+horizontally scrollable timeline on the right. Background grid and
+"Hoy" line are SVG; bars and labels are HTML so HeroUI Tooltip /
+Popover wrap them naturally. `dateToX` lives in
+`src/lib/format/roadmapDates.ts` — UTC math throughout to keep
+positioning timezone-independent.
+
+Bar buckets (each sorted by `due_date` ASC inside the bucket):
+1. **overdue** — red, due in past, status not Done
+2. **inProgress** — light blue, with darker overlay from `start` to today
+3. **future** — gray, start in the future
+4. **done** — green; only rendered when the show-completed toggle is on
+
+**Done with missing dates** are hidden everywhere: not in the chart
+(no positions to compute), not in "Sin planificar" (which only surfaces
+**non-Done** epics that need follow-up). The toggle only reveals Done
+epics that *have* both dates.
+
+Clipping: bars whose visible interval extends past either chart edge
+clamp to the visible window and gain a discreet ChevronLeft /
+ChevronRight on the clamped edge. Bars entirely outside the range
+don't render a row; instead they surface in a clickable counter
+(HeroUI Popover) — turning the count from dead information into a
+recoverable view.
+
+`<input type="date">` is a deliberate fallback over HeroUI v3's
+DatePicker: native pickers are locale-aware via the browser, no extra
+React-side i18n risk. **TODO:** swap to HeroUI DatePicker once `es-AR`
+locale support is verified end-to-end.
 
 ### Custom field mapping
 
@@ -198,7 +256,7 @@ Sync requests `fields=["*all"]`, so adding a new mapping is type/parse-only — 
 
 ### Server vs Client
 
-- Server Components by default. `"use client"` only when strictly necessary (today: `error.tsx`, `SyncButton.tsx`, `ProjectTable.tsx`, `IssueDrawer.tsx`).
+- Server Components by default. `"use client"` only when strictly necessary (today: `error.tsx`, `SyncButton.tsx`, `ProjectViews.tsx`, `ProjectTable.tsx`, `ProjectRoadmap.tsx`, `IssueDrawer.tsx`).
 - The leaf cells `StatusChip` / `AssigneeCell` / `DueDateCell` are **plain components** (no `"use client"` directive) — they get bundled to the client when imported by `ProjectTable`, but they don't add new Server/Client boundaries. Don't add `"use client"` to them.
 - `src/lib/jira/*`, `src/lib/sync/*`, `src/lib/supabase/service.ts` import `"server-only"`. Guards the Jira API token and the Supabase service-role key from accidental client bundling.
 - `/api/sync` is the HTTP entry point (gated by `SYNC_SECRET`) for external callers (ops, future cron). The dashboard's "Resincronizar" button uses a Server Action (`triggerSync`) that calls `runSync()` directly — no `SYNC_SECRET` exposed to the browser.
@@ -251,10 +309,11 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **Issue link backfill is a global SELECT each sync.** Fine while link counts are low; switch to per-source filtering or a SQL function when slow.
 - **`/projects` aggregations are computed in app code** (one query for all issues, group in JS). Promote to a Postgres view (`project_stats`) once project count grows.
 - **`/projects/[key]` issues table is not virtualized.** Fine for the current scale (NOXSCRUM has ~813 issues, render is snappy). At ~2000+ rows, switch to a virtualized renderer or paginate server-side. The bucketize/filter passes are O(n); the cost is in the DOM.
+- **`/projects/[key]` roadmap is not virtualized.** Designed for ~10x current scale (~270 epics). The chart renders one absolutely-positioned `<button>` per visible epic plus a couple of SVG lines per week — at 270 epics × month-ranged ranges that's ~300 DOM nodes, fine. At 2000+ epics consider virtualizing the chart body rows (the left label column would virtualize in lockstep) and pre-bucketing on the server.
 - **Drawer link enrichment runs a second `in()` query** to fetch summary/status for linked targets. At ~10s of links per issue this is fine; consider a single SQL function with JOINs if drawers feel slow.
 - **No tests, no CI yet.**
 - **No realtime updates** — the page is a static-ish render until reload or a click on Resincronizar.
 
 ## Out of scope (do NOT add without asking)
 
-User-level auth, cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, new routes beyond `/projects`, `/projects/[key]`, and `/api/sync`, any library outside the locked stack.
+User-level auth, cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, **Gantt libraries** (gantt-task-react, frappe-gantt, etc. — the roadmap is intentionally hand-rolled SVG + HTML), new routes beyond `/projects`, `/projects/[key]`, and `/api/sync`, any library outside the locked stack.
