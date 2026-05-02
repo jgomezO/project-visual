@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button, Label, Popover, Switch, Tooltip } from "@heroui/react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { AssigneeCell } from "./AssigneeCell";
 import { IssueDrawer } from "./IssueDrawer";
 import { StatusChip } from "./StatusChip";
@@ -298,6 +298,11 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
           </div>
         </div>
       </div>
+
+      <UnplannedSection
+        rows={rows}
+        onSelect={(issue) => setSelectedIssue(issue)}
+      />
     </div>
   );
 }
@@ -449,6 +454,136 @@ function TodayLine({
         aria-hidden="true"
       />
     </>
+  );
+}
+
+type Missing = "start" | "due" | "both";
+
+interface UnplannedEpic {
+  row: IssueRow;
+  missing: Missing;
+}
+
+const STATUS_SORT: Record<string, number> = {
+  "In Progress": 0,
+  "To Do": 1,
+  Done: 2,
+};
+
+function buildUnplanned(rows: IssueRow[]): UnplannedEpic[] {
+  const list: UnplannedEpic[] = [];
+  for (const r of rows) {
+    if (r.issue_type !== "Epic") continue;
+    if (r.status_category === "Done") continue;
+    if (r.start_date && r.due_date) continue;
+    let missing: Missing;
+    if (!r.start_date && !r.due_date) missing = "both";
+    else if (!r.start_date) missing = "start";
+    else missing = "due";
+    list.push({ row: r, missing });
+  }
+  list.sort((a, b) => {
+    const sa = STATUS_SORT[a.row.status_category] ?? 3;
+    const sb = STATUS_SORT[b.row.status_category] ?? 3;
+    if (sa !== sb) return sa - sb;
+    const ta = a.row.updated_at_jira
+      ? new Date(a.row.updated_at_jira).getTime()
+      : 0;
+    const tb = b.row.updated_at_jira
+      ? new Date(b.row.updated_at_jira).getTime()
+      : 0;
+    return tb - ta;
+  });
+  return list;
+}
+
+const MISSING_LABEL: Record<Missing, string> = {
+  start: "Falta start date",
+  due: "Falta due date",
+  both: "Sin fechas",
+};
+
+function jiraBrowseUrl(key: string): string | null {
+  const base = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, "");
+  return base ? `${base}/browse/${key}` : null;
+}
+
+function UnplannedSection({
+  rows,
+  onSelect,
+}: {
+  rows: IssueRow[];
+  onSelect: (issue: IssueRow) => void;
+}) {
+  const unplanned = useMemo(() => buildUnplanned(rows), [rows]);
+  if (unplanned.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2 border-t border-default-200 pt-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+          Sin planificar ({unplanned.length}{" "}
+          {unplanned.length === 1 ? "épica" : "épicas"})
+        </h2>
+      </div>
+      <ul className="flex flex-col gap-2">
+        {unplanned.map((u) => (
+          <UnplannedCard
+            key={u.row.id}
+            unplanned={u}
+            onSelect={() => onSelect(u.row)}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function UnplannedCard({
+  unplanned,
+  onSelect,
+}: {
+  unplanned: UnplannedEpic;
+  onSelect: () => void;
+}) {
+  const { row, missing } = unplanned;
+  const jiraUrl = jiraBrowseUrl(row.key);
+
+  return (
+    <li className="relative">
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex w-full flex-col gap-2 rounded-xl border border-default-200 bg-surface px-3 py-2.5 text-left transition-colors hover:bg-default-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
+      >
+        <div className="flex min-w-0 items-center gap-2 pr-32">
+          <span className="font-mono text-xs text-muted">{row.key}</span>
+          <span className="truncate text-sm font-medium">{row.summary}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusChip
+            category={row.status_category}
+            statusName={row.status_name}
+          />
+          <AssigneeCell displayName={row.assignee_display_name} />
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+            <AlertTriangle className="size-3" aria-hidden="true" />
+            {MISSING_LABEL[missing]}
+          </span>
+        </div>
+      </button>
+      {jiraUrl ? (
+        <a
+          href={jiraUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-xs font-medium text-background hover:opacity-90"
+        >
+          Editar en Jira
+          <ExternalLink className="size-3" aria-hidden="true" />
+        </a>
+      ) : null}
+    </li>
   );
 }
 
