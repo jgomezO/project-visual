@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Button, Popover } from "@heroui/react";
+import { Button, Popover, Tooltip } from "@heroui/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AssigneeCell } from "./AssigneeCell";
+import { IssueDrawer } from "./IssueDrawer";
+import { StatusChip } from "./StatusChip";
 import {
   addDaysUTC,
   addMonthsUTC,
@@ -160,6 +163,7 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [selectedIssue, setSelectedIssue] = useState<IssueRow | null>(null);
 
   const range = useMemo(
     () => parseRangeFromParams(new URLSearchParams(searchParams.toString())),
@@ -207,8 +211,18 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
     [range.from, range.to, showWeekTicks],
   );
 
+  const todayX = dateToX(today, range.from, range.to, chartWidth);
+  const todayInRange =
+    today.getTime() >= range.from.getTime() &&
+    today.getTime() <= range.to.getTime();
+
   return (
     <div className="space-y-4">
+      <IssueDrawer
+        issue={selectedIssue}
+        onClose={() => setSelectedIssue(null)}
+      />
+
       <RangeControls
         rows={rows}
         currentFromIso={toISODate(range.from)}
@@ -265,9 +279,17 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
                   from={range.from}
                   to={range.to}
                   today={today}
+                  onSelect={() => setSelectedIssue(epic.row)}
                 />
               ))}
             </div>
+            {todayInRange ? (
+              <TodayLine
+                x={todayX}
+                bodyHeight={chartBodyHeight}
+                today={today}
+              />
+            ) : null}
           </div>
         </div>
       </div>
@@ -295,6 +317,13 @@ const STATUS_BG: Record<EpicStatus, string> = {
   done: "bg-emerald-200",
 };
 
+const STATUS_LABEL: Record<EpicStatus, string> = {
+  overdue: "Atrasada",
+  inProgress: "En curso",
+  future: "Próxima",
+  done: "Completada",
+};
+
 function EpicBar({
   epic,
   rowIndex,
@@ -302,6 +331,7 @@ function EpicBar({
   from,
   to,
   today,
+  onSelect,
 }: {
   epic: PlannedEpic;
   rowIndex: number;
@@ -309,6 +339,7 @@ function EpicBar({
   from: Date;
   to: Date;
   today: Date;
+  onSelect: () => void;
 }) {
   const x1 = dateToX(epic.start, from, to, chartWidth);
   const x2 = dateToX(epic.due, from, to, chartWidth);
@@ -321,40 +352,98 @@ function EpicBar({
 
   const todayX = dateToX(today, from, to, chartWidth);
   const showProgress =
-    epic.status === "inProgress" &&
-    todayX > left &&
-    todayX < right;
+    epic.status === "inProgress" && todayX > left && todayX < right;
   const progressWidth = showProgress ? todayX - left : 0;
 
   return (
-    <div
-      className={`absolute rounded-md ${STATUS_BG[epic.status]}`}
-      style={{
-        left,
-        top,
-        width,
-        height: BAR_HEIGHT,
-      }}
-    >
-      {showProgress ? (
-        <div
-          className="absolute inset-y-0 left-0 rounded-l-md bg-blue-600"
-          style={{ width: progressWidth }}
+    <Tooltip delay={150}>
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`absolute rounded-md text-left ring-offset-2 transition-shadow hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400 ${STATUS_BG[epic.status]}`}
+        style={{ left, top, width, height: BAR_HEIGHT }}
+        aria-label={`${epic.row.key}: ${epic.row.summary}`}
+      >
+        {showProgress ? (
+          <span
+            className="pointer-events-none absolute inset-y-0 left-0 rounded-l-md bg-blue-600"
+            style={{ width: progressWidth }}
+            aria-hidden="true"
+          />
+        ) : null}
+        {clippedLeft ? (
+          <ChevronLeft
+            className="pointer-events-none absolute -left-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
+            aria-hidden="true"
+          />
+        ) : null}
+        {clippedRight ? (
+          <ChevronRight
+            className="pointer-events-none absolute -right-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
+            aria-hidden="true"
+          />
+        ) : null}
+      </button>
+      <Tooltip.Content className="max-w-xs">
+        <BarTooltipBody epic={epic} />
+      </Tooltip.Content>
+    </Tooltip>
+  );
+}
+
+function BarTooltipBody({ epic }: { epic: PlannedEpic }) {
+  return (
+    <div className="flex flex-col gap-1.5 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-muted">{epic.row.key}</span>
+        <StatusChip
+          category={epic.row.status_category}
+          statusName={epic.row.status_name}
         />
-      ) : null}
-      {clippedLeft ? (
-        <ChevronLeft
-          className="pointer-events-none absolute -left-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
-          aria-label="Continúa antes del rango visible"
-        />
-      ) : null}
-      {clippedRight ? (
-        <ChevronRight
-          className="pointer-events-none absolute -right-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
-          aria-label="Continúa después del rango visible"
-        />
-      ) : null}
+      </div>
+      <p className="text-sm font-medium">{epic.row.summary}</p>
+      <p className="text-muted">
+        {STATUS_LABEL[epic.status]} · {formatShortDate(epic.start)} →{" "}
+        {formatShortDate(epic.due)}
+      </p>
+      <AssigneeCell displayName={epic.row.assignee_display_name} />
     </div>
+  );
+}
+
+function TodayLine({
+  x,
+  bodyHeight,
+  today,
+}: {
+  x: number;
+  bodyHeight: number;
+  today: Date;
+}) {
+  const totalHeight = HEADER_HEIGHT + bodyHeight;
+  return (
+    <>
+      <span
+        className="pointer-events-none absolute z-10 select-none rounded-md bg-danger px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm"
+        style={{
+          left: x,
+          top: 4,
+          transform: "translateX(-50%)",
+        }}
+      >
+        Hoy · {formatShortDate(today)}
+      </span>
+      <span
+        className="pointer-events-none absolute bg-danger"
+        style={{
+          left: x,
+          top: 0,
+          width: 1,
+          height: totalHeight,
+        }}
+        aria-hidden="true"
+      />
+    </>
   );
 }
 
