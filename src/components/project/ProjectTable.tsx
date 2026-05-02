@@ -5,6 +5,7 @@ import { Label, Switch } from "@heroui/react";
 import { CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
 import { AssigneeCell } from "./AssigneeCell";
 import { DueDateCell } from "./DueDateCell";
+import { IssueDrawer } from "./IssueDrawer";
 import { StatusChip } from "./StatusChip";
 
 export type StatusCategory = "To Do" | "In Progress" | "Done";
@@ -29,19 +30,14 @@ interface Buckets {
   orphans: IssueRow[];
 }
 
-export function ProjectTable({
-  rows,
-  onSelectIssue,
-}: {
-  rows: IssueRow[];
-  onSelectIssue?: (issueId: string | null) => void;
-}) {
+export function ProjectTable({ rows }: { rows: IssueRow[] }) {
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [onlyWithDueDate, setOnlyWithDueDate] = useState(false);
   // Map keyed by epic id; absent = use defaultExpanded for that epic.
   const [overrides, setOverrides] = useState<Map<string, boolean>>(
     () => new Map(),
   );
+  const [selectedIssue, setSelectedIssue] = useState<IssueRow | null>(null);
 
   const buckets = useMemo(() => bucketize(rows), [rows]);
   const filtered = useMemo(
@@ -60,13 +56,17 @@ export function ProjectTable({
     });
   };
 
-  const handleSelect = (id: string) => onSelectIssue?.(id);
+  const handleSelect = (issue: IssueRow) => setSelectedIssue(issue);
 
   const isEmptyAfterFilter =
     filtered.epics.length === 0 && filtered.orphans.length === 0;
 
   return (
     <div className="space-y-4">
+      <IssueDrawer
+        issue={selectedIssue}
+        onClose={() => setSelectedIssue(null)}
+      />
       <div className="flex flex-wrap items-center gap-6">
         <ToggleSwitch
           checked={showOnlyActive}
@@ -161,7 +161,7 @@ function EpicGroup({
   kids: IssueRow[];
   expanded: boolean;
   onToggle: () => void;
-  onSelect: (id: string) => void;
+  onSelect: (issue: IssueRow) => void;
 }) {
   const isDone = epic.status_category === "Done";
   const Chevron = expanded ? ChevronDown : ChevronRight;
@@ -171,7 +171,7 @@ function EpicGroup({
     <>
       <tr
         className="cursor-pointer hover:bg-default-100"
-        onClick={() => onSelect(epic.id)}
+        onClick={() => onSelect(epic)}
       >
         <td className="py-2 pl-2">
           <div className="flex items-center gap-2">
@@ -244,7 +244,7 @@ function OrphansSection({
   onSelect,
 }: {
   orphans: IssueRow[];
-  onSelect: (id: string) => void;
+  onSelect: (issue: IssueRow) => void;
 }) {
   return (
     <>
@@ -270,13 +270,13 @@ function ChildRow({
 }: {
   issue: IssueRow;
   indented: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (issue: IssueRow) => void;
 }) {
   const isDone = issue.status_category === "Done";
   return (
     <tr
       className="cursor-pointer hover:bg-default-100"
-      onClick={() => onSelect(issue.id)}
+      onClick={() => onSelect(issue)}
     >
       <td className={`py-1.5 ${indented ? "pl-12" : "pl-2"}`}>
         <div className="flex items-center gap-2">
