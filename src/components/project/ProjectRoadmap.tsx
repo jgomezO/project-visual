@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Button, Popover, Tooltip } from "@heroui/react";
+import { Button, Label, Popover, Switch, Tooltip } from "@heroui/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { AssigneeCell } from "./AssigneeCell";
 import { IssueDrawer } from "./IssueDrawer";
@@ -164,6 +164,9 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [selectedIssue, setSelectedIssue] = useState<IssueRow | null>(null);
+  // showCompleted is intentionally NOT persisted in the URL — feedback was
+  // explicit about keeping shareable links stable to the planned-work view.
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const range = useMemo(
     () => parseRangeFromParams(new URLSearchParams(searchParams.toString())),
@@ -185,8 +188,8 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
 
   const today = todayUTC();
   const allPlanned = useMemo(
-    () => buildPlannedEpics(rows, today, false),
-    [rows, today],
+    () => buildPlannedEpics(rows, today, showCompleted),
+    [rows, today, showCompleted],
   );
   const visible = useMemo(
     () => allPlanned.filter((e) => isInVisibleRange(e, range.from, range.to)),
@@ -228,6 +231,8 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
         currentFromIso={toISODate(range.from)}
         currentToIso={toISODate(range.to)}
         onPick={(next) => setRange(next)}
+        showCompleted={showCompleted}
+        onToggleCompleted={setShowCompleted}
       />
 
       {outOfRange.length > 0 ? (
@@ -488,11 +493,15 @@ function RangeControls({
   currentFromIso,
   currentToIso,
   onPick,
+  showCompleted,
+  onToggleCompleted,
 }: {
   rows: IssueRow[];
   currentFromIso: string;
   currentToIso: string;
   onPick: (range: RoadmapRange | null) => void;
+  showCompleted: boolean;
+  onToggleCompleted: (next: boolean) => void;
 }) {
   const isPresetActive = (preset: PresetDef): boolean => {
     const r = preset.compute(rows);
@@ -503,23 +512,112 @@ function RangeControls({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {PRESETS.map((p) => {
-        const range = p.compute(rows);
-        const active = isPresetActive(p);
-        return (
-          <Button
-            key={p.id}
-            size="sm"
-            variant={active ? undefined : "secondary"}
-            isDisabled={range === null}
-            onPress={() => range && onPick(range)}
-          >
-            {p.label}
-          </Button>
-        );
-      })}
+    <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {PRESETS.map((p) => {
+          const range = p.compute(rows);
+          const active = isPresetActive(p);
+          return (
+            <Button
+              key={p.id}
+              size="sm"
+              variant={active ? undefined : "secondary"}
+              isDisabled={range === null}
+              onPress={() => range && onPick(range)}
+            >
+              {p.label}
+            </Button>
+          );
+        })}
+      </div>
+
+      <ManualRangeInputs
+        key={`${currentFromIso}-${currentToIso}`}
+        currentFromIso={currentFromIso}
+        currentToIso={currentToIso}
+        onApply={(from, to) =>
+          onPick({ from: parseISODate(from), to: parseISODate(to) })
+        }
+      />
+
+      <Switch
+        isSelected={showCompleted}
+        onChange={onToggleCompleted}
+        className="ml-auto"
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        <Switch.Content>
+          <Label className="text-sm">Mostrar completadas</Label>
+        </Switch.Content>
+      </Switch>
     </div>
+  );
+}
+
+function ManualRangeInputs({
+  currentFromIso,
+  currentToIso,
+  onApply,
+}: {
+  currentFromIso: string;
+  currentToIso: string;
+  onApply: (from: string, to: string) => void;
+}) {
+  // Parent re-keys this component whenever the URL range changes, so the
+  // useState initializers are guaranteed to match the latest URL on mount.
+  const [draftFrom, setDraftFrom] = useState(currentFromIso);
+  const [draftTo, setDraftTo] = useState(currentToIso);
+
+  const isValid =
+    isValidISODate(draftFrom) &&
+    isValidISODate(draftTo) &&
+    parseISODate(draftFrom).getTime() < parseISODate(draftTo).getTime();
+  const isDirty = draftFrom !== currentFromIso || draftTo !== currentToIso;
+
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <DateInput
+        label="Desde"
+        value={draftFrom}
+        onChange={setDraftFrom}
+      />
+      <DateInput label="Hasta" value={draftTo} onChange={setDraftTo} />
+      <Button
+        size="sm"
+        variant="secondary"
+        isDisabled={!isValid || !isDirty}
+        onPress={() => onApply(draftFrom, draftTo)}
+      >
+        Aplicar
+      </Button>
+    </div>
+  );
+}
+
+function DateInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  // Native <input type="date"> until a HeroUI v3 DatePicker with confirmed
+  // es-AR locale support lands. The browser-native picker is locale-aware
+  // and accessible — no React-side i18n risk.
+  return (
+    <label className="flex flex-col gap-1 text-xs text-muted">
+      {label}
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        className="rounded-md border border-default-300 bg-surface px-2 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
+      />
+    </label>
   );
 }
 
