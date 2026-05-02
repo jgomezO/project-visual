@@ -46,7 +46,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   }));
 
   return (
-    <main className="mx-auto max-w-6xl space-y-8 p-8">
+    <main className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8">
       <KpiHeader data={dashboard} />
       <ProjectTable rows={tableRows} />
     </main>

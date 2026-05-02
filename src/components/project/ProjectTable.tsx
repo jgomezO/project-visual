@@ -58,8 +58,15 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
 
   const handleSelect = (issue: IssueRow) => setSelectedIssue(issue);
 
+  const hasNoIssuesAtAll = rows.length === 0;
   const isEmptyAfterFilter =
-    filtered.epics.length === 0 && filtered.orphans.length === 0;
+    !hasNoIssuesAtAll &&
+    filtered.epics.length === 0 &&
+    filtered.orphans.length === 0;
+
+  if (hasNoIssuesAtAll) {
+    return <NoIssuesEmpty />;
+  }
 
   return (
     <div className="space-y-4">
@@ -89,7 +96,7 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full border-separate border-spacing-y-1">
+          <table className="w-full min-w-[640px] border-separate border-spacing-y-1">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted">
                 <th className="pb-2 pl-2">Summary</th>
@@ -313,6 +320,20 @@ function FilteredEmpty({ onClear }: { onClear: () => void }) {
       >
         Limpiar filtros
       </button>
+    </div>
+  );
+}
+
+function NoIssuesEmpty() {
+  return (
+    <div className="rounded-2xl border border-dashed border-default-300 p-10 text-center">
+      <p className="text-sm font-medium">
+        Este proyecto no tiene issues sincronizadas todavía.
+      </p>
+      <p className="mt-1 text-sm text-muted">
+        Volvé a /projects y usá &ldquo;Resincronizar&rdquo; para traer los
+        datos de Jira.
+      </p>
     </div>
   );
 }
