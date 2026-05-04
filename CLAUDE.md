@@ -12,7 +12,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 3b:** Roadmap view alongside the list inside `/projects/[key]`. Tabs (Lista | Roadmap) with URL state, range presets and manual date pickers (URL state), epic bars with overdue/in-progress/future colors, today line, clickable out-of-range counter, "Sin planificar" section for active epics missing dates, and reuse of the IssueDrawer for detail. Custom SVG + HTML rendering — no Gantt library.
 
-**Iteration 4a (current):** Data layer for the upcoming `/projects/[key]/narrative` view (the human-written presentation layer for board / customer / C-level audiences). Three Supabase tables (`project_narratives`, `narrative_phases`, `narrative_workstreams`), composite-FK consistency for workstream/phase scoping, RLS read-open + service-role writes, typed query/mutation helpers in `src/lib/narratives/`, and an idempotent dev seeder (`pnpm seed:narrative`). NO UI in this iteration — that lands in 4b.
+**Iteration 4a:** Data layer for `/projects/[key]/narrative` (the human-written presentation layer for board / customer / C-level audiences). Three Supabase tables (`project_narratives`, `narrative_phases`, `narrative_workstreams`), composite-FK consistency for workstream/phase scoping, RLS read-open + service-role writes, typed query/mutation helpers in `src/lib/narratives/`, and an idempotent dev seeder (`pnpm seed:narrative`).
+
+**Iteration 4b (current):** Narrative editor UI. List page at `/projects/[key]/narratives` with create / duplicate / delete + draft / published badges; editor at `/projects/[key]/narratives/[id]/edit` with a structure sidebar (narrative root + phases + orphan workstreams) and a context form panel. Auto-save with 1500ms debounce, indicator in the header, flush-on-tree-navigate guard. Jira issue autocomplete from the anon Supabase client with module-level chip cache. Public preview view ships in 4c — current preview route is a placeholder.
 
 ## Stack
 
@@ -110,9 +112,29 @@ src/
 │       ├── error.tsx
 │       └── [key]/
 │           ├── page.tsx            Server Component: project_dashboard RPC + issues query, parses ?view
-│           └── not-found.tsx       Custom 404 for unknown project keys
+│           ├── not-found.tsx       Custom 404 for unknown project keys
+│           └── narratives/
+│               ├── page.tsx        Server Component: list narratives for a project
+│               └── [id]/
+│                   ├── edit/page.tsx     Server Component: load narrative, hand off to EditorShell
+│                   └── preview/page.tsx  Placeholder until iter 4c
+├── app/actions/
+│   └── narratives.ts               "use server" — every narrative mutation as a Server Action
 ├── components/
 │   ├── SyncButton.tsx              Client Component invoking the Server Action
+│   ├── narrative-list/
+│   │   ├── NarrativeCard.tsx       Card + 3-dot menu (Duplicar / Eliminar) + draft / published badge
+│   │   └── NewNarrativeButton.tsx  "Nueva narrativa" CTA + creation modal
+│   ├── narrative-editor/
+│   │   ├── EditorShell.tsx         Tree state + selection + flush-on-navigate guard
+│   │   ├── StructureSidebar.tsx    Tree UI + create / delete / move / reorder actions
+│   │   ├── ActiveFormPanel.tsx     Routes the right form to the right entity by selection
+│   │   ├── NarrativeForm.tsx       useAutoSave for title / subtitle / overview / status_summary
+│   │   ├── PhaseForm.tsx           useAutoSave for name / objective / rationale / status / dates / progress
+│   │   ├── WorkstreamForm.tsx      useAutoSave for name / description / phase_id / jira_issue_keys
+│   │   ├── JiraIssueKeysInput.tsx  Anon-client autocomplete + module-level chip cache
+│   │   ├── AutosaveIndicator.tsx   Saving / Saved / Error pill + Reintentar
+│   │   └── useAutoSave.ts          Debounced auto-save hook with imperative flush()
 │   └── project/
 │       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
 │       ├── ProjectViews.tsx        Client: HeroUI Tabs (Lista | Roadmap), URL state for ?view
@@ -260,6 +282,83 @@ swap into.
   (status, progress, dates) is read from `issues` at render time — by
   key match. The GIN index makes "which workstreams reference this
   issue?" queries fast as the narrative count grows.
+
+### Narrative editor (`/projects/[key]/narratives` + `[id]/edit`)
+
+#### Routes & Server Actions
+
+- `/projects/[key]/narratives` — Server Component list page; each card
+  is a Client Component for its 3-dot menu and confirm-delete modal.
+- `/projects/[key]/narratives/[id]/edit` — Server Component loads the
+  full narrative (`getNarrativeById`) and hands the tree to a Client
+  shell. The route is desktop-first; a CSS-only `md:hidden` block
+  shows "Editor disponible en pantallas más anchas" on small screens.
+- `/projects/[key]/narratives/[id]/preview` — placeholder until 4c.
+- All mutations live in `src/app/actions/narratives.ts` ("use server").
+  `revalidatePath` fires only on actions whose result the list page
+  needs to see (create / duplicate / delete / publish toggle); editor-
+  side actions skip revalidation because the editor patches its tree
+  in place from the returned entity.
+
+#### Auto-save pattern (`useAutoSave` + flush-on-navigate)
+
+The editor is the canonical reference for "lots of fields, debounced
+save, navigation between sub-views" in this codebase.
+
+- **Hook**: `useAutoSave(draft, saveFn, { debounceMs, onStateChange })`.
+  Returns `{ state, errorMessage, lastSavedAt, flush, retry }`. State
+  transitions: `idle → saving → saved` on success, `saving → error` on
+  failure. `flush()` cancels any pending timer, awaits any in-flight
+  save, then runs one final save synchronously if the draft diverged.
+  `retry()` re-runs the last save (used by the indicator's
+  "Reintentar" button on `state === 'error'`).
+- **Form ergonomics**: each form (`NarrativeForm`, `PhaseForm`,
+  `WorkstreamForm`) owns a draft `useState`, calls `useAutoSave` with
+  it, and exposes `flush` + `retry` via `forwardRef` +
+  `useImperativeHandle`. Forms are keyed by entity id at the parent so
+  switching nodes remounts cleanly — no stale-prop merge puzzle.
+- **Two selection paths from the shell**:
+  - `onSelect: SelectedNode → void` — guarded; awaits `formRef.flush()`
+    before swapping the panel. If flush fails the selection stays put
+    so the user can fix the field.
+  - `onForceSelect: SelectedNode → void` — bypasses flush. **Required**
+    for post-delete navigation: the entity is gone, so a flushed save
+    would 404 and trap the user on a phantom selection.
+- **Equality**: shallow on top-level keys, with array element-equality
+  so `jira_issue_keys` (TEXT[]) doesn't trip false positives.
+
+#### Jira issue autocomplete
+
+`JiraIssueKeysInput` queries from the **client** via `getAnonSupabase`
+(not a Server Action) — debounce 200ms, limit 10, OR-filter on
+`key.ilike` + `summary.ilike` scoped by `project_id`. RLS is read-open,
+the data isn't sensitive, and skipping a Server Action keeps each
+keystroke off the RSC payload path.
+
+A **module-level `chipCache: Map<\`${projectId}:${issueKey}\`, IssueChipData | null>`**
+hydrates chips for previously-seen keys without re-querying. `null`
+means "we already looked; not in our sync" — surfaces the warning chip
+without retrying. Cache survives unmounts but lives only for the
+session. Search results also warm the cache opportunistically.
+
+#### Editor limitations (TODOs)
+
+- **No multi-edit concurrency.** Two users editing the same narrative
+  will overwrite each other's last-write-wins. Spec assumed single
+  editor at a time. When auth lands, add either pessimistic locking or
+  per-field merge.
+- **No permissions.** Anyone reaching the editor URL can write. RLS
+  service-role passthrough means the auth gate is the only barrier;
+  there is no auth gate yet.
+- **No `beforeunload` guard.** Closing the tab while a save is pending
+  loses up to 1.5s of typing. Tab navigation through Next `<Link>`
+  doesn't flush either; only intra-editor selection changes do. Worth
+  the simpler code for now.
+- **`window.confirm` / `window.alert`** for phase/workstream delete and
+  unpublish confirmations. The list page already uses HeroUI Modal for
+  the narrative-level delete; phase/workstream deletes inside the
+  editor stay native for keystroke ergonomics. Swap to Modal when the
+  editor lands in customer-facing builds.
 
 ### Sync flow
 
