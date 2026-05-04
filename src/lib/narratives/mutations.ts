@@ -50,6 +50,11 @@ export interface WorkstreamReorderEntry {
   order_index: number;
 }
 
+export interface PhaseReorderEntry {
+  id: string;
+  order_index: number;
+}
+
 // ----------------------------------------------------------------------------
 // project_narratives
 // ----------------------------------------------------------------------------
@@ -89,6 +94,172 @@ export async function deleteNarrative(id: string): Promise<void> {
     .delete()
     .eq("id", id);
   if (error) throw error;
+}
+
+/**
+ * Best-effort copy: reads the source narrative + its phases + workstreams,
+ * recreates them under a new narrative id with mapped phase_ids. NOT atomic
+ * across tables (PostgREST + supabase-js cannot open a cross-statement
+ * transaction without a SQL function). On any failure mid-way, the partial
+ * narrative is deleted so the cascade cleans up — no zombies left behind.
+ *
+ * If this becomes a hot path or partial failures get common, fold into a
+ * SQL function (`duplicate_narrative(p_id uuid)`) and switch the call site.
+ */
+export async function duplicateNarrative(
+  sourceId: string,
+): Promise<ProjectNarrative> {
+  const supabase = getServiceSupabase();
+
+  const sourceRes = await supabase
+    .from("project_narratives")
+    .select("*")
+    .eq("id", sourceId)
+    .single();
+  if (sourceRes.error) throw sourceRes.error;
+  const source = sourceRes.data;
+
+  const insertRes = await supabase
+    .from("project_narratives")
+    .insert({
+      project_id: source.project_id,
+      title: `Copia de ${source.title}`,
+      subtitle: source.subtitle,
+      overview: source.overview,
+      status_summary: source.status_summary,
+      published: false,
+      created_by: source.created_by,
+      updated_by: source.updated_by,
+    })
+    .select()
+    .single();
+  if (insertRes.error) throw insertRes.error;
+  const copy = insertRes.data;
+
+  try {
+    const phasesRes = await supabase
+      .from("narrative_phases")
+      .select("*")
+      .eq("narrative_id", sourceId)
+      .order("order_index");
+    if (phasesRes.error) throw phasesRes.error;
+    const sourcePhases = phasesRes.data ?? [];
+
+    const phaseIdMap = new Map<string, string>();
+    if (sourcePhases.length > 0) {
+      const phaseInsert = await supabase
+        .from("narrative_phases")
+        .insert(
+          sourcePhases.map((p) => ({
+            narrative_id: copy.id,
+            order_index: p.order_index,
+            name: p.name,
+            objective: p.objective,
+            rationale: p.rationale,
+            status: p.status,
+            progress_percent: p.progress_percent,
+            start_date: p.start_date,
+            end_date: p.end_date,
+          })),
+        )
+        .select();
+      if (phaseInsert.error) throw phaseInsert.error;
+      const newPhases = phaseInsert.data ?? [];
+      // Match by (order_index, name) — both are stable in this insert.
+      for (const original of sourcePhases) {
+        const match = newPhases.find(
+          (p) =>
+            p.order_index === original.order_index &&
+            p.name === original.name,
+        );
+        if (match) phaseIdMap.set(original.id, match.id);
+      }
+    }
+
+    const workstreamsRes = await supabase
+      .from("narrative_workstreams")
+      .select("*")
+      .eq("narrative_id", sourceId)
+      .order("order_index");
+    if (workstreamsRes.error) throw workstreamsRes.error;
+    const sourceWorkstreams = workstreamsRes.data ?? [];
+
+    if (sourceWorkstreams.length > 0) {
+      const wsInsert = await supabase.from("narrative_workstreams").insert(
+        sourceWorkstreams.map((w) => ({
+          narrative_id: copy.id,
+          phase_id: w.phase_id ? (phaseIdMap.get(w.phase_id) ?? null) : null,
+          order_index: w.order_index,
+          name: w.name,
+          description: w.description,
+          jira_issue_keys: w.jira_issue_keys,
+        })),
+      );
+      if (wsInsert.error) throw wsInsert.error;
+    }
+
+    return copy;
+  } catch (err) {
+    // Cleanup the partial copy. CASCADE removes any phases / workstreams
+    // that did succeed before the failure.
+    await supabase.from("project_narratives").delete().eq("id", copy.id);
+    throw err;
+  }
+}
+
+export async function publishNarrative(
+  id: string,
+  published: boolean,
+): Promise<ProjectNarrative> {
+  return updateNarrative(id, { published });
+}
+
+/**
+ * Atomic reorder for phases via single batch upsert. Same pattern as
+ * reorderWorkstreams: fetch full rows, overwrite (order_index, ...rest),
+ * upsert as one batch. PostgREST runs the batch in a single transaction.
+ */
+export async function reorderPhases(
+  narrativeId: string,
+  ordering: PhaseReorderEntry[],
+): Promise<void> {
+  if (ordering.length === 0) return;
+  const supabase = getServiceSupabase();
+
+  const ids = ordering.map((o) => o.id);
+  const { data: existing, error: fetchError } = await supabase
+    .from("narrative_phases")
+    .select("*")
+    .in("id", ids);
+  if (fetchError) throw fetchError;
+
+  const byId = new Map<string, NarrativePhase>(
+    (existing ?? []).map((r) => [r.id, r]),
+  );
+  if (byId.size !== ordering.length) {
+    const missing = ordering.map((o) => o.id).filter((id) => !byId.has(id));
+    throw new Error(
+      `reorderPhases: ${missing.length} id(s) not found: ${missing.join(", ")}`,
+    );
+  }
+  const wrongNarrative = ordering.filter(
+    (o) => byId.get(o.id)?.narrative_id !== narrativeId,
+  );
+  if (wrongNarrative.length > 0) {
+    throw new Error(
+      `reorderPhases: ${wrongNarrative.length} phase(s) do not belong to narrative ${narrativeId}`,
+    );
+  }
+
+  const next = ordering.map((o) => {
+    const row = byId.get(o.id)!;
+    return { ...row, order_index: o.order_index };
+  });
+
+  const { error: upsertError } = await supabase
+    .from("narrative_phases")
+    .upsert(next, { onConflict: "id" });
+  if (upsertError) throw upsertError;
 }
 
 // ----------------------------------------------------------------------------
