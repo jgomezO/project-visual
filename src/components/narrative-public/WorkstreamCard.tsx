@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
-import type { WorkstreamDerived } from "@/lib/narratives/derived";
+import type {
+  IssuePublicData,
+  WorkstreamDerived,
+} from "@/lib/narratives/derived";
 import type { NarrativeWorkstream } from "@/lib/narratives/types";
+import { IssueChip } from "./IssueChip";
 
 const DESCRIPTION_TRUNCATE_AT = 150;
 
 interface Props {
   workstream: NarrativeWorkstream;
   derived: WorkstreamDerived;
+  issuesByKey: Map<string, IssuePublicData>;
 }
 
-export function WorkstreamCard({ workstream, derived }: Props) {
+export function WorkstreamCard({ workstream, derived, issuesByKey }: Props) {
   const [expanded, setExpanded] = useState(false);
 
   const desc = workstream.description ?? "";
@@ -39,8 +44,27 @@ export function WorkstreamCard({ workstream, derived }: Props) {
         </p>
       ) : null}
 
-      {/* Issue list lands in commit 4. The expand control is wired now
-          so the disclosure behaviour is testable end-to-end. */}
+      {expanded && workstream.jira_issue_keys.length > 0 ? (
+        <div
+          data-collapsible
+          data-expanded="true"
+          className="flex flex-col gap-2"
+        >
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Issues vinculadas ({workstream.jira_issue_keys.length})
+          </h4>
+          <ul className="flex flex-col gap-1.5">
+            {workstream.jira_issue_keys.map((key) => (
+              <IssueChip
+                key={key}
+                issueKey={key}
+                issue={issuesByKey.get(key)}
+              />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {(isLongDesc || derived.totalKeys > 0) ? (
         <div className="flex items-center justify-between border-t border-default-100 pt-2.5">
           <span className="text-xs text-muted">

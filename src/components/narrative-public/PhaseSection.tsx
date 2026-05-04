@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Calendar, ChevronDown } from "lucide-react";
 import type {
+  IssuePublicData,
   PhaseDerived,
   WorkstreamDerived,
 } from "@/lib/narratives/derived";
@@ -66,6 +67,7 @@ interface Props {
   phase: NarrativePhaseWithWorkstreams;
   derived: PhaseDerived;
   workstreamDerived: Map<string, WorkstreamDerived>;
+  issuesByKey: Map<string, IssuePublicData>;
   index: number;
 }
 
@@ -73,6 +75,7 @@ export function PhaseSection({
   phase,
   derived,
   workstreamDerived,
+  issuesByKey,
   index,
 }: Props) {
   const [showRationale, setShowRationale] = useState(false);
@@ -161,7 +164,12 @@ export function PhaseSection({
               const d = workstreamDerived.get(ws.id);
               if (!d) return null;
               return (
-                <WorkstreamCard key={ws.id} workstream={ws} derived={d} />
+                <WorkstreamCard
+                  key={ws.id}
+                  workstream={ws}
+                  derived={d}
+                  issuesByKey={issuesByKey}
+                />
               );
             })}
           </div>

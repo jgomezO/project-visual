@@ -18,8 +18,6 @@ interface Props {
   projectKey: string;
   projectName: string;
   derived: NarrativeDerived;
-  // Reserved for commit 4 — passed through now so the data is available
-  // when WorkstreamCard learns to render an expanded issue list.
   issuesByKey: Map<string, IssuePublicData>;
   mode: ViewMode;
 }
@@ -29,6 +27,7 @@ export function NarrativeView({
   projectKey,
   projectName,
   derived,
+  issuesByKey,
   mode,
 }: Props) {
   return (
@@ -78,6 +77,7 @@ export function NarrativeView({
                   phase={phase}
                   derived={phaseDerived}
                   workstreamDerived={derived.perWorkstream}
+                  issuesByKey={issuesByKey}
                   index={i}
                 />
               );
@@ -100,14 +100,18 @@ export function NarrativeView({
                 const d = derived.perWorkstream.get(ws.id);
                 if (!d) return null;
                 return (
-                  <WorkstreamCard key={ws.id} workstream={ws} derived={d} />
+                  <WorkstreamCard
+                    key={ws.id}
+                    workstream={ws}
+                    derived={d}
+                    issuesByKey={issuesByKey}
+                  />
                 );
               })}
             </div>
           </section>
         ) : null}
 
-        {/* Issue list inside expanded workstreams ships in commit 4. */}
       </main>
     </div>
   );
