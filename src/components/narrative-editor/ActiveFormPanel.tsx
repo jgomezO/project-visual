@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { forwardRef, useImperativeHandle, useRef, useTransition } from "react";
 import {
   deletePhaseAction,
   deleteWorkstreamAction,
@@ -13,20 +13,12 @@ import type {
   ProjectNarrative,
 } from "@/lib/narratives/types";
 import type { SelectedNode } from "./EditorShell";
-import { NarrativeForm } from "./NarrativeForm";
+import { NarrativeForm, type FormHandle } from "./NarrativeForm";
 import { PhaseForm } from "./PhaseForm";
 import { WorkstreamForm } from "./WorkstreamForm";
+import type { SaveState } from "./useAutoSave";
 
-export function ActiveFormPanel({
-  tree,
-  selected,
-  onNarrativePatched,
-  onPhasePatched,
-  onWorkstreamPatched,
-  onPhaseListChanged,
-  onOrphansChanged,
-  onSelect,
-}: {
+interface Props {
   tree: NarrativeWithChildren;
   selected: SelectedNode;
   onNarrativePatched: (next: ProjectNarrative) => void;
@@ -34,43 +26,148 @@ export function ActiveFormPanel({
   onWorkstreamPatched: (next: NarrativeWorkstream) => void;
   onPhaseListChanged: (next: NarrativePhaseWithWorkstreams[]) => void;
   onOrphansChanged: (next: NarrativeWorkstream[]) => void;
+  // For moves that may save a pending edit first.
   onSelect: (next: SelectedNode) => void;
-}) {
-  const [pending, startTransition] = useTransition();
+  // Bypasses the auto-save flush guard. Used after delete: the entity
+  // no longer exists, so any pending save would fail with "row not found".
+  onForceSelect: (next: SelectedNode) => void;
+  onSaveStateChange?: (state: SaveState) => void;
+}
 
-  if (selected.kind === "narrative") {
-    return (
-      <NarrativeForm
-        narrative={tree}
-        onPatched={onNarrativePatched}
-      />
+export const ActiveFormPanel = forwardRef<FormHandle, Props>(
+  function ActiveFormPanel(
+    {
+      tree,
+      selected,
+      onNarrativePatched,
+      onPhasePatched,
+      onWorkstreamPatched,
+      onPhaseListChanged,
+      onOrphansChanged,
+      onSelect,
+      onForceSelect,
+      onSaveStateChange,
+    },
+    ref,
+  ) {
+    const innerRef = useRef<FormHandle | null>(null);
+    const [pending, startTransition] = useTransition();
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        flush: async () =>
+          innerRef.current?.flush() ?? Promise.resolve({ ok: true }),
+        retry: () => innerRef.current?.retry(),
+      }),
+      [],
     );
-  }
 
-  if (selected.kind === "phase") {
-    const phase = tree.phases.find((p) => p.id === selected.id);
-    if (!phase) {
-      return <FormNotFound message="Fase no encontrada." />;
+    if (selected.kind === "narrative") {
+      return (
+        <NarrativeForm
+          ref={innerRef}
+          narrative={tree}
+          onPatched={onNarrativePatched}
+          onSaveStateChange={onSaveStateChange}
+        />
+      );
+    }
+
+    if (selected.kind === "phase") {
+      const phase = tree.phases.find((p) => p.id === selected.id);
+      if (!phase) {
+        return <FormNotFound message="Fase no encontrada." />;
+      }
+      return (
+        <PhaseForm
+          ref={innerRef}
+          phase={phase}
+          onPatched={onPhasePatched}
+          onSaveStateChange={onSaveStateChange}
+          pendingDelete={pending}
+          onDelete={() => {
+            if (
+              !window.confirm(
+                `¿Eliminar la fase "${phase.name}"? Sus workstreams también se eliminarán.`,
+              )
+            ) {
+              return;
+            }
+            startTransition(async () => {
+              try {
+                await deletePhaseAction(phase.id);
+                onPhaseListChanged(
+                  tree.phases.filter((p) => p.id !== phase.id),
+                );
+                onForceSelect({ kind: "narrative" });
+              } catch (err) {
+                window.alert(
+                  err instanceof Error ? err.message : "Error al eliminar",
+                );
+              }
+            });
+          }}
+        />
+      );
+    }
+
+    const flat: NarrativeWorkstream[] = [
+      ...tree.phases.flatMap((p) => p.workstreams),
+      ...tree.orphan_workstreams,
+    ];
+    const workstream = flat.find((w) => w.id === selected.id);
+    if (!workstream) {
+      return <FormNotFound message="Workstream no encontrado." />;
     }
     return (
-      <PhaseForm
-        phase={phase}
-        onPatched={onPhasePatched}
+      <WorkstreamForm
+        ref={innerRef}
+        workstream={workstream}
+        phases={tree.phases}
+        onPatched={(next) => {
+          onWorkstreamPatched(next);
+          if (next.phase_id !== workstream.phase_id) {
+            rebalanceWorkstream(
+              workstream,
+              next,
+              tree,
+              onPhaseListChanged,
+              onOrphansChanged,
+            );
+          }
+        }}
+        onSaveStateChange={onSaveStateChange}
         pendingDelete={pending}
         onDelete={() => {
           if (
-            !window.confirm(
-              `¿Eliminar la fase "${phase.name}"? Sus workstreams también se eliminarán.`,
-            )
+            !window.confirm(`¿Eliminar el workstream "${workstream.name}"?`)
           ) {
             return;
           }
           startTransition(async () => {
             try {
-              await deletePhaseAction(phase.id);
-              onPhaseListChanged(
-                tree.phases.filter((p) => p.id !== phase.id),
-              );
+              await deleteWorkstreamAction(workstream.id);
+              if (workstream.phase_id === null) {
+                onOrphansChanged(
+                  tree.orphan_workstreams.filter(
+                    (w) => w.id !== workstream.id,
+                  ),
+                );
+              } else {
+                onPhaseListChanged(
+                  tree.phases.map((p) =>
+                    p.id === workstream.phase_id
+                      ? {
+                          ...p,
+                          workstreams: p.workstreams.filter(
+                            (w) => w.id !== workstream.id,
+                          ),
+                        }
+                      : p,
+                  ),
+                );
+              }
               onSelect({ kind: "narrative" });
             } catch (err) {
               window.alert(
@@ -81,77 +178,8 @@ export function ActiveFormPanel({
         }}
       />
     );
-  }
-
-  // workstream
-  const flat: NarrativeWorkstream[] = [
-    ...tree.phases.flatMap((p) => p.workstreams),
-    ...tree.orphan_workstreams,
-  ];
-  const workstream = flat.find((w) => w.id === selected.id);
-  if (!workstream) {
-    return <FormNotFound message="Workstream no encontrado." />;
-  }
-  return (
-    <WorkstreamForm
-      workstream={workstream}
-      phases={tree.phases}
-      onPatched={(next) => {
-        onWorkstreamPatched(next);
-        // If phase_id changed, rebalance the tree.
-        if (next.phase_id !== workstream.phase_id) {
-          rebalanceWorkstream(
-            workstream,
-            next,
-            tree,
-            onPhaseListChanged,
-            onOrphansChanged,
-          );
-        }
-      }}
-      pendingDelete={pending}
-      onDelete={() => {
-        if (
-          !window.confirm(
-            `¿Eliminar el workstream "${workstream.name}"?`,
-          )
-        ) {
-          return;
-        }
-        startTransition(async () => {
-          try {
-            await deleteWorkstreamAction(workstream.id);
-            if (workstream.phase_id === null) {
-              onOrphansChanged(
-                tree.orphan_workstreams.filter(
-                  (w) => w.id !== workstream.id,
-                ),
-              );
-            } else {
-              onPhaseListChanged(
-                tree.phases.map((p) =>
-                  p.id === workstream.phase_id
-                    ? {
-                        ...p,
-                        workstreams: p.workstreams.filter(
-                          (w) => w.id !== workstream.id,
-                        ),
-                      }
-                    : p,
-                ),
-              );
-            }
-            onSelect({ kind: "narrative" });
-          } catch (err) {
-            window.alert(
-              err instanceof Error ? err.message : "Error al eliminar",
-            );
-          }
-        });
-      }}
-    />
-  );
-}
+  },
+);
 
 function FormNotFound({ message }: { message: string }) {
   return (
@@ -161,9 +189,6 @@ function FormNotFound({ message }: { message: string }) {
   );
 }
 
-// Move a workstream to its new phase_id within the tree state. Used when
-// the form's phase select fires updateWorkstream — we get back the
-// updated workstream and have to relocate it in the tree.
 function rebalanceWorkstream(
   prev: NarrativeWorkstream,
   next: NarrativeWorkstream,
@@ -179,10 +204,7 @@ function rebalanceWorkstream(
   } else {
     phases = phases.map((p) =>
       p.id === prev.phase_id
-        ? {
-            ...p,
-            workstreams: p.workstreams.filter((w) => w.id !== prev.id),
-          }
+        ? { ...p, workstreams: p.workstreams.filter((w) => w.id !== prev.id) }
         : p,
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@heroui/react";
@@ -14,7 +14,10 @@ import type {
   ProjectNarrative,
 } from "@/lib/narratives/types";
 import { ActiveFormPanel } from "./ActiveFormPanel";
+import { AutosaveIndicator } from "./AutosaveIndicator";
+import type { FormHandle } from "./NarrativeForm";
 import { StructureSidebar } from "./StructureSidebar";
+import type { SaveState } from "./useAutoSave";
 
 export type SelectedNode =
   | { kind: "narrative" }
@@ -34,6 +37,25 @@ export function EditorShell({
 }) {
   const [tree, setTree] = useState<NarrativeWithChildren>(initialNarrative);
   const [selected, setSelected] = useState<SelectedNode>(NARRATIVE_NODE);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const formRef = useRef<FormHandle | null>(null);
+
+  // Wrap the form's onSaveStateChange so we also capture lastSavedAt /
+  // errorMessage. We don't have those directly from the callback, so we
+  // mirror enough state in the shell to drive the indicator UI. The
+  // indicator reads savedAt/saveError; when state goes "saved" we stamp
+  // the time, when it goes "error" we keep the previous savedAt.
+  const handleSaveStateChange = useCallback((next: SaveState) => {
+    setSaveState(next);
+    if (next === "saved") {
+      setSavedAt(Date.now());
+      setSaveError(null);
+    } else if (next === "idle") {
+      setSaveError(null);
+    }
+  }, []);
 
   function handleNarrativePatched(next: ProjectNarrative): void {
     setTree((prev) => ({ ...prev, ...next }));
@@ -60,7 +82,6 @@ export function EditorShell({
 
   function handleWorkstreamPatched(next: NarrativeWorkstream): void {
     setTree((prev) => {
-      // Replace in phase or orphan list, depending on current location.
       const phases = prev.phases.map((p) => ({
         ...p,
         workstreams: p.workstreams.map((w) =>
@@ -73,6 +94,26 @@ export function EditorShell({
       return { ...prev, phases, orphan_workstreams: orphans };
     });
   }
+
+  // Selection guard: flush the active form before changing selection. If
+  // the flush fails (validation error or server error), keep the current
+  // selection so the user can fix the field. The indicator stays in
+  // 'error' state — they retry via Reintentar.
+  const tryChangeSelection = useCallback(
+    async (next: SelectedNode): Promise<void> => {
+      if (formRef.current) {
+        const result = await formRef.current.flush();
+        if (!result.ok) {
+          setSaveError(
+            "No se pudo guardar el formulario. Revisá los campos antes de cambiar de sección.",
+          );
+          return;
+        }
+      }
+      setSelected(next);
+    },
+    [],
+  );
 
   return (
     <>
@@ -99,13 +140,18 @@ export function EditorShell({
           projectName={projectName}
           narrative={tree}
           onPublishedChanged={handleNarrativePatched}
+          saveState={saveState}
+          savedAt={savedAt}
+          saveError={saveError}
+          onRetry={() => formRef.current?.retry()}
         />
         <div className="flex flex-1 overflow-hidden border-t border-default-200">
           <aside className="flex w-80 shrink-0 flex-col border-r border-default-200 bg-surface">
             <StructureSidebar
               tree={tree}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={tryChangeSelection}
+              onForceSelect={setSelected}
               onNarrativePatched={handleNarrativePatched}
               onPhaseListChanged={handlePhaseListChanged}
               onOrphansChanged={handleOrphansChanged}
@@ -113,6 +159,7 @@ export function EditorShell({
           </aside>
           <section className="flex-1 overflow-y-auto p-6">
             <ActiveFormPanel
+              ref={formRef}
               key={selectedKey(selected)}
               tree={tree}
               selected={selected}
@@ -121,7 +168,9 @@ export function EditorShell({
               onWorkstreamPatched={handleWorkstreamPatched}
               onPhaseListChanged={handlePhaseListChanged}
               onOrphansChanged={handleOrphansChanged}
-              onSelect={setSelected}
+              onSelect={tryChangeSelection}
+              onForceSelect={setSelected}
+              onSaveStateChange={handleSaveStateChange}
             />
           </section>
         </div>
@@ -135,11 +184,19 @@ function EditorHeader({
   projectName,
   narrative,
   onPublishedChanged,
+  saveState,
+  savedAt,
+  saveError,
+  onRetry,
 }: {
   projectKey: string;
   projectName: string;
   narrative: NarrativeWithChildren;
   onPublishedChanged: (next: ProjectNarrative) => void;
+  saveState: SaveState;
+  savedAt: number | null;
+  saveError: string | null;
+  onRetry: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -162,8 +219,6 @@ function EditorHeader({
         );
         onPublishedChanged(next);
         if (!goingToDraft) {
-          // Going from draft → published. Send the user back to the list
-          // so they see the badge change without ambiguity.
           router.push(`/projects/${projectKey}/narratives`);
         }
       } catch (err) {
@@ -175,27 +230,32 @@ function EditorHeader({
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
-      <nav className="flex flex-wrap items-center gap-2 text-sm text-muted">
-        <Link href="/projects" className="hover:underline">
-          Proyectos
-        </Link>
-        <span aria-hidden="true">/</span>
-        <Link
-          href={`/projects/${projectKey}`}
-          className="hover:underline"
-        >
-          {projectName}
-        </Link>
-        <span aria-hidden="true">/</span>
-        <Link
-          href={`/projects/${projectKey}/narratives`}
-          className="hover:underline"
-        >
-          Narrativas
-        </Link>
-        <span aria-hidden="true">/</span>
-        <span className="truncate text-foreground">{narrative.title}</span>
-      </nav>
+      <div className="flex flex-wrap items-center gap-3">
+        <nav className="flex flex-wrap items-center gap-2 text-sm text-muted">
+          <Link href="/projects" className="hover:underline">
+            Proyectos
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link href={`/projects/${projectKey}`} className="hover:underline">
+            {projectName}
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link
+            href={`/projects/${projectKey}/narratives`}
+            className="hover:underline"
+          >
+            Narrativas
+          </Link>
+          <span aria-hidden="true">/</span>
+          <span className="truncate text-foreground">{narrative.title}</span>
+        </nav>
+        <AutosaveIndicator
+          state={saveState}
+          lastSavedAt={savedAt}
+          errorMessage={saveError}
+          onRetry={onRetry}
+        />
+      </div>
       <div className="flex items-center gap-2">
         <a
           href={previewHref}

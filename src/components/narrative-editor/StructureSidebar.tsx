@@ -35,12 +35,14 @@ export function StructureSidebar({
   tree,
   selected,
   onSelect,
+  onForceSelect,
   onPhaseListChanged,
   onOrphansChanged,
 }: {
   tree: NarrativeWithChildren;
   selected: SelectedNode;
   onSelect: (next: SelectedNode) => void;
+  onForceSelect: (next: SelectedNode) => void;
   onNarrativePatched: (next: NarrativeWithChildren) => void;
   onPhaseListChanged: (next: NarrativePhaseWithWorkstreams[]) => void;
   onOrphansChanged: (next: NarrativeWorkstream[]) => void;
@@ -131,12 +133,12 @@ export function StructureSidebar({
         await deletePhaseAction(phase.id);
         onPhaseListChanged(tree.phases.filter((p) => p.id !== phase.id));
         if (selected.kind === "phase" && selected.id === phase.id) {
-          onSelect({ kind: "narrative" });
+          onForceSelect({ kind: "narrative" });
         } else if (
           selected.kind === "workstream" &&
           phase.workstreams.some((w) => w.id === selected.id)
         ) {
-          onSelect({ kind: "narrative" });
+          onForceSelect({ kind: "narrative" });
         }
       } catch (err) {
         setError(messageOf(err, "No se pudo eliminar la fase"));
@@ -175,7 +177,7 @@ export function StructureSidebar({
           );
         }
         if (selected.kind === "workstream" && selected.id === workstream.id) {
-          onSelect({ kind: "narrative" });
+          onForceSelect({ kind: "narrative" });
         }
       } catch (err) {
         setError(messageOf(err, "No se pudo eliminar el workstream"));
