@@ -140,6 +140,18 @@ export function EditorShell({
           projectName={projectName}
           narrative={tree}
           onPublishedChanged={handleNarrativePatched}
+          beforePublish={async () => {
+            if (formRef.current) {
+              const result = await formRef.current.flush();
+              if (!result.ok) {
+                window.alert(
+                  "No se pudo guardar el formulario. Revisá los campos antes de publicar.",
+                );
+                return false;
+              }
+            }
+            return true;
+          }}
           saveState={saveState}
           savedAt={savedAt}
           saveError={saveError}
@@ -184,6 +196,7 @@ function EditorHeader({
   projectName,
   narrative,
   onPublishedChanged,
+  beforePublish,
   saveState,
   savedAt,
   saveError,
@@ -193,6 +206,7 @@ function EditorHeader({
   projectName: string;
   narrative: NarrativeWithChildren;
   onPublishedChanged: (next: ProjectNarrative) => void;
+  beforePublish: () => Promise<boolean>;
   saveState: SaveState;
   savedAt: number | null;
   saveError: string | null;
@@ -211,6 +225,8 @@ function EditorHeader({
       if (!ok) return;
     }
     startTransition(async () => {
+      const flushed = await beforePublish();
+      if (!flushed) return;
       try {
         const next = await publishNarrativeAction(
           projectKey,

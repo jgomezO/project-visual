@@ -64,13 +64,23 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
     );
 
     if (selected.kind === "narrative") {
+      const isEmptyStructure =
+        tree.phases.length === 0 && tree.orphan_workstreams.length === 0;
       return (
-        <NarrativeForm
-          ref={innerRef}
-          narrative={tree}
-          onPatched={onNarrativePatched}
-          onSaveStateChange={onSaveStateChange}
-        />
+        <div className="flex flex-col gap-5">
+          {isEmptyStructure ? (
+            <div className="rounded-xl border border-dashed border-default-300 bg-default-50 px-4 py-3 text-sm text-muted">
+              Esta narrativa todavía no tiene estructura. Agregá una fase
+              o un workstream desde el panel izquierdo para empezar.
+            </div>
+          ) : null}
+          <NarrativeForm
+            ref={innerRef}
+            narrative={tree}
+            onPatched={onNarrativePatched}
+            onSaveStateChange={onSaveStateChange}
+          />
+        </div>
       );
     }
 
