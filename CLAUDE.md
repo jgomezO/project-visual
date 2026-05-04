@@ -14,7 +14,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4a:** Data layer for `/projects/[key]/narrative` (the human-written presentation layer for board / customer / C-level audiences). Three Supabase tables (`project_narratives`, `narrative_phases`, `narrative_workstreams`), composite-FK consistency for workstream/phase scoping, RLS read-open + service-role writes, typed query/mutation helpers in `src/lib/narratives/`, and an idempotent dev seeder (`pnpm seed:narrative`).
 
-**Iteration 4b (current):** Narrative editor UI. List page at `/projects/[key]/narratives` with create / duplicate / delete + draft / published badges; editor at `/projects/[key]/narratives/[id]/edit` with a structure sidebar (narrative root + phases + orphan workstreams) and a context form panel. Auto-save with 1500ms debounce, indicator in the header, flush-on-tree-navigate guard. Jira issue autocomplete from the anon Supabase client with module-level chip cache. Public preview view ships in 4c — current preview route is a placeholder.
+**Iteration 4b:** Narrative editor UI. List page at `/projects/[key]/narratives` with create / duplicate / delete + draft / published badges; editor at `/projects/[key]/narratives/[id]/edit` with a structure sidebar (narrative root + phases + orphan workstreams) and a context form panel. Auto-save with 1500ms debounce, indicator in the header, flush-on-tree-navigate guard. Jira issue autocomplete from the anon Supabase client with module-level chip cache.
+
+**Iteration 4c (current):** Public narrative view at `/projects/[key]/narratives/[id]/preview` — the read-only presentation surface for sharing with C-level / CS / stakeholders. Server Component loads the narrative + a single batched issues query, computes derived stats (per-workstream progress / overdue / missing-from-sync, per-phase progress with manual override, global aggregates), and renders header → status summary → phase sections → orphan workstreams. Progressive disclosure (overview "Leer más", rationale "Ver el por qué", workstream "Ver detalles" + issues list). Presentation mode toggleable via `?mode=presentation` (URL state, ESC exits). Print stylesheet expands every collapsible. Responsive desktop-first but degrades on mobile.
 
 ## Stack
 
@@ -117,7 +119,7 @@ src/
 │               ├── page.tsx        Server Component: list narratives for a project
 │               └── [id]/
 │                   ├── edit/page.tsx     Server Component: load narrative, hand off to EditorShell
-│                   └── preview/page.tsx  Placeholder until iter 4c
+│                   └── preview/page.tsx  Server Component: load narrative + batched issues + derived stats
 ├── app/actions/
 │   └── narratives.ts               "use server" — every narrative mutation as a Server Action
 ├── components/
@@ -135,6 +137,15 @@ src/
 │   │   ├── JiraIssueKeysInput.tsx  Anon-client autocomplete + module-level chip cache
 │   │   ├── AutosaveIndicator.tsx   Saving / Saved / Error pill + Reintentar
 │   │   └── useAutoSave.ts          Debounced auto-save hook with imperative flush()
+│   ├── narrative-public/
+│   │   ├── NarrativeView.tsx           Top-level layout, data-mode wrapper, draft banner mount
+│   │   ├── NarrativeHeader.tsx         Client: title/subtitle/meta + overview "Leer más"
+│   │   ├── StatusSummaryCard.tsx       Server: blue-accent card with status_summary
+│   │   ├── DraftBanner.tsx             Server: amber strip when published === false
+│   │   ├── PhaseSection.tsx            Client: status palette + rationale toggle + progress bar
+│   │   ├── WorkstreamCard.tsx          Client: collapsed/expanded with issues list
+│   │   ├── IssueChip.tsx               Server: issue row + warning state for missing-from-sync
+│   │   └── PresentationModeToggle.tsx  Client: ?mode= URL state + ESC handler
 │   └── project/
 │       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
 │       ├── ProjectViews.tsx        Client: HeroUI Tabs (Lista | Roadmap), URL state for ?view
@@ -165,6 +176,7 @@ src/
         ├── types.ts                Re-exports + NarrativeWithChildren composite
         ├── queries.ts              getNarrativesByProject / getNarrativeById / getPublishedNarrative
         ├── mutations.ts            create/update/delete + atomic reorderWorkstreams (service-role)
+        ├── derived.ts              loadIssuesForNarrative + computeDerived (per-WS / per-phase / global)
         ├── seed.ts                 Dev-only idempotent seeder; inline service client (no server-only chain)
         └── index.ts                Public re-exports (excludes seed)
 
@@ -359,6 +371,81 @@ session. Search results also warm the cache opportunistically.
   the narrative-level delete; phase/workstream deletes inside the
   editor stay native for keystroke ergonomics. Swap to Modal when the
   editor lands in customer-facing builds.
+
+### Narrative public view (`/projects/[key]/narratives/[id]/preview`)
+
+The shareable presentation surface — the page a PM links into a
+deck or a customer email. Read-only; the editor is at `/edit`. No
+nav chrome other than a subtle "Volver al editor" affordance and
+the presentation-mode toggle.
+
+#### Data loading
+
+Server Component. Two queries on the page:
+
+1. `getNarrativeById(id)` (the same composite read the editor uses).
+2. `loadIssuesForNarrative(narrative)` — one batched
+   `.in("key", uniqueKeys).eq("project_id", narrative.project_id)`
+   to hydrate every Jira issue referenced by any workstream. Returns
+   a `Map<string, IssuePublicData>`.
+
+`computeDerived(narrative, issuesByKey)` is then a pure pass that
+returns Maps keyed by workstream id and phase id (O(1) lookups in
+the renderer). Per-workstream stats include `foundIssues`,
+`missingKeys`, `byCategory`, `progress`, `overdueCount`. Per-phase
+respects a manual `progress_percent` override; otherwise the simple
+average of its workstreams' `progress`. Global aggregates roll up
+to the header strip ("X workstreams • Y issues • Z% completado").
+
+**Missing-from-sync issues do NOT count in the progress denominator.**
+Their keys are tracked separately as `missingKeys` and surface as
+"N sin sincronizar" + an amber `IssueChip` with `AlertTriangle`. We
+don't know their status, so a Done ratio over them would be a lie.
+
+#### Presentation mode (URL + data-attr cascade)
+
+- **URL state**: `?mode=presentation` is parsed server-side so the
+  initial render of a shared link matches what the sender saw.
+- **Toggle**: `PresentationModeToggle` writes the param via
+  `router.replace` (not push — the toggle shouldn't pollute history).
+- **CSS cascade, not React state**: the outer wrapper sets
+  `data-mode={mode}` and carries Tailwind's `group/preview` named
+  group token. Every typography bump in descendants is expressed as
+  `group-data-[mode=presentation]/preview:text-...`. Toggling the
+  attribute is one DOM mutation — no re-render of the tree, no
+  prop drilling.
+- **ESC**: handler attached only while `mode === "presentation"` so
+  it can't intercept Escape inside modals or popovers in normal mode.
+
+#### Print stylesheet
+
+`@media print` block in `globals.css`:
+- `[data-print=hide]` disappears (toggle, "Volver al editor",
+  every "Leer más" / "Ver detalles" / "Ver el por qué" button).
+- `[data-collapsible]` forces `grid-template-rows: 1fr` so collapsed
+  rationale and issue lists print expanded. The React state stays
+  collapsed; the CSS just overrides for the print render.
+- `break-after` on headings, `break-inside: avoid` on sections /
+  articles to keep titles attached to their bodies across pages.
+
+#### Limitations (4c)
+
+- **Workstreams sin phase se renderizan después de todas las phases
+  en orden por order_index. El schema actual no soporta interleave
+  (workstream transversal entre phases). Cuando se agregue
+  drag-and-drop en 4d, evaluar refactor a tabla unificada
+  `narrative_items` o fractional order_index para soportar
+  interleave real.**
+- **No tokenized public link.** `/preview` is reachable by anyone
+  who knows the narrative id. Tokenized share links land in a
+  later iteration alongside auth.
+- **No PDF export.** Print stylesheet is the export channel today.
+  Real PDF (with header / footer / page numbers) is a feature for
+  a commercial milestone.
+- **`prefers-reduced-motion`** is respected per-transition via
+  Tailwind's `motion-reduce:transition-none`, not via a global kill
+  switch. Granular by design — if a future motion gets added we
+  flag it explicitly.
 
 ### Sync flow
 
