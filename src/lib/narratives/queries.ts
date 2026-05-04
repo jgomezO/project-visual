@@ -1,6 +1,7 @@
 import "server-only";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 import type {
+  NarrativeDependency,
   NarrativePhase,
   NarrativePhaseWithWorkstreams,
   NarrativeWithChildren,
@@ -107,6 +108,24 @@ export async function getPublishedNarrative(
   if (!data) return null;
 
   return getNarrativeById(data.id);
+}
+
+/**
+ * Cross-team dependencies declared inside a narrative, ordered by
+ * order_index. Read on the public preview alongside the narrative tree
+ * (Wave 2 in the page's query schedule — see CLAUDE.md "Query waves").
+ */
+export async function getDependenciesByNarrative(
+  narrativeId: string,
+): Promise<NarrativeDependency[]> {
+  const supabase = getAnonSupabase();
+  const { data, error } = await supabase
+    .from("narrative_dependencies")
+    .select("*")
+    .eq("narrative_id", narrativeId)
+    .order("order_index", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
 }
 
 interface NarrativeWithEmbeds extends ProjectNarrative {

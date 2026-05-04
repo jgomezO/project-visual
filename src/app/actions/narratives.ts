@@ -2,29 +2,37 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  createDependency,
   createNarrative,
   createPhase,
   createWorkstream,
+  deleteDependency,
   deleteNarrative,
   deletePhase,
   deleteWorkstream,
   duplicateNarrative,
   publishNarrative,
+  reorderDependencies,
   reorderPhases,
   reorderWorkstreams,
+  updateDependency,
   updateNarrative,
   updatePhase,
   updateWorkstream,
+  type CreateDependencyInput,
   type CreateNarrativeInput,
   type CreatePhaseInput,
   type CreateWorkstreamInput,
+  type DependencyReorderEntry,
   type PhaseReorderEntry,
+  type UpdateDependencyInput,
   type UpdateNarrativeInput,
   type UpdatePhaseInput,
   type UpdateWorkstreamInput,
   type WorkstreamReorderEntry,
 } from "@/lib/narratives/mutations";
 import type {
+  NarrativeDependency,
   NarrativePhase,
   NarrativeWorkstream,
   ProjectNarrative,
@@ -127,4 +135,28 @@ export async function reorderWorkstreamsAction(
   ordering: WorkstreamReorderEntry[],
 ): Promise<void> {
   await reorderWorkstreams(narrativeId, ordering);
+}
+
+export async function createDependencyAction(
+  input: CreateDependencyInput,
+): Promise<NarrativeDependency> {
+  return createDependency(input);
+}
+
+export async function updateDependencyAction(
+  id: string,
+  patch: UpdateDependencyInput,
+): Promise<NarrativeDependency> {
+  return updateDependency(id, patch);
+}
+
+export async function deleteDependencyAction(id: string): Promise<void> {
+  await deleteDependency(id);
+}
+
+export async function reorderDependenciesAction(
+  narrativeId: string,
+  ordering: DependencyReorderEntry[],
+): Promise<void> {
+  await reorderDependencies(narrativeId, ordering);
 }

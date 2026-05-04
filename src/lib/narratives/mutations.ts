@@ -1,6 +1,9 @@
 import "server-only";
 import { getServiceSupabase } from "@/lib/supabase/service";
 import type {
+  NarrativeDependency,
+  NarrativeDependencyInsert,
+  NarrativeDependencyUpdate,
   NarrativePhase,
   NarrativePhaseInsert,
   NarrativePhaseUpdate,
@@ -51,6 +54,20 @@ export interface WorkstreamReorderEntry {
 }
 
 export interface PhaseReorderEntry {
+  id: string;
+  order_index: number;
+}
+
+export type CreateDependencyInput = Omit<
+  NarrativeDependencyInsert,
+  "id" | "created_at" | "updated_at"
+>;
+export type UpdateDependencyInput = Omit<
+  NarrativeDependencyUpdate,
+  "id" | "narrative_id" | "created_at" | "updated_at"
+>;
+
+export interface DependencyReorderEntry {
   id: string;
   order_index: number;
 }
@@ -405,6 +422,96 @@ export async function reorderWorkstreams(
 
   const { error: upsertError } = await supabase
     .from("narrative_workstreams")
+    .upsert(next, { onConflict: "id" });
+  if (upsertError) throw upsertError;
+}
+
+// ----------------------------------------------------------------------------
+// narrative_dependencies
+// ----------------------------------------------------------------------------
+
+export async function createDependency(
+  input: CreateDependencyInput,
+): Promise<NarrativeDependency> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("narrative_dependencies")
+    .insert(input)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateDependency(
+  id: string,
+  input: UpdateDependencyInput,
+): Promise<NarrativeDependency> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("narrative_dependencies")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteDependency(id: string): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("narrative_dependencies")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Atomic reorder for narrative dependencies. Same single-transaction
+ * upsert pattern as reorderPhases / reorderWorkstreams: fetch existing
+ * rows, overwrite order_index, batch upsert. Refuses to touch
+ * dependencies outside `narrativeId`.
+ */
+export async function reorderDependencies(
+  narrativeId: string,
+  ordering: DependencyReorderEntry[],
+): Promise<void> {
+  if (ordering.length === 0) return;
+  const supabase = getServiceSupabase();
+
+  const ids = ordering.map((o) => o.id);
+  const { data: existing, error: fetchError } = await supabase
+    .from("narrative_dependencies")
+    .select("*")
+    .in("id", ids);
+  if (fetchError) throw fetchError;
+
+  const byId = new Map<string, NarrativeDependency>(
+    (existing ?? []).map((r) => [r.id, r]),
+  );
+  if (byId.size !== ordering.length) {
+    const missing = ordering.map((o) => o.id).filter((id) => !byId.has(id));
+    throw new Error(
+      `reorderDependencies: ${missing.length} id(s) not found: ${missing.join(", ")}`,
+    );
+  }
+  const wrongNarrative = ordering.filter(
+    (o) => byId.get(o.id)?.narrative_id !== narrativeId,
+  );
+  if (wrongNarrative.length > 0) {
+    throw new Error(
+      `reorderDependencies: ${wrongNarrative.length} dependency(ies) do not belong to narrative ${narrativeId}`,
+    );
+  }
+
+  const next = ordering.map((o) => {
+    const row = byId.get(o.id)!;
+    return { ...row, order_index: o.order_index };
+  });
+
+  const { error: upsertError } = await supabase
+    .from("narrative_dependencies")
     .upsert(next, { onConflict: "id" });
   if (upsertError) throw upsertError;
 }
