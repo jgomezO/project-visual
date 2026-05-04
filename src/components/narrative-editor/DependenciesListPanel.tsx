@@ -18,12 +18,14 @@ const STATUS_LABEL: Record<string, string> = {
 interface Props {
   tree: NarrativeWithChildren;
   pending: boolean;
+  onSelectDependency: (id: string) => void;
   onDeleteDependency: (dep: NarrativeDependency) => void;
 }
 
 export function DependenciesListPanel({
   tree,
   pending,
+  onSelectDependency,
   onDeleteDependency,
 }: Props) {
   return (
@@ -50,6 +52,7 @@ export function DependenciesListPanel({
               <DependencyListItem
                 dep={dep}
                 pending={pending}
+                onSelect={() => onSelectDependency(dep.id)}
                 onDelete={() => onDeleteDependency(dep)}
               />
             </li>
@@ -63,18 +66,24 @@ export function DependenciesListPanel({
 function DependencyListItem({
   dep,
   pending,
+  onSelect,
   onDelete,
 }: {
   dep: NarrativeDependency;
   pending: boolean;
+  onSelect: () => void;
   onDelete: () => void;
 }) {
   const statusLabel = STATUS_LABEL[dep.commitment_status] ?? dep.commitment_status;
   return (
-    <div className="flex items-center gap-3 rounded-md border border-default-200 bg-surface px-3 py-2.5">
-      <div className="flex flex-1 flex-col gap-0.5">
-        <p className="text-sm font-medium text-foreground">{dep.title}</p>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+    <div className="flex items-center gap-3 rounded-md border border-default-200 bg-surface px-3 py-2.5 hover:bg-default-50">
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex flex-1 flex-col items-start gap-0.5 text-left"
+      >
+        <span className="text-sm font-medium text-foreground">{dep.title}</span>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
           {dep.provider_pod ? <span>{dep.provider_pod}</span> : null}
           {dep.provider_pod ? <span aria-hidden="true">·</span> : null}
           <span>{statusLabel}</span>
@@ -87,8 +96,8 @@ function DependencyListItem({
               </span>
             </>
           ) : null}
-        </div>
-      </div>
+        </span>
+      </button>
       <Button
         isIconOnly
         size="sm"

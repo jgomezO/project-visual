@@ -18,17 +18,76 @@ interface IssueChipData {
 // `null` means "we already looked and the issue isn't in our sync".
 const chipCache = new Map<string, IssueChipData | null>();
 
+// Resolve cache for provider project keys (e.g. "AUTH" → "10042"). One
+// query per unique key per session; `null` means the project isn't
+// synced. Lets the dependency form scope its issue autocomplete to a
+// different Jira project than the narrative's own.
+const projectIdByKeyCache = new Map<string, string | null>();
+
 function cacheKey(projectId: string, issueKey: string): string {
   return `${projectId}:${issueKey}`;
 }
 
 interface Props {
+  // Default scope: typically the narrative's own project. When
+  // providerProjectKey is set, that overrides this for issue queries.
   projectId: string;
+  // Optional override: filter suggestions by a different Jira project key
+  // (e.g. the provider PoD's project). The component resolves the key to
+  // an internal project_id once via a cached lookup.
+  providerProjectKey?: string | null;
   value: string[];
   onChange: (next: string[]) => void;
 }
 
-export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
+export function JiraIssueKeysInput({
+  projectId,
+  providerProjectKey,
+  value,
+  onChange,
+}: Props) {
+  const [resolvedProviderId, setResolvedProviderId] = useState<string | null | "pending">(
+    providerProjectKey ? "pending" : null,
+  );
+
+  useEffect(() => {
+    if (!providerProjectKey) {
+      setResolvedProviderId(null);
+      return;
+    }
+    const cached = projectIdByKeyCache.get(providerProjectKey);
+    if (cached !== undefined) {
+      setResolvedProviderId(cached);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const supabase = getAnonSupabase();
+      const { data } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("key", providerProjectKey)
+        .maybeSingle();
+      if (cancelled) return;
+      const id = data?.id ?? null;
+      projectIdByKeyCache.set(providerProjectKey, id);
+      setResolvedProviderId(id);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [providerProjectKey]);
+
+  // Effective project_id used by both hydration and search queries. While
+  // the provider key is resolving we treat it as null so we don't fire
+  // queries against the narrative's own project (would surface wrong
+  // suggestions for a moment).
+  const effectiveProjectId =
+    providerProjectKey
+      ? resolvedProviderId === "pending"
+        ? null
+        : resolvedProviderId
+      : projectId;
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<IssueChipData[]>([]);
   const [searching, setSearching] = useState(false);
@@ -39,8 +98,10 @@ export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
 
   // Hydrate chips for keys we haven't seen before.
   useEffect(() => {
+    if (!effectiveProjectId) return;
+    const scopeId = effectiveProjectId;
     const missing = value.filter(
-      (k) => !chipCache.has(cacheKey(projectId, k)),
+      (k) => !chipCache.has(cacheKey(scopeId, k)),
     );
     if (missing.length === 0) return;
     let cancelled = false;
@@ -49,20 +110,19 @@ export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
       const { data, error } = await supabase
         .from("issues")
         .select("key, summary, status_category")
-        .eq("project_id", projectId)
+        .eq("project_id", scopeId)
         .in("key", missing);
       if (cancelled) return;
       if (error) {
         console.error("[jira-keys] hydration failed", error);
         // Mark all as miss so we don't loop.
-        for (const k of missing)
-          chipCache.set(cacheKey(projectId, k), null);
+        for (const k of missing) chipCache.set(cacheKey(scopeId, k), null);
         setHydrationTick((t) => t + 1);
         return;
       }
       const found = new Set<string>();
       for (const row of data ?? []) {
-        chipCache.set(cacheKey(projectId, row.key), {
+        chipCache.set(cacheKey(scopeId, row.key), {
           key: row.key,
           summary: row.summary,
           status_category: row.status_category as StatusCategory,
@@ -70,22 +130,23 @@ export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
         found.add(row.key);
       }
       for (const k of missing) {
-        if (!found.has(k)) chipCache.set(cacheKey(projectId, k), null);
+        if (!found.has(k)) chipCache.set(cacheKey(scopeId, k), null);
       }
       setHydrationTick((t) => t + 1);
     })();
     return () => {
       cancelled = true;
     };
-  }, [value, projectId]);
+  }, [value, effectiveProjectId]);
 
   // Debounced autocomplete on the query input.
   useEffect(() => {
-    if (query.trim().length === 0) {
+    if (query.trim().length === 0 || !effectiveProjectId) {
       setSuggestions([]);
       setSearching(false);
       return;
     }
+    const scopeId = effectiveProjectId;
     let cancelled = false;
     setSearching(true);
     const handle = setTimeout(async () => {
@@ -94,7 +155,7 @@ export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
       const { data, error } = await supabase
         .from("issues")
         .select("key, summary, status_category")
-        .eq("project_id", projectId)
+        .eq("project_id", scopeId)
         .or(`key.ilike.%${safe}%,summary.ilike.%${safe}%`)
         .order("key")
         .limit(10);
@@ -115,7 +176,7 @@ export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
         .filter((d) => !selected.has(d.key));
       // Warm the cache while we're at it.
       for (const it of next) {
-        chipCache.set(cacheKey(projectId, it.key), it);
+        chipCache.set(cacheKey(scopeId, it.key), it);
       }
       setSuggestions(next);
     }, 200);
@@ -123,7 +184,7 @@ export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [query, projectId, value]);
+  }, [query, effectiveProjectId, value]);
 
   function addKey(key: string): void {
     if (value.includes(key)) return;
@@ -140,7 +201,9 @@ export function JiraIssueKeysInput({ projectId, value, onChange }: Props) {
   void hydrationTick;
   const chipsForRender = value.map((k) => ({
     key: k,
-    data: chipCache.get(cacheKey(projectId, k)) ?? undefined,
+    data: effectiveProjectId
+      ? (chipCache.get(cacheKey(effectiveProjectId, k)) ?? undefined)
+      : undefined,
   }));
 
   return (

@@ -21,8 +21,10 @@ import {
   createDependencyAction,
   createPhaseAction,
   createWorkstreamAction,
+  deleteDependencyAction,
   deletePhaseAction,
   deleteWorkstreamAction,
+  reorderDependenciesAction,
   reorderPhasesAction,
   updateWorkstreamAction,
 } from "@/app/actions/narratives";
@@ -232,11 +234,64 @@ export function StructureSidebar({
           provider_jira_issue_keys: [],
         });
         onDependencyListChanged([...tree.dependencies, created]);
-        // Land on the group node so the user sees the new card in the
-        // list panel; individual selection + form ship in commit 4.
-        onSelect({ kind: "dependencies" });
+        // Land directly on the new dependency's form so the PM can
+        // start filling it in.
+        onSelect({ kind: "dependency", id: created.id });
       } catch (err) {
         setError(messageOf(err, "No se pudo crear la dependencia"));
+      }
+    });
+  }
+
+  function handleDeleteDependency(dep: NarrativeDependency): void {
+    if (!window.confirm(`¿Eliminar la dependencia "${dep.title}"?`)) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteDependencyAction(dep.id);
+        onDependencyListChanged(
+          tree.dependencies.filter((d) => d.id !== dep.id),
+        );
+        if (selected.kind === "dependency" && selected.id === dep.id) {
+          onForceSelect({ kind: "dependencies" });
+        }
+      } catch (err) {
+        setError(messageOf(err, "No se pudo eliminar la dependencia"));
+      }
+    });
+  }
+
+  function handleMoveDependency(
+    dependencyId: string,
+    direction: "up" | "down",
+  ): void {
+    const idx = tree.dependencies.findIndex((d) => d.id === dependencyId);
+    if (idx === -1) return;
+    const swapWith = direction === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= tree.dependencies.length) return;
+
+    const reorder = [...tree.dependencies];
+    [reorder[idx], reorder[swapWith]] = [reorder[swapWith], reorder[idx]];
+    const withNewIndices = reorder.map((d, i) => ({
+      ...d,
+      order_index: i,
+    }));
+    const previous = tree.dependencies;
+    onDependencyListChanged(withNewIndices);
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await reorderDependenciesAction(
+          tree.id,
+          withNewIndices.map((d) => ({
+            id: d.id,
+            order_index: d.order_index,
+          })),
+        );
+      } catch (err) {
+        onDependencyListChanged(previous);
+        setError(messageOf(err, "No se pudo mover la dependencia"));
       }
     });
   }
@@ -395,14 +450,44 @@ export function StructureSidebar({
         ) : null}
 
         {/* Dependencies group is always visible — even with 0 deps the
-            PM needs to be able to add. Individual rows + selectable
-            children land in commit 4 alongside the form. */}
+            PM needs to be able to add. Individual children render
+            beneath when present. */}
         <li className="mt-3 border-t border-default-200 pt-3">
           <DependenciesGroupRow
             count={tree.dependencies.length}
             isSelected={selected.kind === "dependencies"}
             onSelect={() => onSelect({ kind: "dependencies" })}
           />
+          {tree.dependencies.length > 0 ? (
+            <ul className="ml-3 mt-0.5 border-l border-default-200 pl-2">
+              {tree.dependencies.map((dep, idx) => (
+                <li key={dep.id}>
+                  <DependencyRow
+                    dependency={dep}
+                    isSelected={
+                      selected.kind === "dependency" &&
+                      selected.id === dep.id
+                    }
+                    onSelect={() =>
+                      onSelect({ kind: "dependency", id: dep.id })
+                    }
+                    onMoveUp={
+                      idx > 0
+                        ? () => handleMoveDependency(dep.id, "up")
+                        : null
+                    }
+                    onMoveDown={
+                      idx < tree.dependencies.length - 1
+                        ? () => handleMoveDependency(dep.id, "down")
+                        : null
+                    }
+                    onDelete={() => handleDeleteDependency(dep)}
+                    pending={pending}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </li>
       </ul>
 
@@ -461,6 +546,83 @@ function DependenciesGroupRow({
         {count}
       </span>
     </button>
+  );
+}
+
+function DependencyRow({
+  dependency,
+  isSelected,
+  onSelect,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+  pending,
+}: {
+  dependency: NarrativeDependency;
+  isSelected: boolean;
+  onSelect: () => void;
+  onMoveUp: (() => void) | null;
+  onMoveDown: (() => void) | null;
+  onDelete: () => void;
+  pending: boolean;
+}) {
+  return (
+    <div className="group relative flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`${selectableRowClasses(isSelected)} flex-1`}
+      >
+        <Link2
+          className="size-3.5 shrink-0 text-muted"
+          aria-hidden="true"
+        />
+        <span className="truncate text-sm">{dependency.title}</span>
+      </button>
+      <Dropdown>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="tertiary"
+          aria-label={`Acciones para ${dependency.title}`}
+          isDisabled={pending}
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+        >
+          <MoreHorizontal className="size-3.5" />
+        </Button>
+        <Dropdown.Popover>
+          <Dropdown.Menu
+            onAction={(key) => {
+              if (key === "up") onMoveUp?.();
+              else if (key === "down") onMoveDown?.();
+              else if (key === "delete") onDelete();
+            }}
+          >
+            <Dropdown.Item
+              id="up"
+              textValue="Mover arriba"
+              isDisabled={onMoveUp === null}
+            >
+              <Label>Mover arriba</Label>
+            </Dropdown.Item>
+            <Dropdown.Item
+              id="down"
+              textValue="Mover abajo"
+              isDisabled={onMoveDown === null}
+            >
+              <Label>Mover abajo</Label>
+            </Dropdown.Item>
+            <Dropdown.Item
+              id="delete"
+              textValue="Eliminar"
+              variant="danger"
+            >
+              <Label>Eliminar</Label>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+    </div>
   );
 }
 

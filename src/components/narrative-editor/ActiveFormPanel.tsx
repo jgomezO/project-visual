@@ -15,6 +15,7 @@ import type {
   ProjectNarrative,
 } from "@/lib/narratives/types";
 import { DependenciesListPanel } from "./DependenciesListPanel";
+import { DependencyForm } from "./DependencyForm";
 import type { SelectedNode } from "./EditorShell";
 import { NarrativeForm, type FormHandle } from "./NarrativeForm";
 import { PhaseForm } from "./PhaseForm";
@@ -50,6 +51,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
       onPhaseListChanged,
       onOrphansChanged,
       onDependencyListChanged,
+      onDependencyPatched,
       onSelect,
       onForceSelect,
       onSaveStateChange,
@@ -133,6 +135,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
         <DependenciesListPanel
           tree={tree}
           pending={pending}
+          onSelectDependency={(id) => onSelect({ kind: "dependency", id })}
           onDeleteDependency={(dep) => {
             if (
               !window.confirm(
@@ -163,13 +166,37 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
       if (!dep) {
         return <FormNotFound message="Dependencia no encontrada." />;
       }
-      // Placeholder pending the full DependencyForm in commit 4. The
-      // sidebar already lets the user add / delete / reorder; this branch
-      // is only reachable if commit 4's selectable dep rows are wired up
-      // independently — kept here so the SelectedNode union stays
-      // exhaustive.
       return (
-        <FormNotFound message="Editor de dependencia: llega en el próximo commit." />
+        <DependencyForm
+          ref={innerRef}
+          dependency={dep}
+          phases={tree.phases}
+          orphanWorkstreams={tree.orphan_workstreams}
+          projectId={tree.project_id}
+          onPatched={onDependencyPatched}
+          onSaveStateChange={onSaveStateChange}
+          pendingDelete={pending}
+          onDelete={() => {
+            if (
+              !window.confirm(`¿Eliminar la dependencia "${dep.title}"?`)
+            ) {
+              return;
+            }
+            startTransition(async () => {
+              try {
+                await deleteDependencyAction(dep.id);
+                onDependencyListChanged(
+                  tree.dependencies.filter((d) => d.id !== dep.id),
+                );
+                onForceSelect({ kind: "dependencies" });
+              } catch (err) {
+                window.alert(
+                  err instanceof Error ? err.message : "Error al eliminar",
+                );
+              }
+            });
+          }}
+        />
       );
     }
 
