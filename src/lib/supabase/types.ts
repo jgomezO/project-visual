@@ -165,6 +165,81 @@ export type Database = {
           },
         ]
       }
+      narrative_dependencies: {
+        Row: {
+          commitment_status: string
+          coordination_notes: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          expected_delivery_date: string | null
+          id: string
+          narrative_id: string
+          needed_by_date: string | null
+          order_index: number
+          provider_jira_issue_keys: string[]
+          provider_pod: string | null
+          provider_pod_project_key: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+          workstream_id: string | null
+        }
+        Insert: {
+          commitment_status?: string
+          coordination_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          narrative_id: string
+          needed_by_date?: string | null
+          order_index: number
+          provider_jira_issue_keys?: string[]
+          provider_pod?: string | null
+          provider_pod_project_key?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          workstream_id?: string | null
+        }
+        Update: {
+          commitment_status?: string
+          coordination_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          expected_delivery_date?: string | null
+          id?: string
+          narrative_id?: string
+          needed_by_date?: string | null
+          order_index?: number
+          provider_jira_issue_keys?: string[]
+          provider_pod?: string | null
+          provider_pod_project_key?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          workstream_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "narrative_dependencies_narrative_id_fkey"
+            columns: ["narrative_id"]
+            isOneToOne: false
+            referencedRelation: "project_narratives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "narrative_dependencies_workstream_id_fkey"
+            columns: ["workstream_id"]
+            isOneToOne: false
+            referencedRelation: "narrative_workstreams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       narrative_phases: {
         Row: {
           created_at: string

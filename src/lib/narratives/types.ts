@@ -47,3 +47,24 @@ export interface NarrativeWithChildren extends ProjectNarrative {
   phases: NarrativePhaseWithWorkstreams[];
   orphan_workstreams: NarrativeWorkstream[];
 }
+
+export type NarrativeDependency =
+  NarrativeTables["narrative_dependencies"]["Row"];
+export type NarrativeDependencyInsert =
+  NarrativeTables["narrative_dependencies"]["Insert"];
+export type NarrativeDependencyUpdate =
+  NarrativeTables["narrative_dependencies"]["Update"];
+
+// Like PhaseStatus, the CHECK on commitment_status doesn't reach the
+// generated types — narrow at the boundary.
+export type CommitmentStatus =
+  | "proposed"
+  | "agreed"
+  | "confirmed"
+  | "at_risk"
+  | "blocked";
+
+// Output of `deriveRiskLevel` (lib/narratives/derived.ts). Rendered in
+// both the editor (small dot in the sidebar) and the public view
+// (lateral border on the dependency card).
+export type RiskLevel = "low" | "medium" | "high" | "critical";
