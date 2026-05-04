@@ -7,6 +7,7 @@ import {
 import { getNarrativeById } from "@/lib/narratives/queries";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 
+
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -31,8 +32,8 @@ export default async function NarrativePreviewPage({
     .maybeSingle();
   if (!project || project.id !== narrative.project_id) notFound();
 
-  const issuesByKey = await loadIssuesForNarrative(narrative);
-  const derived = computeDerived(narrative, issuesByKey);
+  const { issuesByKey, childrenMap } = await loadIssuesForNarrative(narrative);
+  const derived = computeDerived(narrative, issuesByKey, childrenMap);
 
   const mode = sp.mode === "presentation" ? "presentation" : "normal";
 
