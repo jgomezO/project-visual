@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gen:types": "supabase gen types typescript --linked > src/lib/supabase/types.ts"
+    "gen:types": "supabase gen types typescript --linked > src/lib/supabase/types.ts",
+    "seed:narrative": "node --env-file=.env.local --import tsx scripts/seed-narrative.ts"
   },
   "dependencies": {
     "@heroui/react": "^3.0.3",
@@ -27,7 +28,9 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "postcss": "^8.5.13",
+    "server-only": "^0.0.1",
     "tailwindcss": "^4.2.4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
