@@ -165,6 +165,160 @@ export type Database = {
           },
         ]
       }
+      narrative_phases: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          name: string
+          narrative_id: string
+          objective: string | null
+          order_index: number
+          progress_percent: number | null
+          rationale: string | null
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name: string
+          narrative_id: string
+          objective?: string | null
+          order_index: number
+          progress_percent?: number | null
+          rationale?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name?: string
+          narrative_id?: string
+          objective?: string | null
+          order_index?: number
+          progress_percent?: number | null
+          rationale?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "narrative_phases_narrative_id_fkey"
+            columns: ["narrative_id"]
+            isOneToOne: false
+            referencedRelation: "project_narratives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      narrative_workstreams: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          jira_issue_keys: string[]
+          name: string
+          narrative_id: string
+          order_index: number
+          phase_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          jira_issue_keys?: string[]
+          name: string
+          narrative_id: string
+          order_index: number
+          phase_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          jira_issue_keys?: string[]
+          name?: string
+          narrative_id?: string
+          order_index?: number
+          phase_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_workstream_phase_narrative"
+            columns: ["phase_id", "narrative_id"]
+            isOneToOne: false
+            referencedRelation: "narrative_phases"
+            referencedColumns: ["id", "narrative_id"]
+          },
+          {
+            foreignKeyName: "narrative_workstreams_narrative_id_fkey"
+            columns: ["narrative_id"]
+            isOneToOne: false
+            referencedRelation: "project_narratives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_narratives: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          overview: string | null
+          project_id: string
+          published: boolean
+          status_summary: string | null
+          subtitle: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          overview?: string | null
+          project_id: string
+          published?: boolean
+          status_summary?: string | null
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          overview?: string | null
+          project_id?: string
+          published?: boolean
+          status_summary?: string | null
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_narratives_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           created_at: string
