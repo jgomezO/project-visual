@@ -9,6 +9,7 @@ import { DraftBanner } from "./DraftBanner";
 import { NarrativeHeader } from "./NarrativeHeader";
 import { PhaseSection } from "./PhaseSection";
 import { StatusSummaryCard } from "./StatusSummaryCard";
+import { WorkstreamCard } from "./WorkstreamCard";
 
 type ViewMode = "normal" | "presentation";
 
@@ -76,6 +77,7 @@ export function NarrativeView({
                   key={phase.id}
                   phase={phase}
                   derived={phaseDerived}
+                  workstreamDerived={derived.perWorkstream}
                   index={i}
                 />
               );
@@ -83,7 +85,29 @@ export function NarrativeView({
           </div>
         ) : null}
 
-        {/* Workstream cards (phase + orphan) ship in commits 3-4. */}
+        {narrative.orphan_workstreams.length > 0 ? (
+          <section className="flex flex-col gap-3">
+            <header className="flex flex-col gap-1">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Workstreams transversales
+              </h2>
+              <p className="text-sm text-muted">
+                No pertenecen a ninguna fase específica.
+              </p>
+            </header>
+            <div className="flex flex-col gap-3">
+              {narrative.orphan_workstreams.map((ws) => {
+                const d = derived.perWorkstream.get(ws.id);
+                if (!d) return null;
+                return (
+                  <WorkstreamCard key={ws.id} workstream={ws} derived={d} />
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Issue list inside expanded workstreams ships in commit 4. */}
       </main>
     </div>
   );

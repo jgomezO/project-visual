@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import { Calendar, ChevronDown } from "lucide-react";
-import type { PhaseDerived } from "@/lib/narratives/derived";
+import type {
+  PhaseDerived,
+  WorkstreamDerived,
+} from "@/lib/narratives/derived";
 import type {
   NarrativePhaseWithWorkstreams,
   PhaseStatus,
 } from "@/lib/narratives/types";
+import { WorkstreamCard } from "./WorkstreamCard";
 
 const STATUS_LABEL: Record<PhaseStatus, string> = {
   upcoming: "Próxima",
@@ -61,10 +65,16 @@ const STATUS_PALETTE: Record<
 interface Props {
   phase: NarrativePhaseWithWorkstreams;
   derived: PhaseDerived;
+  workstreamDerived: Map<string, WorkstreamDerived>;
   index: number;
 }
 
-export function PhaseSection({ phase, derived, index }: Props) {
+export function PhaseSection({
+  phase,
+  derived,
+  workstreamDerived,
+  index,
+}: Props) {
   const [showRationale, setShowRationale] = useState(false);
   const status = (phase.status as PhaseStatus) ?? "upcoming";
   const palette = STATUS_PALETTE[status];
@@ -141,7 +151,22 @@ export function PhaseSection({ phase, derived, index }: Props) {
         </div>
       ) : null}
 
-      {/* Workstream cards land in commit 3. */}
+      {phase.workstreams.length > 0 ? (
+        <div className="flex flex-col gap-3 border-t border-default-200 pt-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Workstreams ({phase.workstreams.length})
+          </h3>
+          <div className="flex flex-col gap-3">
+            {phase.workstreams.map((ws) => {
+              const d = workstreamDerived.get(ws.id);
+              if (!d) return null;
+              return (
+                <WorkstreamCard key={ws.id} workstream={ws} derived={d} />
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
