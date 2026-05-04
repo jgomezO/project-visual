@@ -7,11 +7,13 @@ import { Button } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { publishNarrativeAction } from "@/app/actions/narratives";
 import type {
+  NarrativePhase,
   NarrativePhaseWithWorkstreams,
   NarrativeWithChildren,
   NarrativeWorkstream,
   ProjectNarrative,
 } from "@/lib/narratives/types";
+import { ActiveFormPanel } from "./ActiveFormPanel";
 import { StructureSidebar } from "./StructureSidebar";
 
 export type SelectedNode =
@@ -45,6 +47,31 @@ export function EditorShell({
 
   function handleOrphansChanged(next: NarrativeWorkstream[]): void {
     setTree((prev) => ({ ...prev, orphan_workstreams: next }));
+  }
+
+  function handlePhasePatched(next: NarrativePhase): void {
+    setTree((prev) => ({
+      ...prev,
+      phases: prev.phases.map((p) =>
+        p.id === next.id ? { ...p, ...next } : p,
+      ),
+    }));
+  }
+
+  function handleWorkstreamPatched(next: NarrativeWorkstream): void {
+    setTree((prev) => {
+      // Replace in phase or orphan list, depending on current location.
+      const phases = prev.phases.map((p) => ({
+        ...p,
+        workstreams: p.workstreams.map((w) =>
+          w.id === next.id ? next : w,
+        ),
+      }));
+      const orphans = prev.orphan_workstreams.map((w) =>
+        w.id === next.id ? next : w,
+      );
+      return { ...prev, phases, orphan_workstreams: orphans };
+    });
   }
 
   return (
@@ -85,7 +112,17 @@ export function EditorShell({
             />
           </aside>
           <section className="flex-1 overflow-y-auto p-6">
-            <FormPanelPlaceholder selected={selected} />
+            <ActiveFormPanel
+              key={selectedKey(selected)}
+              tree={tree}
+              selected={selected}
+              onNarrativePatched={handleNarrativePatched}
+              onPhasePatched={handlePhasePatched}
+              onWorkstreamPatched={handleWorkstreamPatched}
+              onPhaseListChanged={handlePhaseListChanged}
+              onOrphansChanged={handleOrphansChanged}
+              onSelect={setSelected}
+            />
           </section>
         </div>
       </main>
@@ -185,10 +222,6 @@ function EditorHeader({
   );
 }
 
-function FormPanelPlaceholder({ selected }: { selected: SelectedNode }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-default-300 p-10 text-center text-sm text-muted">
-      Formulario de {selected.kind} próximamente (commit 3).
-    </div>
-  );
+function selectedKey(s: SelectedNode): string {
+  return s.kind === "narrative" ? "narrative" : `${s.kind}:${s.id}`;
 }
