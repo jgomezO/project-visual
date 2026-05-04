@@ -7,6 +7,7 @@ import type {
 import type { NarrativeWithChildren } from "@/lib/narratives/types";
 import { DraftBanner } from "./DraftBanner";
 import { NarrativeHeader } from "./NarrativeHeader";
+import { PhaseSection } from "./PhaseSection";
 import { StatusSummaryCard } from "./StatusSummaryCard";
 
 type ViewMode = "normal" | "presentation";
@@ -65,7 +66,24 @@ export function NarrativeView({
           <StatusSummaryCard text={narrative.status_summary} />
         ) : null}
 
-        {/* Phases + workstreams ship in commits 2-4. */}
+        {narrative.phases.length > 0 ? (
+          <div className="flex flex-col gap-6">
+            {narrative.phases.map((phase, i) => {
+              const phaseDerived = derived.perPhase.get(phase.id);
+              if (!phaseDerived) return null;
+              return (
+                <PhaseSection
+                  key={phase.id}
+                  phase={phase}
+                  derived={phaseDerived}
+                  index={i}
+                />
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Workstream cards (phase + orphan) ship in commits 3-4. */}
       </main>
     </div>
   );
