@@ -1,6 +1,7 @@
 import { AlertTriangle, ExternalLink, User } from "lucide-react";
 import { StatusChip } from "@/components/project/StatusChip";
 import type { IssuePublicData } from "@/lib/narratives/derived";
+import { IssueTypeIcon } from "./issueTypeIcon";
 
 interface Props {
   issueKey: string;
@@ -45,6 +46,7 @@ export function IssueChip({ issueKey, issue }: Props) {
         }
         className="group/issue flex flex-1 flex-wrap items-center gap-2 hover:underline"
       >
+        <IssueTypeIcon rawType={issue.issue_type} />
         <span className="font-mono text-xs text-muted">{issueKey}</span>
         <span className="flex-1 min-w-0 truncate text-foreground">
           {issue.summary}

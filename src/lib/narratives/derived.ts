@@ -17,6 +17,7 @@ export interface IssuePublicData {
   status_category: StatusCategory;
   due_date: string | null;
   assignee_display_name: string | null;
+  issue_type: string;
 }
 
 // Derived stats for a single workstream. `foundIssues` is the count we
@@ -69,7 +70,9 @@ export async function loadIssuesForNarrative(
   const supabase = getAnonSupabase();
   const { data, error } = await supabase
     .from("issues")
-    .select("key, summary, status_name, status_category, due_date, assignee_display_name")
+    .select(
+      "key, summary, status_name, status_category, due_date, assignee_display_name, issue_type",
+    )
     .eq("project_id", narrative.project_id)
     .in("key", keys);
   if (error) throw error;
@@ -83,6 +86,7 @@ export async function loadIssuesForNarrative(
       status_category: row.status_category as StatusCategory,
       due_date: row.due_date,
       assignee_display_name: row.assignee_display_name,
+      issue_type: row.issue_type,
     });
   }
   return map;
