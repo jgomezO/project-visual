@@ -125,6 +125,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
         ref={innerRef}
         workstream={workstream}
         phases={tree.phases}
+        projectId={tree.project_id}
         onPatched={(next) => {
           onWorkstreamPatched(next);
           if (next.phase_id !== workstream.phase_id) {

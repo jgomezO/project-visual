@@ -15,6 +15,7 @@ import type {
   NarrativePhaseWithWorkstreams,
   NarrativeWorkstream,
 } from "@/lib/narratives/types";
+import { JiraIssueKeysInput } from "./JiraIssueKeysInput";
 import type { FormHandle } from "./NarrativeForm";
 import { useAutoSave, type SaveState } from "./useAutoSave";
 
@@ -24,6 +25,7 @@ const ORPHAN_KEY = "__orphan__";
 interface WorkstreamFormProps {
   workstream: NarrativeWorkstream;
   phases: NarrativePhaseWithWorkstreams[];
+  projectId: string;
   onPatched: (next: NarrativeWorkstream) => void;
   onDelete: () => void;
   pendingDelete: boolean;
@@ -35,6 +37,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
     {
       workstream,
       phases,
+      projectId,
       onPatched,
       onDelete,
       pendingDelete,
@@ -46,6 +49,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
       name: workstream.name,
       description: workstream.description ?? "",
       phase_id: workstream.phase_id,
+      jira_issue_keys: workstream.jira_issue_keys,
     });
 
     const nameInvalid = draft.name.trim().length === 0;
@@ -60,6 +64,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
           name: snapshot.name,
           description: snapshot.description || null,
           phase_id: snapshot.phase_id,
+          jira_issue_keys: snapshot.jira_issue_keys,
         });
         onPatched(updated);
       },
@@ -144,19 +149,13 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
           </Select.Popover>
         </Select>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Issues de Jira</span>
-          <div className="rounded-md border border-dashed border-default-300 p-3 text-xs text-muted">
-            {workstream.jira_issue_keys.length === 0 ? (
-              <span>Sin issues vinculadas. Editor llega en commit 5.</span>
-            ) : (
-              <span>
-                {workstream.jira_issue_keys.length} issue(s) vinculada(s):{" "}
-                {workstream.jira_issue_keys.join(", ")}
-              </span>
-            )}
-          </div>
-        </div>
+        <JiraIssueKeysInput
+          projectId={projectId}
+          value={draft.jira_issue_keys}
+          onChange={(next) =>
+            setDraft((d) => ({ ...d, jira_issue_keys: next }))
+          }
+        />
 
         <div className="border-t border-default-200 pt-4">
           <Button
