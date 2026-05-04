@@ -201,7 +201,7 @@ function ProgressRow({
           {totalIssues > 0
             ? ` · ${totalIssues} issue${totalIssues === 1 ? "" : "s"}`
             : ""}
-          {hasManual ? " · estimado por PM" : ""}
+          {hasManual ? " · ajustado manualmente" : ""}
         </span>
       </div>
       <div
