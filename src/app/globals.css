@@ -1,2 +1,47 @@
 @import "tailwindcss";
 @import "@heroui/styles";
+
+/* -----------------------------------------------------------------------
+ * Print stylesheet (scoped to the public narrative preview)
+ *
+ * The preview is the only route that prints meaningfully today. When the
+ * user hits Ctrl+P we want every collapsible region open, every "data-print=hide"
+ * affordance gone, and the page on a clean white canvas with dark text.
+ *
+ * Switching browsers' default page-margin handling to a sane value cleans
+ * the borders too.
+ * --------------------------------------------------------------------- */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  /* Force expanded state on every collapsible used by the preview tree.
+     Pairs with `data-collapsible` markers we set on the rationale and
+     issue-list wrappers — the JS state stays as-is, but the CSS overrides
+     win for the print render. */
+  [data-collapsible] {
+    grid-template-rows: 1fr !important;
+    overflow: visible !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Avoid orphaned phase / workstream titles at the bottom of a page. */
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+  }
+  section,
+  article {
+    break-inside: avoid;
+  }
+}

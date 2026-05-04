@@ -40,7 +40,7 @@ export function NarrativeView({
 
       <div
         data-print="hide"
-        className="mx-auto flex max-w-[1200px] items-center justify-between px-6 pt-4"
+        className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-6"
       >
         {mode === "normal" ? (
           <Link
@@ -56,7 +56,7 @@ export function NarrativeView({
         <PresentationModeToggle mode={mode} />
       </div>
 
-      <main className="mx-auto flex max-w-[1200px] flex-col gap-10 px-6 py-12 group-data-[mode=presentation]/preview:py-20">
+      <main className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-10 sm:gap-10 sm:px-6 sm:py-12 group-data-[mode=presentation]/preview:py-20">
         <NarrativeHeader
           narrative={narrative}
           projectKey={projectKey}
