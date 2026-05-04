@@ -8,6 +8,7 @@ import type { NarrativeWithChildren } from "@/lib/narratives/types";
 import { DraftBanner } from "./DraftBanner";
 import { NarrativeHeader } from "./NarrativeHeader";
 import { PhaseSection } from "./PhaseSection";
+import { PresentationModeToggle } from "./PresentationModeToggle";
 import { StatusSummaryCard } from "./StatusSummaryCard";
 import { WorkstreamCard } from "./WorkstreamCard";
 
@@ -37,11 +38,11 @@ export function NarrativeView({
     >
       {!narrative.published ? <DraftBanner /> : null}
 
-      {mode === "normal" ? (
-        <div
-          data-print="hide"
-          className="mx-auto flex max-w-[1200px] items-center px-6 pt-4"
-        >
+      <div
+        data-print="hide"
+        className="mx-auto flex max-w-[1200px] items-center justify-between px-6 pt-4"
+      >
+        {mode === "normal" ? (
           <Link
             href={`/projects/${projectKey}/narratives/${narrative.id}/edit`}
             className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
@@ -49,8 +50,11 @@ export function NarrativeView({
             <ArrowLeft className="size-4" aria-hidden="true" />
             Editor
           </Link>
-        </div>
-      ) : null}
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <PresentationModeToggle mode={mode} />
+      </div>
 
       <main className="mx-auto flex max-w-[1200px] flex-col gap-10 px-6 py-12 group-data-[mode=presentation]/preview:py-20">
         <NarrativeHeader
