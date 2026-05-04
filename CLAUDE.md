@@ -16,7 +16,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4b:** Narrative editor UI. List page at `/projects/[key]/narratives` with create / duplicate / delete + draft / published badges; editor at `/projects/[key]/narratives/[id]/edit` with a structure sidebar (narrative root + phases + orphan workstreams) and a context form panel. Auto-save with 1500ms debounce, indicator in the header, flush-on-tree-navigate guard. Jira issue autocomplete from the anon Supabase client with module-level chip cache.
 
-**Iteration 4c (current):** Public narrative view at `/projects/[key]/narratives/[id]/preview` — the read-only presentation surface for sharing with C-level / CS / stakeholders. Server Component loads the narrative + a single batched issues query, computes derived stats (per-workstream progress / overdue / missing-from-sync, per-phase progress with manual override, global aggregates), and renders header → status summary → phase sections → orphan workstreams. Progressive disclosure (overview "Leer más", rationale "Ver el por qué", workstream "Ver detalles" + issues list). Presentation mode toggleable via `?mode=presentation` (URL state, ESC exits). Print stylesheet expands every collapsible. Responsive desktop-first but degrades on mobile.
+**Iteration 4c:** Public narrative view at `/projects/[key]/narratives/[id]/preview` — the read-only presentation surface for sharing with C-level / CS / stakeholders. Server Component loads the narrative + a single batched issues query, computes derived stats (per-workstream progress / overdue / missing-from-sync, per-phase progress with manual override, global aggregates), and renders header → status summary → phase sections → orphan workstreams. Progressive disclosure (overview "Leer más", rationale "Ver el por qué", workstream "Ver detalles" + issues list). Presentation mode toggleable via `?mode=presentation` (URL state, ESC exits). Print stylesheet expands every collapsible. Responsive desktop-first but degrades on mobile.
+
+**Iteration 4c.1 (current):** Honesty pass on the public view. Each `IssueChip` now shows an issue-type icon (Epic/Zap púrpura, Story/BookmarkPlus verde, Task/CheckSquare azul, Bug/Bug rojo, Sub-task/CornerDownRight gris, Otro/Circle) with ES tooltip — the lay reader can tell at a glance what level of work each row is. Progress is no longer binary done/not-done: `loadIssuesForNarrative` fetches the full hierarchy closure (initial keys + recursive parent→children passes capped at depth 4) and `computeIssueProgress` walks it (leaf → 100/0 by Done; non-leaf → average of children). Workstream progress = average across directly-linked issues using their recursive value; global progress = average across ALL workstreams (phase + orphan equally weighted). New permanent dev page `/dev/components-preview` for visual validation of new components.
 
 ## Stack
 
@@ -107,6 +109,8 @@ src/
 │   ├── page.tsx
 │   ├── globals.css                 @import "tailwindcss"; @import "@heroui/styles";
 │   ├── api/sync/route.ts           POST /api/sync (x-sync-secret guard)
+│   ├── dev/components-preview/     Permanent dev tool: visual bench for components (not linked from prod)
+│   │   └── page.tsx
 │   └── projects/
 │       ├── page.tsx                Server Component, reads from Supabase
 │       ├── actions.ts              Server Action triggerSync()
@@ -145,6 +149,7 @@ src/
 │   │   ├── PhaseSection.tsx            Client: status palette + rationale toggle + progress bar
 │   │   ├── WorkstreamCard.tsx          Client: collapsed/expanded with issues list
 │   │   ├── IssueChip.tsx               Server: issue row + warning state for missing-from-sync
+│   │   ├── issueTypeIcon.tsx           Server: type→icon+tooltip map (Epic/Story/Task/Bug/Sub-task)
 │   │   └── PresentationModeToggle.tsx  Client: ?mode= URL state + ESC handler
 │   └── project/
 │       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
@@ -381,26 +386,102 @@ the presentation-mode toggle.
 
 #### Data loading
 
-Server Component. Two queries on the page:
+Server Component. Three things load on the page:
 
-1. `getNarrativeById(id)` (the same composite read the editor uses).
-2. `loadIssuesForNarrative(narrative)` — one batched
-   `.in("key", uniqueKeys).eq("project_id", narrative.project_id)`
-   to hydrate every Jira issue referenced by any workstream. Returns
-   a `Map<string, IssuePublicData>`.
+1. `getNarrativeById(id)` — the same composite read the editor uses.
+2. `loadIssuesForNarrative(narrative)` — fetches the full
+   parent → child closure of every key referenced by any workstream:
+   one initial query by key, then up to `MAX_HIERARCHY_DEPTH` (4)
+   passes that fetch issues whose `parent_id` is in the previous
+   frontier, stopping early when a pass returns no new rows. Real
+   Jira hierarchies max out at epic → story → task → sub-task (depth
+   3); 4 leaves headroom. Total: 3–5 queries for typical narratives.
 
-`computeDerived(narrative, issuesByKey)` is then a pure pass that
-returns Maps keyed by workstream id and phase id (O(1) lookups in
-the renderer). Per-workstream stats include `foundIssues`,
-`missingKeys`, `byCategory`, `progress`, `overdueCount`. Per-phase
-respects a manual `progress_percent` override; otherwise the simple
-average of its workstreams' `progress`. Global aggregates roll up
-to the header strip ("X workstreams • Y issues • Z% completado").
+   Parent → child reconstruction uses an `id → key` Map built during
+   loading (no PostgREST embed) — same pattern as `IssueDrawer`. By
+   construction every parent we reference is already in the loaded
+   set, so resolution is local.
+
+   Returns `{ issuesByKey, childrenMap }`. `issuesByKey` covers the
+   whole closure but the UI only looks up keys that a workstream
+   listed; descendants don't reach `IssueChip`. `childrenMap`
+   (`parentKey → ChildIssue[]`) drives the recursive progress pass.
+
+3. `computeDerived(narrative, issuesByKey, childrenMap)` — pure
+   computation; returns Maps keyed by workstream id and phase id for
+   O(1) lookups in the renderer.
 
 **Missing-from-sync issues do NOT count in the progress denominator.**
 Their keys are tracked separately as `missingKeys` and surface as
 "N sin sincronizar" + an amber `IssueChip` with `AlertTriangle`. We
 don't know their status, so a Done ratio over them would be a lie.
+
+#### Recursive progress (4c.1)
+
+Each issue's progress is computed from the *whole* hierarchy under
+it, not just its own status:
+
+- **Leaf** (no loaded children): `100` if `status_category === 'Done'`,
+  else `0`.
+- **Non-leaf**: simple average of every loaded child's recursive
+  progress.
+
+A `visited` Set guards against cycles — Jira parent_id can't form one
+in practice, but the guard turns an infinite loop into a
+`console.warn` and a leaf treatment instead of a runtime crash.
+
+**Workstream progress**: simple average of `computeIssueProgress` over
+the directly-linked issues in `jira_issue_keys`. Missing keys excluded.
+
+**Phase progress**: respects a non-null `progress_percent` override
+(label "ajustado manualmente" surfaces on the bar). Otherwise the
+simple average of its workstreams' progress.
+
+**Global progress**: simple average of EVERY workstream's progress —
+phases and orphan workstreams equally weighted, the phase is **NOT**
+a unit of weighting. Worked example: a phase with workstreams
+`[100, 50, 0]` plus one orphan workstream `[50]` gives
+`(100 + 50 + 0 + 50) / 4 = 50%`.
+
+**Counts vs. closure**: `byCategory`, `overdueCount`, `foundIssues`,
+`missingKeys` only consider directly-linked issues — what the lay
+reader put into the workstream and expects to see numbered. The
+recursive closure exists only to drive `progress`. `totalIssues` in
+the global header counts unique keys that are both vinculadas and
+encontradas (no double-counting if a key appears in multiple
+workstreams).
+
+**Known under-estimation**: if an Epic was synced but its child
+stories were not, the Epic appears as a leaf and reports `0` or
+`100` based on its own status, masking the work below. Re-sync the
+project (or widen `JIRA_PROJECT_KEYS`) to recover. Documented
+trade-off — we only show what we have.
+
+**TODO**: promote the recursive fetch to a `WITH RECURSIVE` SQL
+function if the loop becomes a hot path or the closure routinely
+exceeds ~500 rows. Today it's iterative-in-JS for legibility and
+zero new migrations.
+
+#### Issue type icons (4c.1)
+
+`IssueChip` shows the issue type to the left of the key as an icon
++ tooltip. Mapping lives in
+`components/narrative-public/issueTypeIcon.tsx`:
+
+| Tipo (normalised) | Lucide icon       | Class           | Tooltip   |
+|-------------------|-------------------|-----------------|-----------|
+| `epic`            | `Zap`             | `text-purple-700` | "Épica"   |
+| `story`           | `BookmarkPlus`    | `text-green-700`  | "Historia"|
+| `task`            | `CheckSquare`     | `text-blue-700`   | "Tarea"   |
+| `bug`             | `Bug`             | `text-red-700`    | "Bug"     |
+| `subtask`         | `CornerDownRight` | `text-gray-500`   | "Subtarea"|
+| anything else     | `Circle`          | `text-gray-400`   | "Otro"    |
+
+The normaliser is case-insensitive and handles Spanish variants
+("Épica", "Historia", "Tarea", "Subtarea") and dash-form quirks
+("Sub-task" / "Subtask" / "Sub task"). Validate icon picks
+visually in `/dev/components-preview` before swapping in the
+canonical map.
 
 #### Presentation mode (URL + data-attr cascade)
 
@@ -569,6 +650,16 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **Drawer link enrichment runs a second `in()` query** to fetch summary/status for linked targets. At ~10s of links per issue this is fine; consider a single SQL function with JOINs if drawers feel slow.
 - **No tests, no CI yet.**
 - **No realtime updates** — the page is a static-ish render until reload or a click on Resincronizar.
+
+## Dev tools
+
+- **`/dev/components-preview`** — permanent visual bench for
+  components, accessible only by typing the URL (not linked from
+  production navigation). Server Component, statically rendered, zero
+  runtime cost when not visited. Add new sections here as new
+  components or variants need visual validation. Today the page
+  carries the Issue Chips canonical map plus the alt-icon variants we
+  considered for Epic and Story before locking 4c.1.
 
 ## Out of scope (do NOT add without asking)
 
