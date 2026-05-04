@@ -12,11 +12,13 @@ import {
   CircleDot,
   FileText,
   Layers,
+  Link2,
   MoreHorizontal,
   Plus,
   Sparkles,
 } from "lucide-react";
 import {
+  createDependencyAction,
   createPhaseAction,
   createWorkstreamAction,
   deletePhaseAction,
@@ -25,6 +27,7 @@ import {
   updateWorkstreamAction,
 } from "@/app/actions/narratives";
 import type {
+  NarrativeDependency,
   NarrativePhaseWithWorkstreams,
   NarrativeWithChildren,
   NarrativeWorkstream,
@@ -38,6 +41,7 @@ export function StructureSidebar({
   onForceSelect,
   onPhaseListChanged,
   onOrphansChanged,
+  onDependencyListChanged,
 }: {
   tree: NarrativeWithChildren;
   selected: SelectedNode;
@@ -46,6 +50,7 @@ export function StructureSidebar({
   onNarrativePatched: (next: NarrativeWithChildren) => void;
   onPhaseListChanged: (next: NarrativePhaseWithWorkstreams[]) => void;
   onOrphansChanged: (next: NarrativeWorkstream[]) => void;
+  onDependencyListChanged: (next: NarrativeDependency[]) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -215,6 +220,27 @@ export function StructureSidebar({
     });
   }
 
+  function handleAddDependency(): void {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const created = await createDependencyAction({
+          narrative_id: tree.id,
+          order_index: tree.dependencies.length,
+          title: "Nueva dependencia",
+          commitment_status: "proposed",
+          provider_jira_issue_keys: [],
+        });
+        onDependencyListChanged([...tree.dependencies, created]);
+        // Land on the group node so the user sees the new card in the
+        // list panel; individual selection + form ship in commit 4.
+        onSelect({ kind: "dependencies" });
+      } catch (err) {
+        setError(messageOf(err, "No se pudo crear la dependencia"));
+      }
+    });
+  }
+
   function handleMoveWorkstreamToPhase(
     workstream: NarrativeWorkstream,
     targetPhaseId: string | null,
@@ -367,6 +393,17 @@ export function StructureSidebar({
             </ul>
           </li>
         ) : null}
+
+        {/* Dependencies group is always visible — even with 0 deps the
+            PM needs to be able to add. Individual rows + selectable
+            children land in commit 4 alongside the form. */}
+        <li className="mt-3 border-t border-default-200 pt-3">
+          <DependenciesGroupRow
+            count={tree.dependencies.length}
+            isSelected={selected.kind === "dependencies"}
+            onSelect={() => onSelect({ kind: "dependencies" })}
+          />
+        </li>
       </ul>
 
       <div className="flex flex-col gap-2 border-t border-default-200 p-3">
@@ -389,8 +426,41 @@ export function StructureSidebar({
           onPick={handleAddWorkstream}
           pending={pending}
         />
+        <Button
+          size="sm"
+          variant="secondary"
+          isDisabled={pending}
+          onPress={handleAddDependency}
+        >
+          <Plus className="size-4" />
+          Agregar dependencia
+        </Button>
       </div>
     </div>
+  );
+}
+
+function DependenciesGroupRow({
+  count,
+  isSelected,
+  onSelect,
+}: {
+  count: number;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={selectableRowClasses(isSelected)}
+    >
+      <Link2 className="size-4 shrink-0 text-muted" aria-hidden="true" />
+      <span className="truncate text-sm font-medium">Dependencias</span>
+      <span className="ml-auto rounded-full bg-default-200 px-2 py-0.5 text-[10px] font-semibold text-muted">
+        {count}
+      </span>
+    </button>
   );
 }
 

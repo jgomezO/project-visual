@@ -2,16 +2,19 @@
 
 import { forwardRef, useImperativeHandle, useRef, useTransition } from "react";
 import {
+  deleteDependencyAction,
   deletePhaseAction,
   deleteWorkstreamAction,
 } from "@/app/actions/narratives";
 import type {
+  NarrativeDependency,
   NarrativePhase,
   NarrativePhaseWithWorkstreams,
   NarrativeWithChildren,
   NarrativeWorkstream,
   ProjectNarrative,
 } from "@/lib/narratives/types";
+import { DependenciesListPanel } from "./DependenciesListPanel";
 import type { SelectedNode } from "./EditorShell";
 import { NarrativeForm, type FormHandle } from "./NarrativeForm";
 import { PhaseForm } from "./PhaseForm";
@@ -26,6 +29,8 @@ interface Props {
   onWorkstreamPatched: (next: NarrativeWorkstream) => void;
   onPhaseListChanged: (next: NarrativePhaseWithWorkstreams[]) => void;
   onOrphansChanged: (next: NarrativeWorkstream[]) => void;
+  onDependencyListChanged: (next: NarrativeDependency[]) => void;
+  onDependencyPatched: (next: NarrativeDependency) => void;
   // For moves that may save a pending edit first.
   onSelect: (next: SelectedNode) => void;
   // Bypasses the auto-save flush guard. Used after delete: the entity
@@ -44,6 +49,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
       onWorkstreamPatched,
       onPhaseListChanged,
       onOrphansChanged,
+      onDependencyListChanged,
       onSelect,
       onForceSelect,
       onSaveStateChange,
@@ -119,6 +125,51 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
             });
           }}
         />
+      );
+    }
+
+    if (selected.kind === "dependencies") {
+      return (
+        <DependenciesListPanel
+          tree={tree}
+          pending={pending}
+          onDeleteDependency={(dep) => {
+            if (
+              !window.confirm(
+                `¿Eliminar la dependencia "${dep.title}"?`,
+              )
+            ) {
+              return;
+            }
+            startTransition(async () => {
+              try {
+                await deleteDependencyAction(dep.id);
+                onDependencyListChanged(
+                  tree.dependencies.filter((d) => d.id !== dep.id),
+                );
+              } catch (err) {
+                window.alert(
+                  err instanceof Error ? err.message : "Error al eliminar",
+                );
+              }
+            });
+          }}
+        />
+      );
+    }
+
+    if (selected.kind === "dependency") {
+      const dep = tree.dependencies.find((d) => d.id === selected.id);
+      if (!dep) {
+        return <FormNotFound message="Dependencia no encontrada." />;
+      }
+      // Placeholder pending the full DependencyForm in commit 4. The
+      // sidebar already lets the user add / delete / reorder; this branch
+      // is only reachable if commit 4's selectable dep rows are wired up
+      // independently — kept here so the SelectedNode union stays
+      // exhaustive.
+      return (
+        <FormNotFound message="Editor de dependencia: llega en el próximo commit." />
       );
     }
 

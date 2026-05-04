@@ -56,7 +56,7 @@ export async function getNarrativeById(
 ): Promise<NarrativeWithChildren | null> {
   const supabase = getAnonSupabase();
 
-  const [main, orphans] = await Promise.all([
+  const [main, orphans, deps] = await Promise.all([
     supabase
       .from("project_narratives")
       .select(
@@ -70,13 +70,19 @@ export async function getNarrativeById(
       .eq("narrative_id", id)
       .is("phase_id", null)
       .order("order_index", { ascending: true }),
+    supabase
+      .from("narrative_dependencies")
+      .select("*")
+      .eq("narrative_id", id)
+      .order("order_index", { ascending: true }),
   ]);
 
   if (main.error) throw main.error;
   if (orphans.error) throw orphans.error;
+  if (deps.error) throw deps.error;
   if (!main.data) return null;
 
-  return assembleNarrative(main.data, orphans.data ?? []);
+  return assembleNarrative(main.data, orphans.data ?? [], deps.data ?? []);
 }
 
 /**
@@ -135,6 +141,7 @@ interface NarrativeWithEmbeds extends ProjectNarrative {
 function assembleNarrative(
   raw: NarrativeWithEmbeds,
   orphans: NarrativeWorkstream[],
+  dependencies: NarrativeDependency[],
 ): NarrativeWithChildren {
   const { phases: rawPhases, ...narrativeFields } = raw;
   const phases: NarrativePhaseWithWorkstreams[] = (rawPhases ?? [])
@@ -150,5 +157,6 @@ function assembleNarrative(
     ...narrativeFields,
     phases,
     orphan_workstreams: orphans,
+    dependencies,
   };
 }

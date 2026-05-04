@@ -7,6 +7,7 @@ import { Button } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { publishNarrativeAction } from "@/app/actions/narratives";
 import type {
+  NarrativeDependency,
   NarrativePhase,
   NarrativePhaseWithWorkstreams,
   NarrativeWithChildren,
@@ -22,7 +23,9 @@ import type { SaveState } from "./useAutoSave";
 export type SelectedNode =
   | { kind: "narrative" }
   | { kind: "phase"; id: string }
-  | { kind: "workstream"; id: string };
+  | { kind: "workstream"; id: string }
+  | { kind: "dependencies" } // the Dependencies group node (list panel)
+  | { kind: "dependency"; id: string };
 
 const NARRATIVE_NODE: SelectedNode = { kind: "narrative" };
 
@@ -93,6 +96,19 @@ export function EditorShell({
       );
       return { ...prev, phases, orphan_workstreams: orphans };
     });
+  }
+
+  function handleDependencyListChanged(next: NarrativeDependency[]): void {
+    setTree((prev) => ({ ...prev, dependencies: next }));
+  }
+
+  function handleDependencyPatched(next: NarrativeDependency): void {
+    setTree((prev) => ({
+      ...prev,
+      dependencies: prev.dependencies.map((d) =>
+        d.id === next.id ? next : d,
+      ),
+    }));
   }
 
   // Selection guard: flush the active form before changing selection. If
@@ -167,6 +183,7 @@ export function EditorShell({
               onNarrativePatched={handleNarrativePatched}
               onPhaseListChanged={handlePhaseListChanged}
               onOrphansChanged={handleOrphansChanged}
+              onDependencyListChanged={handleDependencyListChanged}
             />
           </aside>
           <section className="flex-1 overflow-y-auto p-6">
@@ -180,6 +197,8 @@ export function EditorShell({
               onWorkstreamPatched={handleWorkstreamPatched}
               onPhaseListChanged={handlePhaseListChanged}
               onOrphansChanged={handleOrphansChanged}
+              onDependencyListChanged={handleDependencyListChanged}
+              onDependencyPatched={handleDependencyPatched}
               onSelect={tryChangeSelection}
               onForceSelect={setSelected}
               onSaveStateChange={handleSaveStateChange}
@@ -299,5 +318,7 @@ function EditorHeader({
 }
 
 function selectedKey(s: SelectedNode): string {
-  return s.kind === "narrative" ? "narrative" : `${s.kind}:${s.id}`;
+  if (s.kind === "narrative") return "narrative";
+  if (s.kind === "dependencies") return "dependencies";
+  return `${s.kind}:${s.id}`;
 }
