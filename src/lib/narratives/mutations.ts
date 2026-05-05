@@ -7,6 +7,9 @@ import type {
   NarrativePhase,
   NarrativePhaseInsert,
   NarrativePhaseUpdate,
+  NarrativeRisk,
+  NarrativeRiskInsert,
+  NarrativeRiskUpdate,
   NarrativeWorkstream,
   NarrativeWorkstreamInsert,
   NarrativeWorkstreamUpdate,
@@ -74,6 +77,25 @@ export type UpdateDependencyInput = Omit<
 >;
 
 export interface DependencyReorderEntry {
+  id: string;
+  order_index: number;
+}
+
+// Same shape as CreateDependencyInput: identifier is claimed via the
+// per-narrative counter (claim_next_risk_identifier RPC). Callers must
+// not supply one.
+export type CreateRiskInput = Omit<
+  NarrativeRiskInsert,
+  "id" | "identifier" | "created_at" | "updated_at"
+>;
+// Identifier is immutable post-creation, narrative_id is set on insert
+// only — keep them out of the patch surface to avoid accidental moves.
+export type UpdateRiskInput = Omit<
+  NarrativeRiskUpdate,
+  "id" | "identifier" | "narrative_id" | "created_at" | "updated_at"
+>;
+
+export interface RiskReorderEntry {
   id: string;
   order_index: number;
 }
@@ -529,6 +551,105 @@ export async function reorderDependencies(
 
   const { error: upsertError } = await supabase
     .from("narrative_dependencies")
+    .upsert(next, { onConflict: "id" });
+  if (upsertError) throw upsertError;
+}
+
+// ----------------------------------------------------------------------------
+// narrative_risks
+// ----------------------------------------------------------------------------
+
+export async function createRisk(
+  input: CreateRiskInput,
+): Promise<NarrativeRisk> {
+  const supabase = getServiceSupabase();
+
+  // Same atomic-counter pattern as createDependency: the RPC increments
+  // project_narratives.next_risk_id and returns the previous value
+  // formatted as e.g. "R7". Counter never decreases — deletes do not
+  // reuse identifiers.
+  const { data: identifier, error: idError } = await supabase.rpc(
+    "claim_next_risk_identifier",
+    { p_narrative_id: input.narrative_id! },
+  );
+  if (idError) throw idError;
+
+  const { data, error } = await supabase
+    .from("narrative_risks")
+    .insert({ ...input, identifier })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateRisk(
+  id: string,
+  input: UpdateRiskInput,
+): Promise<NarrativeRisk> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("narrative_risks")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteRisk(id: string): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("narrative_risks")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Atomic reorder for risks. Same single-transaction upsert pattern as
+ * reorderPhases / reorderWorkstreams / reorderDependencies.
+ */
+export async function reorderRisks(
+  narrativeId: string,
+  ordering: RiskReorderEntry[],
+): Promise<void> {
+  if (ordering.length === 0) return;
+  const supabase = getServiceSupabase();
+
+  const ids = ordering.map((o) => o.id);
+  const { data: existing, error: fetchError } = await supabase
+    .from("narrative_risks")
+    .select("*")
+    .in("id", ids);
+  if (fetchError) throw fetchError;
+
+  const byId = new Map<string, NarrativeRisk>(
+    (existing ?? []).map((r) => [r.id, r]),
+  );
+  if (byId.size !== ordering.length) {
+    const missing = ordering.map((o) => o.id).filter((id) => !byId.has(id));
+    throw new Error(
+      `reorderRisks: ${missing.length} id(s) not found: ${missing.join(", ")}`,
+    );
+  }
+  const wrongNarrative = ordering.filter(
+    (o) => byId.get(o.id)?.narrative_id !== narrativeId,
+  );
+  if (wrongNarrative.length > 0) {
+    throw new Error(
+      `reorderRisks: ${wrongNarrative.length} risk(s) do not belong to narrative ${narrativeId}`,
+    );
+  }
+
+  const next = ordering.map((o) => {
+    const row = byId.get(o.id)!;
+    return { ...row, order_index: o.order_index };
+  });
+
+  const { error: upsertError } = await supabase
+    .from("narrative_risks")
     .upsert(next, { onConflict: "id" });
   if (upsertError) throw upsertError;
 }

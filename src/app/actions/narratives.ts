@@ -5,35 +5,43 @@ import {
   createDependency,
   createNarrative,
   createPhase,
+  createRisk,
   createWorkstream,
   deleteDependency,
   deleteNarrative,
   deletePhase,
+  deleteRisk,
   deleteWorkstream,
   duplicateNarrative,
   publishNarrative,
   reorderDependencies,
   reorderPhases,
+  reorderRisks,
   reorderWorkstreams,
   updateDependency,
   updateNarrative,
   updatePhase,
+  updateRisk,
   updateWorkstream,
   type CreateDependencyInput,
   type CreateNarrativeInput,
   type CreatePhaseInput,
+  type CreateRiskInput,
   type CreateWorkstreamInput,
   type DependencyReorderEntry,
   type PhaseReorderEntry,
+  type RiskReorderEntry,
   type UpdateDependencyInput,
   type UpdateNarrativeInput,
   type UpdatePhaseInput,
+  type UpdateRiskInput,
   type UpdateWorkstreamInput,
   type WorkstreamReorderEntry,
 } from "@/lib/narratives/mutations";
 import type {
   NarrativeDependency,
   NarrativePhase,
+  NarrativeRisk,
   NarrativeWorkstream,
   ProjectNarrative,
 } from "@/lib/narratives/types";
@@ -159,4 +167,28 @@ export async function reorderDependenciesAction(
   ordering: DependencyReorderEntry[],
 ): Promise<void> {
   await reorderDependencies(narrativeId, ordering);
+}
+
+export async function createRiskAction(
+  input: CreateRiskInput,
+): Promise<NarrativeRisk> {
+  return createRisk(input);
+}
+
+export async function updateRiskAction(
+  id: string,
+  patch: UpdateRiskInput,
+): Promise<NarrativeRisk> {
+  return updateRisk(id, patch);
+}
+
+export async function deleteRiskAction(id: string): Promise<void> {
+  await deleteRisk(id);
+}
+
+export async function reorderRisksAction(
+  narrativeId: string,
+  ordering: RiskReorderEntry[],
+): Promise<void> {
+  await reorderRisks(narrativeId, ordering);
 }
