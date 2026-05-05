@@ -20,7 +20,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4c.1:** Honesty pass on the public view. Each `IssueChip` now shows an issue-type icon (Epic/Zap púrpura, Story/BookmarkPlus verde, Task/CheckSquare azul, Bug/Bug rojo, Sub-task/CornerDownRight gris, Otro/Circle) with ES tooltip — the lay reader can tell at a glance what level of work each row is. Progress is no longer binary done/not-done: `loadIssuesForNarrative` fetches the full hierarchy closure (initial keys + recursive parent→children passes capped at depth 4) and `computeIssueProgress` walks it (leaf → 100/0 by Done; non-leaf → average of children). Workstream progress = average across directly-linked issues using their recursive value; global progress = average across ALL workstreams (phase + orphan equally weighted). New permanent dev page `/dev/components-preview` for visual validation of new components.
 
-**Iteration 4d (current):** Cross-team dependencies inside a narrative — modeled, edited, and surfaced. New table `narrative_dependencies` with manual `commitment_status` (proposed/agreed/confirmed/at_risk/blocked), two independent dates (`needed_by_date` vs `expected_delivery_date`), free-text PoD with optional Jira project key link, and provider issue keys. The editor sidebar gains an always-visible "Dependencias" group with full CRUD + reorder; `DependencyForm` adds auto-save, `PodAutocompleteInput` (suggests against the local `projects` table), and `JiraIssueKeysInput` is extended with a `providerProjectKey?` filter. The public preview ships a `DependenciesSection` (`#dependencias` anchor, omitted on zero deps), `DependencyCard` with risk-level lateral border + dot/badge, `DateGapIndicator` (red/green/neutral), `CommitmentStatusChip` (5 ES variants). Header counter "N dependencias" + "⚠ N en estado crítico" anchor-link to the section; `scroll-behavior: smooth` honors `prefers-reduced-motion`.
+**Iteration 4d:** Cross-team dependencies inside a narrative — modeled, edited, and surfaced. New table `narrative_dependencies` with manual `commitment_status` (proposed/agreed/confirmed/at_risk/blocked), two independent dates (`needed_by_date` vs `expected_delivery_date`), free-text PoD with optional Jira project key link, and provider issue keys. The editor sidebar gains an always-visible "Dependencias" group with full CRUD + reorder; `DependencyForm` adds auto-save, `PodAutocompleteInput` (suggests against the local `projects` table), and `JiraIssueKeysInput` is extended with a `providerProjectKey?` filter. The public preview ships a `DependenciesSection` (`#dependencias` anchor, omitted on zero deps), `DependencyCard` with risk-level lateral border + dot/badge, `DateGapIndicator` (red/green/neutral), `CommitmentStatusChip` (5 ES variants). Header counter "N dependencias" + "⚠ N en estado crítico" anchor-link to the section; `scroll-behavior: smooth` honors `prefers-reduced-motion`.
+
+**Iteration 4e (current):** Risks declared inside a narrative + stable per-narrative identifiers. New table `narrative_risks` (title, description, severity low/medium/high, `impacts TEXT[]` and `mitigations TEXT[]` with `cardinality >= 1` CHECKs, `related_dependency_ids UUID[]` with no FK on array elements). Stable identifiers `R1, R2, ...` and `D1, D2, ...` are auto-assigned via `claim_next_risk_identifier(uuid)` / `claim_next_dependency_identifier(uuid)` RPCs that atomically increment per-narrative counter columns (`next_risk_id`, `next_dependency_id`) on `project_narratives` — counters never decrease, so deletes don't reuse identifiers. Editor sidebar gains a "Riesgos" group with the same shape as Dependencies; `RiskForm` uses a reusable `BulletListInput` for impacts/mitigations and a toggle-chip picker for related dependencies. Public preview ships `RisksSection` (`#riesgos` anchor, omitted on zero risks) with `RiskCard` (severity-bordered, identifier chip, impacts/mitigations bullet sections, related-dep chips anchor-linked to `#dep-{id}`); `DependencyCard` reciprocates with a "Mencionada por" footer of risk chips → `#risk-{id}`. Header gains "N riesgos" + "⚠ N de severidad alta" counters anchor-linked to `#riesgos`. `NarrativeForm` adds an optional `risks_section_subtitle` field. Preview page is refactored to the canonical Query Waves shape (Wave 1: narrative + project parallel; Wave 2: issue closure; pure compute).
 
 ## Stack
 
@@ -144,6 +146,9 @@ src/
 │   │   ├── WorkstreamForm.tsx      useAutoSave for name / description / phase_id / jira_issue_keys
 │   │   ├── DependencyForm.tsx      useAutoSave for the full narrative_dependency record
 │   │   ├── DependenciesListPanel.tsx  Group panel: list of dependency cards + delete
+│   │   ├── RiskForm.tsx            useAutoSave for the full narrative_risk record (BulletListInput x2 + dep toggle chips)
+│   │   ├── RisksListPanel.tsx      Group panel: list of risk cards + delete
+│   │   ├── BulletListInput.tsx     Reusable TEXT[] editor (rows + Enter-to-add + max ceiling, default 10)
 │   │   ├── PodAutocompleteInput.tsx   Free-text PoD with autocomplete against `projects`
 │   │   ├── JiraIssueKeysInput.tsx  Anon-client autocomplete + module-level chip cache; optional `providerProjectKey` rescopes
 │   │   ├── AutosaveIndicator.tsx   Saving / Saved / Error pill + Reintentar
@@ -158,9 +163,12 @@ src/
 │   │   ├── IssueChip.tsx               Server: issue row + warning state for missing-from-sync
 │   │   ├── issueTypeIcon.tsx           Server: type→icon+tooltip map (Epic/Story/Task/Bug/Sub-task)
 │   │   ├── DependenciesSection.tsx     Server: section under #dependencias; omitted on zero deps
-│   │   ├── DependencyCard.tsx          Client: risk-level border + provider block + dates + status + coordination
+│   │   ├── DependencyCard.tsx          Server: risk-level border + identifier chip + provider block + dates + status + coordination + reverse risk-mention footer
 │   │   ├── DateGapIndicator.tsx        Server: red/green/neutral chip for delayRiskDays
 │   │   ├── CommitmentStatusChip.tsx    Server: 5 ES variants for commitment_status
+│   │   ├── RisksSection.tsx            Server: section under #riesgos; omitted on zero risks
+│   │   ├── RiskCard.tsx                Server: severity-bordered card; identifier + impacts/mitigations bullets + related-dep chips
+│   │   ├── SeverityBadge.tsx           Server: low/medium/high pill (gris/amber/rojo)
 │   │   └── PresentationModeToggle.tsx  Client: ?mode= URL state + ESC handler
 │   └── project/
 │       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
@@ -189,9 +197,9 @@ src/
     │   ├── issues.ts               syncIssuesForProject() — parent_id 2nd pass + link backfill
     │   └── runs.ts                 sync_run lifecycle (open / succeed / fail)
     └── narratives/
-        ├── types.ts                Re-exports + NarrativeWithChildren composite
-        ├── queries.ts              getNarrativesByProject / getNarrativeById / getPublishedNarrative
-        ├── mutations.ts            create/update/delete + atomic reorderWorkstreams (service-role)
+        ├── types.ts                Re-exports + NarrativeWithChildren composite (phases, orphans, dependencies, risks)
+        ├── queries.ts              getNarrativesByProject / getNarrativeById / getPublishedNarrative / getDependenciesByNarrative / getRisksByNarrative
+        ├── mutations.ts            create/update/delete + atomic reorder for phases / workstreams / dependencies / risks (service-role); identifier-claim RPC plumbing
         ├── derived.ts              loadIssuesForNarrative + computeDerived (per-WS / per-phase / global)
         ├── seed.ts                 Dev-only idempotent seeder; inline service client (no server-only chain)
         └── index.ts                Public re-exports (excludes seed)
@@ -207,7 +215,9 @@ supabase/
     ├── 20260502174819_add_start_date_to_issues.sql
     ├── 20260504184656_add_narratives_schema.sql
     ├── 20260504234120_add_narrative_dependencies.sql
-    └── 20260505004354_add_project_stats_view.sql
+    ├── 20260505004354_add_project_stats_view.sql
+    ├── 20260505015746_add_narrative_risks.sql
+    └── 20260505020350_fix_narrative_risks_array_check.sql
 ```
 
 ### Roadmap view (`?view=roadmap`)
@@ -284,13 +294,15 @@ service-role for them); writes go through `getServiceSupabase()` so all
 write paths cluster behind a single guard that future per-user RLS will
 swap into.
 
-- `getNarrativeById(id)` runs **two parallel queries**: one PostgREST
-  embed (`project_narratives → narrative_phases → narrative_workstreams`
-  via the phase_id FK) and a separate fetch for orphan workstreams
-  (`phase_id IS NULL`). PostgREST can't filter an embedded resource by
-  NULL on the join column, and a JSON-returning SQL function felt
-  premature for a one-screen view — if this ever becomes hot, swap to
-  RPC without changing the call signature.
+- `getNarrativeById(id)` runs **four parallel queries** in a single
+  `Promise.all`: the PostgREST embed (`project_narratives →
+  narrative_phases → narrative_workstreams` via the phase_id FK), a
+  separate fetch for orphan workstreams (`phase_id IS NULL`), one for
+  `narrative_dependencies`, and one for `narrative_risks`. PostgREST
+  can't filter an embedded resource by NULL on the join column, and a
+  JSON-returning SQL function felt premature for a one-screen view —
+  if this ever becomes hot, swap to RPC without changing the call
+  signature.
 - `reorderWorkstreams(narrativeId, ordering)` is **atomic via a single
   upsert**. supabase-js batches all rows into one PostgREST request
   which runs in a single transaction; we fetch existing rows first
@@ -619,6 +631,56 @@ with zero deps, because the PM needs an entry point to add one. The
 same is NOT true for the public preview, which omits the section
 entirely on zero deps.
 
+### Narrative risks (`narrative_risks`, iter 4e)
+
+PM-curated risks declared at the narrative level. Distinct from the
+**derived** dependency `RiskLevel` (low/medium/high/critical) — risk
+*severity* here is a 3-bucket curated input (low/medium/high), and
+the card shape is impacts + mitigations bullets, not dates and
+status.
+
+#### Schema decisions
+
+- **`impacts` and `mitigations` use `cardinality(arr) >= 1`** CHECK,
+  not `array_length`. See "array_length vs cardinality" in the
+  Database section above. The DEFAULT is `'{}'` so an INSERT that
+  doesn't override fails the CHECK by construction — callers must
+  provide at least one element. The UI seeds with a placeholder
+  bullet.
+- **`related_dependency_ids UUID[]`, no FK on array elements.**
+  Postgres can't FK array elements; we filter dangling refs
+  (deleted deps) at render time in `RiskCard`. GIN index keeps
+  "which risks reference dep X?" lookups fast — same role as the
+  GIN on `narrative_dependencies.provider_jira_issue_keys`.
+- **No `workstream_id`.** A risk is always at narrative level. If a
+  future requirement scopes risks per workstream, model it then —
+  not preemptively.
+- **`severity` is curated by the PM.** Never auto-derived. The PM
+  is the source of truth on how seriously to weight the risk.
+
+#### Editor — Risks group
+
+Mirrors the Dependencies group: always visible (PM needs an entry
+point), CRUD + reorder via dropdown, identifier shown next to title.
+`RiskForm` uses `BulletListInput` for impacts and mitigations —
+trim+filter at save time, surfaces "Mínimo un … no vacío." inline if
+the array would empty out. Related dependencies render as toggle
+chips (no autocomplete: deps per narrative are bounded). Auto-save
+is the same `useAutoSave` hook used everywhere else.
+
+#### Public — risks↔deps cross-link
+
+`RiskCard` footer renders chips for related deps (anchor `#dep-{id}`).
+`DependencyCard` reciprocates with a "Mencionada por" footer of risk
+chips (anchor `#risk-{id}`). The two-way link lets a reader jump
+from "this dep is fragile" to "what does this break" and back. Both
+sections hide when their respective relationship lists are empty —
+unrelated cards stay clean.
+
+`RisksSection` is omitted entirely on zero risks (same pattern as
+`DependenciesSection` — absence is the information). Subtitle
+(`risks_section_subtitle`) renders under the heading when present.
+
 ### Query waves (pattern)
 
 Reusable shape for any page that loads N round-trips with mixed
@@ -729,15 +791,35 @@ Schemas spread across the `supabase/migrations/` timeline. Tables:
 - `issue_links` — BIGINT identity PK, `source_issue_id` FK, `target_issue_id` nullable FK, `target_issue_key` NOT NULL, unique on `(source, target_key, link_type)`.
 - `sync_runs` — `status` running/success/failed, `sync_type` full/incremental, `project_key` (NULL = all), stats counters, `jql_used`, `error_message`.
 
-**Narratives (migration `20260504184656_add_narratives_schema.sql`)**
+**Narratives (migration `20260504184656_add_narratives_schema.sql`, extended by 4d / 4e)**
 
-- `project_narratives` — UUID PK, `project_id` TEXT FK CASCADE to `projects(id)`, `title`, `subtitle`, `overview`, `status_summary`, `published` BOOL, `created_by` / `updated_by` placeholders (auth not yet). Multiple narratives per project allowed by design (board-version vs customer-version).
+- `project_narratives` — UUID PK, `project_id` TEXT FK CASCADE to `projects(id)`, `title`, `subtitle`, `overview`, `status_summary`, `risks_section_subtitle` (iter 4e — optional sub-heading for the public risks section, NULL = heading only), `published` BOOL, `created_by` / `updated_by` placeholders (auth not yet). Multiple narratives per project allowed by design (board-version vs customer-version). **Counter columns** `next_risk_id INT NOT NULL DEFAULT 1` and `next_dependency_id INT NOT NULL DEFAULT 1` (iter 4e) back the identifier-claim RPCs and never decrease — see "Stable identifiers" below.
 - `narrative_phases` — UUID PK, `narrative_id` FK CASCADE, `order_index`, `name`, `objective`, `rationale`, `status` CHECK ('completed' | 'in_progress' | 'upcoming' | 'at_risk'), `progress_percent` 0-100 nullable, `start_date <= end_date` CHECK. Composite `UNIQUE (id, narrative_id)` exists to back the workstream FK below.
 - `narrative_workstreams` — UUID PK, `narrative_id` FK CASCADE, **`phase_id` nullable** + composite FK `(phase_id, narrative_id) → narrative_phases(id, narrative_id)` ON DELETE CASCADE. NULL `phase_id` = orphan workstream rendered at the narrative root, beside phases. `jira_issue_keys TEXT[]` indexed via GIN — references issues by key only, no FK (live data still comes from `issues`).
+- `narrative_risks` (iter 4e) — UUID PK, `narrative_id` FK CASCADE, `identifier TEXT NOT NULL CHECK (identifier ~ '^R\d+$') UNIQUE per narrative, `title`, `description`, `severity` CHECK in (low / medium / high), `impacts TEXT[] NOT NULL DEFAULT '{}'`, `mitigations TEXT[] NOT NULL DEFAULT '{}'`, both with `cardinality(arr) >= 1` CHECK (see "array_length vs cardinality" below). `related_dependency_ids UUID[] NOT NULL DEFAULT '{}'` indexed via GIN — Postgres can't FK array elements, so dangling refs (after a dep delete) are filtered at render time. `order_index INT NOT NULL`.
 
 `raw` jsonb policy: **never query from UI**. If a field becomes recurrent, extract it to a typed column in a follow-up migration.
 
-RLS: enabled on all seven tables; SELECT policy `USING(true)` for `anon`. Service role bypasses RLS for writes. Tighten when user auth lands. **TODO (narratives):** when auth is wired, narrow narrative writes to project membership — current state lets any holder of the service-role key write.
+RLS: enabled on all eight tables; SELECT policy `USING(true)` for `anon`. Service role bypasses RLS for writes. Tighten when user auth lands. **TODO (narratives):** when auth is wired, narrow narrative writes to project membership — current state lets any holder of the service-role key write.
+
+#### Stable per-narrative identifiers (iter 4e)
+
+`narrative_dependencies` and `narrative_risks` carry `identifier TEXT` (`D1, D2, ...` and `R1, R2, ...` respectively) that is auto-assigned at insert time and **immutable** afterwards. Two RPCs back this:
+
+- `claim_next_dependency_identifier(p_narrative_id UUID) RETURNS TEXT`
+- `claim_next_risk_identifier(p_narrative_id UUID) RETURNS TEXT`
+
+Each runs `UPDATE project_narratives SET next_*_id = next_*_id + 1 WHERE id = p_narrative_id RETURNING (next_*_id - 1)` and returns the previous value formatted with the right prefix. Concurrent calls serialize via the row-level lock the UPDATE takes — no race window. **Counters never decrease**, so a delete does NOT reuse identifiers — D5 stays D5 even if the original D5 was removed. Counters are NOT a count of live rows.
+
+Why not `MAX(...) + 1` over live rows? Because deleting D5 and adding a new dep would re-issue D5, breaking the contract that an identifier in a meeting note or a screenshot keeps pointing at the same record forever.
+
+`createDependency` / `createRisk` in `mutations.ts` call the RPC, then INSERT with the returned identifier. The corresponding `CreateDependencyInput` / `CreateRiskInput` types `Omit` `identifier` so callers can't fight the contract.
+
+#### array_length vs cardinality (iter 4e postmortem)
+
+The first cut of `narrative_risks` used `CHECK (array_length(impacts, 1) >= 1)`. Empty arrays slipped through. Reason: `array_length('{}', 1)` returns `NULL` (not 0), `NULL >= 1` is `NULL`, and **Postgres CHECK treats NULL as satisfied** — only `FALSE` violates. The fix-up migration (`20260505020350_fix_narrative_risks_array_check.sql`) replaces both checks with `cardinality(arr) >= 1` because `cardinality('{}')` returns `0`, so the comparison evaluates `FALSE` and the constraint correctly rejects.
+
+**Rule**: never use `array_length(arr, 1)` inside a CHECK that's meant to enforce non-emptiness. Use `cardinality()`.
 
 #### Composite FK vs trigger for cross-table consistency
 
