@@ -54,10 +54,13 @@ import type {
 // authenticated user's email. Phases and workstreams don't have those
 // columns — their actions don't need an actor.
 //
-// `revalidatePath` is fired only on actions whose result changes the list
-// page (`/projects/[key]/narratives`). Editor-side actions skip the
-// revalidation because the editor is already a Client tree-state owner —
-// the form receives the returned entity and patches in place.
+// `revalidatePath` is fired only on actions whose result changes the
+// narrative list — today that's the "Narrativas" tab inside
+// /projects/[key] (iter 4g). The standalone /projects/[key]/narratives
+// page is now a 308 redirect, so revalidating it would be a no-op.
+// Editor-side actions skip revalidation because the editor is already
+// a Client tree-state owner — the form receives the returned entity
+// and patches in place.
 
 export async function createNarrativeAction(
   projectKey: string,
@@ -69,7 +72,7 @@ export async function createNarrativeAction(
     created_by: actor.email,
     updated_by: actor.email,
   });
-  revalidatePath(`/projects/${projectKey}/narratives`);
+  revalidatePath(`/projects/${projectKey}`);
   return created;
 }
 
@@ -86,7 +89,7 @@ export async function deleteNarrativeAction(
   id: string,
 ): Promise<void> {
   await deleteNarrative(id);
-  revalidatePath(`/projects/${projectKey}/narratives`);
+  revalidatePath(`/projects/${projectKey}`);
 }
 
 export async function duplicateNarrativeAction(
@@ -95,7 +98,7 @@ export async function duplicateNarrativeAction(
 ): Promise<ProjectNarrative> {
   const actor = await getActor();
   const copy = await duplicateNarrative(sourceId, actor.email);
-  revalidatePath(`/projects/${projectKey}/narratives`);
+  revalidatePath(`/projects/${projectKey}`);
   return copy;
 }
 
@@ -112,7 +115,7 @@ export async function publishNarrativeAction(
     published,
     updated_by: actor.email,
   });
-  revalidatePath(`/projects/${projectKey}/narratives`);
+  revalidatePath(`/projects/${projectKey}`);
   return updated;
 }
 
