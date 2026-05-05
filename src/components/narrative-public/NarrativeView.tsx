@@ -10,6 +10,7 @@ import { DraftBanner } from "./DraftBanner";
 import { NarrativeHeader } from "./NarrativeHeader";
 import { PhaseSection } from "./PhaseSection";
 import { PresentationModeToggle } from "./PresentationModeToggle";
+import { RisksSection } from "./RisksSection";
 import { StatusSummaryCard } from "./StatusSummaryCard";
 import { WorkstreamCard } from "./WorkstreamCard";
 
@@ -124,6 +125,8 @@ export function NarrativeView({
           derived={derived}
           issuesByKey={issuesByKey}
         />
+
+        <RisksSection tree={narrative} />
       </main>
     </div>
   );
