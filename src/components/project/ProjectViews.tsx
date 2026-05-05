@@ -1,25 +1,37 @@
 "use client";
 
+import { type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Tabs } from "@heroui/react";
 import { ProjectRoadmap } from "./ProjectRoadmap";
 import { ProjectTable, type IssueRow } from "./ProjectTable";
 
-export type ViewKey = "list" | "roadmap";
+export type ViewKey = "list" | "roadmap" | "narratives";
+
+const VIEW_KEYS: readonly ViewKey[] = ["list", "roadmap", "narratives"];
+
+function isViewKey(value: unknown): value is ViewKey {
+  return (
+    typeof value === "string" &&
+    (VIEW_KEYS as readonly string[]).includes(value)
+  );
+}
 
 export function ProjectViews({
   rows,
   view,
+  narrativesPanel,
 }: {
   rows: IssueRow[];
   view: ViewKey;
+  narrativesPanel: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const handleSelectionChange = (key: React.Key) => {
-    const next = key === "roadmap" ? "roadmap" : "list";
+    const next: ViewKey = isViewKey(key) ? key : "list";
     if (next === view) return;
     const params = new URLSearchParams(searchParams.toString());
     if (next === "list") {
@@ -43,6 +55,10 @@ export function ProjectViews({
             Roadmap
             <Tabs.Indicator />
           </Tabs.Tab>
+          <Tabs.Tab id="narratives">
+            Narrativas
+            <Tabs.Indicator />
+          </Tabs.Tab>
         </Tabs.List>
       </Tabs.ListContainer>
       <Tabs.Panel id="list" className="pt-4">
@@ -50,6 +66,9 @@ export function ProjectViews({
       </Tabs.Panel>
       <Tabs.Panel id="roadmap" className="pt-4">
         <ProjectRoadmap rows={rows} />
+      </Tabs.Panel>
+      <Tabs.Panel id="narratives" className="pt-4">
+        {narrativesPanel}
       </Tabs.Panel>
     </Tabs>
   );

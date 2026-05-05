@@ -129,7 +129,11 @@ export default async function ProjectsPage() {
 // second <Link> rendered AFTER the overlay (later in DOM = higher in
 // the natural stacking order) and pinned with `relative z-10` so it
 // reliably wins over the overlay even if a future style adds z to the
-// overlay. Card itself gets `relative` so absolute children anchor here.
+// overlay. The wrapping div carries `group` + `relative` so:
+//   - absolute children anchor here (instead of to the Card root, where
+//     HeroUI's own classes can fight `hover:`),
+//   - hover styles propagate via `group-hover:` to the Card, the badge,
+//     and any nested element that wants to react.
 function ProjectCard({ project }: { project: ProjectRow }) {
   const leadName = project.lead_display_name ?? "Sin lead asignado";
   const donePct =
@@ -137,27 +141,32 @@ function ProjectCard({ project }: { project: ProjectRow }) {
       ? 0
       : Math.round((project.done_issues / project.total_issues) * 100);
   return (
-    <Card className="relative transition-opacity hover:opacity-80">
-      <Card.Header className="pr-20">
-        <Card.Title>{project.name}</Card.Title>
-        <Card.Description>
-          <span className="font-mono text-xs">{project.key}</span> · {leadName}
-        </Card.Description>
-      </Card.Header>
-      <Card.Content>
-        <dl className="grid grid-cols-2 gap-4">
-          <div>
-            <dt className="text-xs text-muted">Total de issues</dt>
-            <dd className="text-2xl font-semibold tabular-nums">
-              {project.total_issues}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted">% en Done</dt>
-            <dd className="text-2xl font-semibold tabular-nums">{donePct}%</dd>
-          </div>
-        </dl>
-      </Card.Content>
+    <div className="group relative">
+      <Card className="transition group-hover:border-default-400 group-hover:shadow-md">
+        <Card.Header className="pr-20">
+          <Card.Title>{project.name}</Card.Title>
+          <Card.Description>
+            <span className="font-mono text-xs">{project.key}</span> ·{" "}
+            {leadName}
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <dl className="grid grid-cols-2 gap-4">
+            <div>
+              <dt className="text-xs text-muted">Total de issues</dt>
+              <dd className="text-2xl font-semibold tabular-nums">
+                {project.total_issues}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">% en Done</dt>
+              <dd className="text-2xl font-semibold tabular-nums">
+                {donePct}%
+              </dd>
+            </div>
+          </dl>
+        </Card.Content>
+      </Card>
 
       <Link
         href={`/projects/${project.key}`}
@@ -177,6 +186,6 @@ function ProjectCard({ project }: { project: ProjectRow }) {
           </span>
         </Link>
       ) : null}
-    </Card>
+    </div>
   );
 }

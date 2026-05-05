@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { NarrativesListPanel } from "@/components/narrative-list/NarrativesListPanel";
 import { KpiHeader, type DashboardData } from "@/components/project/KpiHeader";
 import {
   type IssueRow,
@@ -15,7 +16,9 @@ interface PageProps {
 }
 
 function parseView(raw: string | string[] | undefined): ViewKey {
-  return raw === "roadmap" ? "roadmap" : "list";
+  if (raw === "roadmap") return "roadmap";
+  if (raw === "narratives") return "narratives";
+  return "list";
 }
 
 export default async function ProjectDetailPage({
@@ -58,7 +61,17 @@ export default async function ProjectDetailPage({
   return (
     <main className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8">
       <KpiHeader data={dashboard} />
-      <ProjectViews rows={tableRows} view={view} />
+      <ProjectViews
+        rows={tableRows}
+        view={view}
+        narrativesPanel={
+          <NarrativesListPanel
+            projectKey={key}
+            projectId={dashboard.project_id}
+            projectName={null}
+          />
+        }
+      />
     </main>
   );
 }
