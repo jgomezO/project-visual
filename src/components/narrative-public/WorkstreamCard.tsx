@@ -27,7 +27,10 @@ export function WorkstreamCard({ workstream, derived, issuesByKey }: Props) {
     : desc;
 
   return (
-    <article className="flex flex-col gap-3 rounded-lg border border-default-200 bg-surface p-4 shadow-sm">
+    <article
+      id={`workstream-${workstream.id}`}
+      className="scroll-mt-20 flex flex-col gap-3 rounded-lg border border-default-200 bg-surface p-4 shadow-sm"
+    >
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-semibold text-foreground group-data-[mode=presentation]/preview:text-xl">

@@ -5,6 +5,7 @@ import type {
   NarrativeDerived,
 } from "@/lib/narratives/derived";
 import type { NarrativeWithChildren } from "@/lib/narratives/types";
+import { DependenciesSection } from "./DependenciesSection";
 import { DraftBanner } from "./DraftBanner";
 import { NarrativeHeader } from "./NarrativeHeader";
 import { PhaseSection } from "./PhaseSection";
@@ -116,6 +117,11 @@ export function NarrativeView({
           </section>
         ) : null}
 
+        <DependenciesSection
+          tree={narrative}
+          derived={derived}
+          issuesByKey={issuesByKey}
+        />
       </main>
     </div>
   );

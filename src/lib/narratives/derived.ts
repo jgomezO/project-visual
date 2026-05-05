@@ -2,9 +2,12 @@ import "server-only";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 import type { StatusCategory } from "@/components/project/ProjectTable";
 import type {
+  CommitmentStatus,
+  NarrativeDependency,
   NarrativePhaseWithWorkstreams,
   NarrativeWithChildren,
   NarrativeWorkstream,
+  RiskLevel,
 } from "./types";
 
 // Public read-shape for issues consumed by the public narrative view.
@@ -65,12 +68,44 @@ export interface PhaseDerived {
   hasManualProgress: boolean;
 }
 
+export type AggregateStatus =
+  | "not_started"
+  | "in_progress"
+  | "mostly_done"
+  | "done";
+
+export interface ProviderIssuesData {
+  found: IssuePublicData[];
+  missing: string[];
+  aggregateProgress: number;
+  aggregateStatus: AggregateStatus;
+}
+
+// Derived stats for a single narrative_dependency. delayRiskDays is the
+// signed delta in days between expected and needed: positive = the
+// provider is going to be late, zero = on time, negative = arriving
+// before we need it. `resolvedExpectedDeliveryDate` includes the
+// fallback to the max provider-issue due_date when the manual date is
+// blank.
+export interface DependencyDerived {
+  daysUntilNeeded: number | null;
+  daysUntilDelivery: number | null;
+  delayRiskDays: number | null;
+  resolvedExpectedDeliveryDate: string | null;
+  providerIssuesData: ProviderIssuesData;
+  riskLevel: RiskLevel;
+}
+
 export interface NarrativeDerived {
   totalWorkstreams: number;
   totalIssues: number;
   globalProgress: number;
   perWorkstream: Map<string, WorkstreamDerived>;
   perPhase: Map<string, PhaseDerived>;
+  perDependency: Map<string, DependencyDerived>;
+  // Count of dependencies whose riskLevel resolves to "critical".
+  // Convenience for the header banner.
+  criticalDependencyCount: number;
 }
 
 // Hard cap for the recursive children fetch. Real Jira hierarchies max
@@ -79,21 +114,26 @@ const MAX_HIERARCHY_DEPTH = 4;
 
 /**
  * Loads every issue referenced (directly or transitively) by the
- * narrative's workstreams.
+ * narrative's workstreams *and* by the provider side of its
+ * dependencies.
  *
- * Pass 0: SELECT * WHERE key IN (jira_issue_keys).
+ * Pass 0: SELECT * WHERE key IN (workstream keys ∪ provider keys).
  * Pass 1..MAX_HIERARCHY_DEPTH: SELECT * WHERE parent_id IN (frontier ids,
  * minus already-loaded). Stops as soon as a pass returns no new rows.
  *
+ * Note: queries are NOT scoped by `project_id` because dependencies
+ * point at issues in *other* projects. Jira keys are unique within a
+ * tenant, so a global IN() over keys is safe. Recursive children also
+ * cross project boundaries (an Epic in the provider project may have
+ * child stories in that same provider project — we want their leaves
+ * for accurate progress).
+ *
  * Parent → child relationships in the closure are reconstructed from
- * `parent_id` against an id→key map built during loading. The drawer
- * pattern uses two-step queries instead of PostgREST embeds; same
- * principle here. No `parent.key` resolution leaves the loaded set,
- * because by construction every parent we reference is already loaded.
+ * `parent_id` against an id→key map built during loading. Mirrors the
+ * IssueDrawer pattern.
  *
  * Total queries: 1 initial + up to MAX_HIERARCHY_DEPTH children passes.
- * For typical narratives (10–50 direct keys, 2–3 levels deep) we stop
- * after 2–3 children passes, so ~3–4 queries.
+ * Typical narratives stop after 2–3 children passes — ~3–4 queries.
  */
 export async function loadIssuesForNarrative(
   narrative: NarrativeWithChildren,
@@ -125,7 +165,6 @@ export async function loadIssuesForNarrative(
   const first = await supabase
     .from("issues")
     .select(SELECT)
-    .eq("project_id", narrative.project_id)
     .in("key", initialKeys);
   if (first.error) throw first.error;
   for (const row of (first.data ?? []) as LoadedRow[]) {
@@ -138,7 +177,6 @@ export async function loadIssuesForNarrative(
     const next = await supabase
       .from("issues")
       .select(SELECT)
-      .eq("project_id", narrative.project_id)
       .in("parent_id", frontierIds);
     if (next.error) throw next.error;
 
@@ -195,6 +233,7 @@ export function computeDerived(
   childrenMap: Map<string, ChildIssue[]>,
 ): NarrativeDerived {
   const today = todayISODate();
+  const todayMs = Date.parse(`${today}T00:00:00Z`);
 
   const perWorkstream = new Map<string, WorkstreamDerived>();
   for (const ws of allWorkstreams(narrative)) {
@@ -207,6 +246,14 @@ export function computeDerived(
   const perPhase = new Map<string, PhaseDerived>();
   for (const phase of narrative.phases) {
     perPhase.set(phase.id, computePhase(phase, perWorkstream));
+  }
+
+  const perDependency = new Map<string, DependencyDerived>();
+  let criticalDependencyCount = 0;
+  for (const dep of narrative.dependencies) {
+    const d = computeDependencyDerived(dep, issuesByKey, childrenMap, todayMs);
+    perDependency.set(dep.id, d);
+    if (d.riskLevel === "critical") criticalDependencyCount++;
   }
 
   const totalWorkstreams = perWorkstream.size;
@@ -226,7 +273,135 @@ export function computeDerived(
     globalProgress,
     perWorkstream,
     perPhase,
+    perDependency,
+    criticalDependencyCount,
   };
+}
+
+/**
+ * Risk level rules. Precedence top to bottom — first matching rule wins.
+ *
+ * 1. blocked → critical (regardless of dates)
+ * 2. delayRiskDays > 14 AND status fragile (at_risk | proposed) → critical
+ * 3. delayRiskDays > 7  OR status === at_risk                  → high
+ * 4. 0 < delayRiskDays ≤ 7 OR status === proposed              → medium
+ * 5. otherwise                                                  → low
+ *
+ * When `delayRiskDays` is null (one or both dates missing), the
+ * date-based clauses fall through and the status alone drives the
+ * level: blocked → critical, at_risk → high, proposed → medium,
+ * agreed/confirmed → low.
+ */
+export function deriveRiskLevel(input: {
+  delayRiskDays: number | null;
+  commitmentStatus: CommitmentStatus;
+}): RiskLevel {
+  const { delayRiskDays, commitmentStatus } = input;
+  if (commitmentStatus === "blocked") return "critical";
+  if (
+    delayRiskDays !== null &&
+    delayRiskDays > 14 &&
+    (commitmentStatus === "at_risk" || commitmentStatus === "proposed")
+  ) {
+    return "critical";
+  }
+  if (
+    (delayRiskDays !== null && delayRiskDays > 7) ||
+    commitmentStatus === "at_risk"
+  ) {
+    return "high";
+  }
+  if (
+    (delayRiskDays !== null && delayRiskDays > 0 && delayRiskDays <= 7) ||
+    commitmentStatus === "proposed"
+  ) {
+    return "medium";
+  }
+  return "low";
+}
+
+function computeDependencyDerived(
+  dep: NarrativeDependency,
+  issuesByKey: Map<string, IssuePublicData>,
+  childrenMap: Map<string, ChildIssue[]>,
+  todayMs: number,
+): DependencyDerived {
+  // Provider issues breakdown
+  const found: IssuePublicData[] = [];
+  const missing: string[] = [];
+  for (const key of dep.provider_jira_issue_keys) {
+    const issue = issuesByKey.get(key);
+    if (issue) found.push(issue);
+    else missing.push(key);
+  }
+
+  const aggregateProgress =
+    found.length === 0
+      ? 0
+      : Math.round(
+          found.reduce(
+            (sum, issue) =>
+              sum +
+              computeIssueProgress(
+                issue.key,
+                issue.status_category,
+                childrenMap,
+                new Set(),
+              ),
+            0,
+          ) / found.length,
+        );
+
+  const aggregateStatus: AggregateStatus =
+    aggregateProgress === 0
+      ? "not_started"
+      : aggregateProgress >= 100
+        ? "done"
+        : aggregateProgress >= 70
+          ? "mostly_done"
+          : "in_progress";
+
+  // Date math (UTC, day granularity).
+  const daysUntilNeeded = daysFromTo(todayMs, dep.needed_by_date);
+  const resolvedExpectedDeliveryDate =
+    dep.expected_delivery_date ?? deriveProviderMaxDueDate(found);
+  const daysUntilDelivery = daysFromTo(todayMs, resolvedExpectedDeliveryDate);
+  const delayRiskDays =
+    daysUntilNeeded === null || daysUntilDelivery === null
+      ? null
+      : daysUntilDelivery - daysUntilNeeded;
+
+  const riskLevel = deriveRiskLevel({
+    delayRiskDays,
+    commitmentStatus: dep.commitment_status as CommitmentStatus,
+  });
+
+  return {
+    daysUntilNeeded,
+    daysUntilDelivery,
+    delayRiskDays,
+    resolvedExpectedDeliveryDate,
+    providerIssuesData: { found, missing, aggregateProgress, aggregateStatus },
+    riskLevel,
+  };
+}
+
+function deriveProviderMaxDueDate(
+  found: IssuePublicData[],
+): string | null {
+  let max: string | null = null;
+  for (const issue of found) {
+    if (issue.due_date === null) continue;
+    if (max === null || issue.due_date > max) max = issue.due_date;
+  }
+  return max;
+}
+
+function daysFromTo(todayMs: number, isoDate: string | null): number | null {
+  if (!isoDate) return null;
+  const t = Date.parse(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(t)) return null;
+  return Math.round((t - todayMs) / 86_400_000);
 }
 
 /**
@@ -384,6 +559,9 @@ function collectIssueKeys(narrative: NarrativeWithChildren): string[] {
   const set = new Set<string>();
   for (const ws of allWorkstreams(narrative)) {
     for (const key of ws.jira_issue_keys) set.add(key);
+  }
+  for (const dep of narrative.dependencies) {
+    for (const key of dep.provider_jira_issue_keys) set.add(key);
   }
   return Array.from(set);
 }
