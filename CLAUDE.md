@@ -205,7 +205,9 @@ supabase/
     ├── 20260501113500_init_jira_dashboard_schema.sql
     ├── 20260501174714_add_project_dashboard_function.sql
     ├── 20260502174819_add_start_date_to_issues.sql
-    └── 20260504184656_add_narratives_schema.sql
+    ├── 20260504184656_add_narratives_schema.sql
+    ├── 20260504234120_add_narrative_dependencies.sql
+    └── 20260505004354_add_project_stats_view.sql
 ```
 
 ### Roadmap view (`?view=roadmap`)
@@ -660,6 +662,23 @@ Don't apply when:
    - Updates `projects.last_synced_at` on success.
 4. Aggregated stats (`issuesCreated`, `issuesUpdated`, `linksSkipped`) plus `jql_used` are written by `succeedRun` / `failRun`. On any thrown exception, the run is marked `failed` with `error_message` — never left in `running`.
 
+### `/projects` list view
+
+- **`project_stats` SQL view** (in
+  `20260505004354_add_project_stats_view.sql`, granted to `anon` +
+  `authenticated`): one row per project with `total_issues` and
+  `done_issues` aggregated server-side. The list page reads from it
+  directly. Replaced an in-app group-by over a single `IN()` query
+  that broke once total issues across projects went past PostgREST's
+  default 1000-row response cap — projects at the alphabetical tail
+  silently showed zero issues on the card while the per-project
+  detail (which uses the `project_dashboard` RPC) was correct.
+- **`security_invoker = true`** on the view: it executes with the
+  caller's privileges and respects the underlying tables' RLS. When
+  RLS tightens, the view follows automatically.
+- If we ever need overdue / blocked counts on the list page, extend
+  the view rather than re-introducing client-side grouping.
+
 ### `/projects/[key]` detail view
 
 - **`project_dashboard(p_project_key TEXT)` RPC** (in
@@ -764,7 +783,6 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **Issue deletion is not detected.** Jira doesn't expose a "what was deleted since X" endpoint cheaply. When it matters: periodic full sync that lists all current ids and diffs.
 - **Watermark uses a 1-day buffer (date-only)** to dodge JQL TZ ambiguity. Refine to a TZ-aware timestamp (using the token user's `/myself.timeZone`) when volume justifies it.
 - **Stuck `running` rows in `sync_runs`.** When the dev server restarts (HMR, file save) mid-sync, the `runSync` `try/catch` never fires and the row stays `running` forever. Run `pnpm diag:runs:reap` to mark rows older than 5min as `failed`. Long-term fix: a periodic reaper or a NOTIFY-based heartbeat. Acceptable today as a manual recovery step.
-- **`/projects` aggregations are computed in app code** (one query for all issues, group in JS). Promote to a Postgres view (`project_stats`) once project count grows.
 - **`/projects/[key]` issues table is not virtualized.** Fine for the current scale (NOXSCRUM has ~813 issues, render is snappy). At ~2000+ rows, switch to a virtualized renderer or paginate server-side. The bucketize/filter passes are O(n); the cost is in the DOM.
 - **`/projects/[key]` roadmap is not virtualized.** Designed for ~10x current scale (~270 epics). The chart renders one absolutely-positioned `<button>` per visible epic plus a couple of SVG lines per week — at 270 epics × month-ranged ranges that's ~300 DOM nodes, fine. At 2000+ epics consider virtualizing the chart body rows (the left label column would virtualize in lockstep) and pre-bucketing on the server.
 - **Drawer link enrichment runs a second `in()` query** to fetch summary/status for linked targets. At ~10s of links per issue this is fine; consider a single SQL function with JOINs if drawers feel slow.

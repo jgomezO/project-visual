@@ -24,37 +24,24 @@ interface DashboardData {
 async function loadDashboard(): Promise<DashboardData> {
   const supabase = getAnonSupabase();
 
+  // `project_stats` is a SQL view that aggregates issue counts per
+  // project server-side. Replaced an in-app group-by over a single
+  // IN() query — PostgREST caps responses at 1000 rows, which truncated
+  // the aggregation once total issues across projects went past that.
   const { data: rawProjects, error: projError } = await supabase
-    .from("projects")
-    .select("id, key, name, lead_display_name, last_synced_at")
+    .from("project_stats")
+    .select("*")
     .order("name", { ascending: true });
   if (projError) throw projError;
-  const projects = rawProjects ?? [];
-
-  const totalsByProject = new Map<string, { total: number; done: number }>();
-  if (projects.length > 0) {
-    const projectIds = projects.map((p) => p.id);
-    const { data: issues, error: issuesError } = await supabase
-      .from("issues")
-      .select("project_id, status_category")
-      .in("project_id", projectIds);
-    if (issuesError) throw issuesError;
-    for (const i of issues ?? []) {
-      const t = totalsByProject.get(i.project_id) ?? { total: 0, done: 0 };
-      t.total += 1;
-      if (i.status_category === "Done") t.done += 1;
-      totalsByProject.set(i.project_id, t);
-    }
-  }
-
-  const projectsWithStats: ProjectRow[] = projects.map((p) => {
-    const t = totalsByProject.get(p.id) ?? { total: 0, done: 0 };
-    return {
-      ...p,
-      total_issues: t.total,
-      done_issues: t.done,
-    };
-  });
+  const projects: ProjectRow[] = (rawProjects ?? []).map((row) => ({
+    id: row.id ?? "",
+    key: row.key ?? "",
+    name: row.name ?? "",
+    lead_display_name: row.lead_display_name,
+    last_synced_at: row.last_synced_at,
+    total_issues: row.total_issues ?? 0,
+    done_issues: row.done_issues ?? 0,
+  }));
 
   const { data: runs, error: runsError } = await supabase
     .from("sync_runs")
@@ -65,7 +52,7 @@ async function loadDashboard(): Promise<DashboardData> {
   if (runsError) throw runsError;
   const lastSyncFinishedAt = runs?.[0]?.finished_at ?? null;
 
-  return { projects: projectsWithStats, lastSyncFinishedAt };
+  return { projects, lastSyncFinishedAt };
 }
 
 export default async function ProjectsPage() {

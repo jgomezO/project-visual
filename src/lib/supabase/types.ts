@@ -160,6 +160,13 @@ export type Database = {
             foreignKeyName: "issues_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "project_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issues_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -389,6 +396,13 @@ export type Database = {
             foreignKeyName: "project_narratives_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "project_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_narratives_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -483,7 +497,18 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      project_stats: {
+        Row: {
+          done_issues: number | null
+          id: string | null
+          key: string | null
+          last_synced_at: string | null
+          lead_display_name: string | null
+          name: string | null
+          total_issues: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       project_dashboard: {
