@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Card } from "@heroui/react";
+import { FileText } from "lucide-react";
 import { SyncButton } from "@/components/SyncButton";
 import { UserMenu } from "@/components/UserMenu";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { relativeFromNow } from "@/lib/format/relativeTime";
-import { getAnonSupabase } from "@/lib/supabase/anon";
+import { getServerSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ interface ProjectRow {
   last_synced_at: string | null;
   total_issues: number;
   done_issues: number;
+  narratives_count: number;
 }
 
 interface DashboardData {
@@ -24,12 +26,13 @@ interface DashboardData {
 }
 
 async function loadDashboard(): Promise<DashboardData> {
-  const supabase = getAnonSupabase();
+  const supabase = await getServerSupabase();
 
   // `project_stats` is a SQL view that aggregates issue counts per
   // project server-side. Replaced an in-app group-by over a single
   // IN() query — PostgREST caps responses at 1000 rows, which truncated
   // the aggregation once total issues across projects went past that.
+  // narratives_count was appended in iter 4g.
   const { data: rawProjects, error: projError } = await supabase
     .from("project_stats")
     .select("*")
@@ -43,6 +46,7 @@ async function loadDashboard(): Promise<DashboardData> {
     last_synced_at: row.last_synced_at,
     total_issues: row.total_issues ?? 0,
     done_issues: row.done_issues ?? 0,
+    narratives_count: row.narratives_count ?? 0,
   }));
 
   const { data: runs, error: runsError } = await supabase
@@ -113,19 +117,19 @@ export default async function ProjectsPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((project) => (
-          <Link
-            key={project.id}
-            href={`/projects/${project.key}`}
-            className="block transition-opacity hover:opacity-80"
-          >
-            <ProjectCard project={project} />
-          </Link>
+          <ProjectCard key={project.id} project={project} />
         ))}
       </div>
     </main>
   );
 }
 
+// Stretched-link pattern: the card surface is one big click target via
+// an absolute-positioned overlay <Link>, but the narratives badge is a
+// second <Link> rendered AFTER the overlay (later in DOM = higher in
+// the natural stacking order) and pinned with `relative z-10` so it
+// reliably wins over the overlay even if a future style adds z to the
+// overlay. Card itself gets `relative` so absolute children anchor here.
 function ProjectCard({ project }: { project: ProjectRow }) {
   const leadName = project.lead_display_name ?? "Sin lead asignado";
   const donePct =
@@ -133,8 +137,8 @@ function ProjectCard({ project }: { project: ProjectRow }) {
       ? 0
       : Math.round((project.done_issues / project.total_issues) * 100);
   return (
-    <Card>
-      <Card.Header>
+    <Card className="relative transition-opacity hover:opacity-80">
+      <Card.Header className="pr-20">
         <Card.Title>{project.name}</Card.Title>
         <Card.Description>
           <span className="font-mono text-xs">{project.key}</span> · {leadName}
@@ -154,6 +158,25 @@ function ProjectCard({ project }: { project: ProjectRow }) {
           </div>
         </dl>
       </Card.Content>
+
+      <Link
+        href={`/projects/${project.key}`}
+        aria-label={`Ver ${project.name}`}
+        className="absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      />
+
+      {project.narratives_count > 0 ? (
+        <Link
+          href={`/projects/${project.key}?view=narratives`}
+          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full border border-default-200 bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-default-400 hover:bg-default-100"
+        >
+          <FileText className="size-3.5" aria-hidden="true" />
+          <span>
+            {project.narratives_count} narrativa
+            {project.narratives_count === 1 ? "" : "s"}
+          </span>
+        </Link>
+      ) : null}
     </Card>
   );
 }
