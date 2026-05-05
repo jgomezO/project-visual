@@ -18,7 +18,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4c:** Public narrative view at `/projects/[key]/narratives/[id]/preview` — the read-only presentation surface for sharing with C-level / CS / stakeholders. Server Component loads the narrative + a single batched issues query, computes derived stats (per-workstream progress / overdue / missing-from-sync, per-phase progress with manual override, global aggregates), and renders header → status summary → phase sections → orphan workstreams. Progressive disclosure (overview "Leer más", rationale "Ver el por qué", workstream "Ver detalles" + issues list). Presentation mode toggleable via `?mode=presentation` (URL state, ESC exits). Print stylesheet expands every collapsible. Responsive desktop-first but degrades on mobile.
 
-**Iteration 4c.1 (current):** Honesty pass on the public view. Each `IssueChip` now shows an issue-type icon (Epic/Zap púrpura, Story/BookmarkPlus verde, Task/CheckSquare azul, Bug/Bug rojo, Sub-task/CornerDownRight gris, Otro/Circle) with ES tooltip — the lay reader can tell at a glance what level of work each row is. Progress is no longer binary done/not-done: `loadIssuesForNarrative` fetches the full hierarchy closure (initial keys + recursive parent→children passes capped at depth 4) and `computeIssueProgress` walks it (leaf → 100/0 by Done; non-leaf → average of children). Workstream progress = average across directly-linked issues using their recursive value; global progress = average across ALL workstreams (phase + orphan equally weighted). New permanent dev page `/dev/components-preview` for visual validation of new components.
+**Iteration 4c.1:** Honesty pass on the public view. Each `IssueChip` now shows an issue-type icon (Epic/Zap púrpura, Story/BookmarkPlus verde, Task/CheckSquare azul, Bug/Bug rojo, Sub-task/CornerDownRight gris, Otro/Circle) with ES tooltip — the lay reader can tell at a glance what level of work each row is. Progress is no longer binary done/not-done: `loadIssuesForNarrative` fetches the full hierarchy closure (initial keys + recursive parent→children passes capped at depth 4) and `computeIssueProgress` walks it (leaf → 100/0 by Done; non-leaf → average of children). Workstream progress = average across directly-linked issues using their recursive value; global progress = average across ALL workstreams (phase + orphan equally weighted). New permanent dev page `/dev/components-preview` for visual validation of new components.
+
+**Iteration 4d (current):** Cross-team dependencies inside a narrative — modeled, edited, and surfaced. New table `narrative_dependencies` with manual `commitment_status` (proposed/agreed/confirmed/at_risk/blocked), two independent dates (`needed_by_date` vs `expected_delivery_date`), free-text PoD with optional Jira project key link, and provider issue keys. The editor sidebar gains an always-visible "Dependencias" group with full CRUD + reorder; `DependencyForm` adds auto-save, `PodAutocompleteInput` (suggests against the local `projects` table), and `JiraIssueKeysInput` is extended with a `providerProjectKey?` filter. The public preview ships a `DependenciesSection` (`#dependencias` anchor, omitted on zero deps), `DependencyCard` with risk-level lateral border + dot/badge, `DateGapIndicator` (red/green/neutral), `CommitmentStatusChip` (5 ES variants). Header counter "N dependencias" + "⚠ N en estado crítico" anchor-link to the section; `scroll-behavior: smooth` honors `prefers-reduced-motion`.
 
 ## Stack
 
@@ -138,18 +140,25 @@ src/
 │   │   ├── NarrativeForm.tsx       useAutoSave for title / subtitle / overview / status_summary
 │   │   ├── PhaseForm.tsx           useAutoSave for name / objective / rationale / status / dates / progress
 │   │   ├── WorkstreamForm.tsx      useAutoSave for name / description / phase_id / jira_issue_keys
-│   │   ├── JiraIssueKeysInput.tsx  Anon-client autocomplete + module-level chip cache
+│   │   ├── DependencyForm.tsx      useAutoSave for the full narrative_dependency record
+│   │   ├── DependenciesListPanel.tsx  Group panel: list of dependency cards + delete
+│   │   ├── PodAutocompleteInput.tsx   Free-text PoD with autocomplete against `projects`
+│   │   ├── JiraIssueKeysInput.tsx  Anon-client autocomplete + module-level chip cache; optional `providerProjectKey` rescopes
 │   │   ├── AutosaveIndicator.tsx   Saving / Saved / Error pill + Reintentar
 │   │   └── useAutoSave.ts          Debounced auto-save hook with imperative flush()
 │   ├── narrative-public/
 │   │   ├── NarrativeView.tsx           Top-level layout, data-mode wrapper, draft banner mount
-│   │   ├── NarrativeHeader.tsx         Client: title/subtitle/meta + overview "Leer más"
+│   │   ├── NarrativeHeader.tsx         Client: title/subtitle/meta + overview "Leer más" + deps counter
 │   │   ├── StatusSummaryCard.tsx       Server: blue-accent card with status_summary
 │   │   ├── DraftBanner.tsx             Server: amber strip when published === false
 │   │   ├── PhaseSection.tsx            Client: status palette + rationale toggle + progress bar
 │   │   ├── WorkstreamCard.tsx          Client: collapsed/expanded with issues list
 │   │   ├── IssueChip.tsx               Server: issue row + warning state for missing-from-sync
 │   │   ├── issueTypeIcon.tsx           Server: type→icon+tooltip map (Epic/Story/Task/Bug/Sub-task)
+│   │   ├── DependenciesSection.tsx     Server: section under #dependencias; omitted on zero deps
+│   │   ├── DependencyCard.tsx          Client: risk-level border + provider block + dates + status + coordination
+│   │   ├── DateGapIndicator.tsx        Server: red/green/neutral chip for delayRiskDays
+│   │   ├── CommitmentStatusChip.tsx    Server: 5 ES variants for commitment_status
 │   │   └── PresentationModeToggle.tsx  Client: ?mode= URL state + ESC handler
 │   └── project/
 │       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
@@ -527,6 +536,115 @@ canonical map.
   Tailwind's `motion-reduce:transition-none`, not via a global kill
   switch. Granular by design — if a future motion gets added we
   flag it explicitly.
+
+### Narrative dependencies (`narrative_dependencies`, iter 4d)
+
+Cross-team commitments declared inside a narrative — distinct from
+`issue_links` (which model technical Jira relationships). A
+dependency carries title, free-text PoD, optional Jira project key,
+provider issue keys, two independent dates, manual
+`commitment_status`, and coordination notes.
+
+#### Schema decisions
+
+- **`workstream_id` is nullable + ON DELETE SET NULL.** A dependency
+  can apply to a single workstream or to the whole narrative
+  (`null` = "Toda la narrativa"). On workstream delete we keep the
+  dependency record because it represents a multi-team negotiation
+  that outlives a workstream rename.
+- **No composite FK `(workstream_id, narrative_id)`.** The "is this
+  workstream really in this narrative?" check is enforced by the
+  editor UI: the Select only surfaces the current narrative's
+  workstreams. The risk of a cross-narrative pointer is low and
+  contained to programmatic mis-calls; the cost of adding a
+  `UNIQUE(id, narrative_id)` index on `narrative_workstreams` plus
+  a composite FK is not justified for this case. (Phases / orphan
+  workstreams use composite FK because they're the original
+  load-bearing structural relationship.)
+- **PoD is free text + optional Jira project key, no FK to
+  `projects(key)`.** The PM may reference a team whose Jira project
+  isn't synced (or never will be). The autocomplete *suggests*
+  matches against `projects`, but free typing is always allowed.
+- **No `CHECK` between `needed_by_date` and
+  `expected_delivery_date`.** When `expected > needed` the gap IS
+  the executive signal we want to surface. A constraint that
+  rejects "late" data would force the PM to lie or omit fields.
+- **`commitment_status` is manual.** Curated by the PM, never
+  auto-derived from Jira state. The PM is the source of truth on
+  whether a verbal "yes we'll do it" actually holds.
+
+#### Risk level rules
+
+`deriveRiskLevel({ delayRiskDays, commitmentStatus })` is a pure
+function in `lib/narratives/derived.ts`. Precedence top to bottom —
+first match wins:
+
+| # | Condition                                                                       | Level      |
+| - | ------------------------------------------------------------------------------- | ---------- |
+| 1 | `commitmentStatus === 'blocked'`                                                | `critical` |
+| 2 | `delayRiskDays > 14` AND status ∈ {`at_risk`, `proposed`}                       | `critical` |
+| 3 | `delayRiskDays > 7` OR `commitmentStatus === 'at_risk'`                          | `high`     |
+| 4 | `0 < delayRiskDays <= 7` OR `commitmentStatus === 'proposed'`                   | `medium`   |
+| 5 | otherwise                                                                       | `low`      |
+
+When `delayRiskDays` is `null` (one or both dates missing), the
+date-based clauses fall through and status alone drives the level:
+`blocked → critical`, `at_risk → high`, `proposed → medium`,
+`agreed | confirmed → low`.
+
+To tune the thresholds: edit `deriveRiskLevel` directly. The
+function takes a single shape so callers don't need to update
+signatures.
+
+#### `expected_delivery_date` fallback
+
+If the PM left the field blank, `computeDependencyDerived` falls
+back to `MAX(due_date)` over the *found* provider issues (skipping
+`null` due_dates). The card surfaces the difference visually
+("(estimado por issues)" sublabel) so the reader knows the date
+isn't a hard commitment from the provider.
+
+If no provider issues are loaded, or none have a due date, the
+expected stays `null` and `DateGapIndicator` falls to its neutral
+"Necesario antes del…" mode.
+
+#### Editor sidebar — always visible
+
+The "Dependencias" group node always renders in the sidebar, even
+with zero deps, because the PM needs an entry point to add one. The
+same is NOT true for the public preview, which omits the section
+entirely on zero deps.
+
+### Query waves (pattern)
+
+Reusable shape for any page that loads N round-trips with mixed
+dependencies. Used by `/projects/[key]/narratives/[id]/preview`
+today; document new heavy reads here as we build them.
+
+> **Wave 1**: data principal (e.g. the narrative).
+> **Wave 2**: data dependiente paralela (cosas que necesitan IDs
+> que aparecen en wave 1, pero que pueden cargarse en paralelo
+> entre sí — e.g. `dependencies` y `project lookup` ambos sobre
+> `narrative.id` / URL key).
+> **Wave 3**: data derivada (e.g. el closure de issues, que
+> necesita los keys de wave 1 + wave 2).
+
+Each wave is a `Promise.all`; consecutive waves are awaited in
+sequence. The benefit over a flat `Promise.all` is the dependency
+edges are explicit in the code, and the benefit over fully
+sequential awaits is each wave parallelises everything that *can*
+run in parallel.
+
+Apply this pattern when:
+- A page needs three or more queries.
+- Some queries depend on results from earlier queries.
+- The natural shape would be either "all sequential" (slow) or
+  "fold into one SQL function" (over-engineered).
+
+Don't apply when:
+- The page only has one or two queries — a single `Promise.all`
+  or a sequential pair is clearer.
+- Dependency edges are flat (everything can run together).
 
 ### Sync flow
 
