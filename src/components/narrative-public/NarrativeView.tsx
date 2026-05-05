@@ -68,6 +68,10 @@ export function NarrativeView({
           totalIssues={derived.totalIssues}
           totalDependencies={narrative.dependencies.length}
           criticalDependencyCount={derived.criticalDependencyCount}
+          totalRisks={narrative.risks.length}
+          highSeverityRiskCount={
+            narrative.risks.filter((r) => r.severity === "high").length
+          }
         />
 
         {narrative.status_summary ? (

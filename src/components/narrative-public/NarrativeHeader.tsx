@@ -17,6 +17,8 @@ interface Props {
   totalIssues: number;
   totalDependencies: number;
   criticalDependencyCount: number;
+  totalRisks: number;
+  highSeverityRiskCount: number;
 }
 
 export function NarrativeHeader({
@@ -28,6 +30,8 @@ export function NarrativeHeader({
   totalIssues,
   totalDependencies,
   criticalDependencyCount,
+  totalRisks,
+  highSeverityRiskCount,
 }: Props) {
   return (
     <header className="flex flex-col gap-5">
@@ -85,6 +89,28 @@ export function NarrativeHeader({
               >
                 <AlertTriangle className="size-3" aria-hidden="true" />
                 {criticalDependencyCount} en estado crítico
+              </a>
+            ) : null}
+          </>
+        ) : null}
+        {totalRisks > 0 ? (
+          <>
+            <span aria-hidden="true" className="text-default-300">
+              •
+            </span>
+            <a
+              href="#riesgos"
+              className="font-medium hover:text-foreground hover:underline"
+            >
+              {totalRisks} riesgo{totalRisks === 1 ? "" : "s"}
+            </a>
+            {highSeverityRiskCount > 0 ? (
+              <a
+                href="#riesgos"
+                className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 hover:bg-red-200"
+              >
+                <AlertTriangle className="size-3" aria-hidden="true" />
+                {highSeverityRiskCount} de severidad alta
               </a>
             ) : null}
           </>

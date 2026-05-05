@@ -9,6 +9,7 @@ import type {
 import type {
   CommitmentStatus,
   NarrativeDependency,
+  NarrativeRisk,
   NarrativeWithChildren,
   RiskLevel,
 } from "@/lib/narratives/types";
@@ -65,6 +66,13 @@ export function DependencyCard({
     ? findWorkstream(tree, dependency.workstream_id)
     : null;
 
+  // Reverse cross-link: which risks declared this dep as related?
+  // Computed inline; deps and risks per narrative are bounded so the
+  // O(R) filter is fine. Order follows tree.risks (= order_index).
+  const mentioningRisks = tree.risks.filter((r) =>
+    r.related_dependency_ids.includes(dependency.id),
+  );
+
   return (
     <article
       id={`dep-${dependency.id}`}
@@ -86,7 +94,10 @@ export function DependencyCard({
             title={RISK_LABEL_ES[derived.riskLevel]}
           />
         )}
-        <h3 className="text-lg font-semibold tracking-tight text-foreground group-data-[mode=presentation]/preview:text-xl">
+        <span className="rounded-full bg-default-200 px-2 py-0.5 font-mono text-[11px] font-semibold text-muted">
+          {dependency.identifier}
+        </span>
+        <h3 className="flex-1 text-lg font-semibold tracking-tight text-foreground group-data-[mode=presentation]/preview:text-xl">
           {dependency.title}
         </h3>
       </header>
@@ -119,6 +130,10 @@ export function DependencyCard({
         <CoordinationNotes notes={dependency.coordination_notes} />
       ) : null}
 
+      {mentioningRisks.length > 0 ? (
+        <MentionedByRisks risks={mentioningRisks} />
+      ) : null}
+
       <footer className="border-t border-default-100 pt-3 text-xs text-muted">
         Impacta a:{" "}
         {impactedWorkstream ? (
@@ -135,6 +150,28 @@ export function DependencyCard({
         )}
       </footer>
     </article>
+  );
+}
+
+function MentionedByRisks({ risks }: { risks: NarrativeRisk[] }) {
+  return (
+    <section className="flex flex-wrap items-center gap-2 border-t border-default-100 pt-3 text-xs text-muted">
+      <span className="font-semibold uppercase tracking-wide">
+        Mencionada por
+      </span>
+      {risks.map((risk) => (
+        <a
+          key={risk.id}
+          href={`#risk-${risk.id}`}
+          className="inline-flex items-center gap-1.5 rounded-full bg-default-100 px-2.5 py-0.5 text-xs font-medium text-foreground hover:bg-default-200"
+        >
+          <span className="font-mono text-[10px] text-muted">
+            {risk.identifier}
+          </span>
+          <span className="max-w-[16rem] truncate">{risk.title}</span>
+        </a>
+      ))}
+    </section>
   );
 }
 
