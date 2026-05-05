@@ -22,7 +22,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4d:** Cross-team dependencies inside a narrative — modeled, edited, and surfaced. New table `narrative_dependencies` with manual `commitment_status` (proposed/agreed/confirmed/at_risk/blocked), two independent dates (`needed_by_date` vs `expected_delivery_date`), free-text PoD with optional Jira project key link, and provider issue keys. The editor sidebar gains an always-visible "Dependencias" group with full CRUD + reorder; `DependencyForm` adds auto-save, `PodAutocompleteInput` (suggests against the local `projects` table), and `JiraIssueKeysInput` is extended with a `providerProjectKey?` filter. The public preview ships a `DependenciesSection` (`#dependencias` anchor, omitted on zero deps), `DependencyCard` with risk-level lateral border + dot/badge, `DateGapIndicator` (red/green/neutral), `CommitmentStatusChip` (5 ES variants). Header counter "N dependencias" + "⚠ N en estado crítico" anchor-link to the section; `scroll-behavior: smooth` honors `prefers-reduced-motion`.
 
-**Iteration 4e (current):** Risks declared inside a narrative + stable per-narrative identifiers. New table `narrative_risks` (title, description, severity low/medium/high, `impacts TEXT[]` and `mitigations TEXT[]` with `cardinality >= 1` CHECKs, `related_dependency_ids UUID[]` with no FK on array elements). Stable identifiers `R1, R2, ...` and `D1, D2, ...` are auto-assigned via `claim_next_risk_identifier(uuid)` / `claim_next_dependency_identifier(uuid)` RPCs that atomically increment per-narrative counter columns (`next_risk_id`, `next_dependency_id`) on `project_narratives` — counters never decrease, so deletes don't reuse identifiers. Editor sidebar gains a "Riesgos" group with the same shape as Dependencies; `RiskForm` uses a reusable `BulletListInput` for impacts/mitigations and a toggle-chip picker for related dependencies. Public preview ships `RisksSection` (`#riesgos` anchor, omitted on zero risks) with `RiskCard` (severity-bordered, identifier chip, impacts/mitigations bullet sections, related-dep chips anchor-linked to `#dep-{id}`); `DependencyCard` reciprocates with a "Mencionada por" footer of risk chips → `#risk-{id}`. Header gains "N riesgos" + "⚠ N de severidad alta" counters anchor-linked to `#riesgos`. `NarrativeForm` adds an optional `risks_section_subtitle` field. Preview page is refactored to the canonical Query Waves shape (Wave 1: narrative + project parallel; Wave 2: issue closure; pure compute).
+**Iteration 4e:** Risks declared inside a narrative + stable per-narrative identifiers. New table `narrative_risks` (title, description, severity low/medium/high, `impacts TEXT[]` and `mitigations TEXT[]` with `cardinality >= 1` CHECKs, `related_dependency_ids UUID[]` with no FK on array elements). Stable identifiers `R1, R2, ...` and `D1, D2, ...` are auto-assigned via `claim_next_risk_identifier(uuid)` / `claim_next_dependency_identifier(uuid)` RPCs that atomically increment per-narrative counter columns (`next_risk_id`, `next_dependency_id`) on `project_narratives` — counters never decrease, so deletes don't reuse identifiers. Editor sidebar gains a "Riesgos" group with the same shape as Dependencies; `RiskForm` uses a reusable `BulletListInput` for impacts/mitigations and a toggle-chip picker for related dependencies. Public preview ships `RisksSection` (`#riesgos` anchor, omitted on zero risks) with `RiskCard` (severity-bordered, identifier chip, impacts/mitigations bullet sections, related-dep chips anchor-linked to `#dep-{id}`); `DependencyCard` reciprocates with a "Mencionada por" footer of risk chips → `#risk-{id}`. Header gains "N riesgos" + "⚠ N de severidad alta" counters anchor-linked to `#riesgos`. `NarrativeForm` adds an optional `risks_section_subtitle` field. Preview page is refactored to the canonical Query Waves shape (Wave 1: narrative + project parallel; Wave 2: issue closure; pure compute).
+
+**Iteration 4f (current):** Google OAuth via Supabase Auth, restricted to `@veevart.com` (whitelist via `ALLOWED_EMAIL_DOMAINS`) with a per-user check against Jira's user search. New `user_profiles` table mirrors `auth.users` and caches the resolved Jira `accountId` so subsequent logins skip the API hit. `/login` + `/auth/callback` route handler enforce the two gates; failed gates sign the user out and redirect to `/login?error=domain|jira|unknown`. New middleware refreshes the Supabase session via `getUser()` (validated against the auth server, never `getSession()` which trusts cookies) and gates every path except `/login`, `/auth/callback`, `/api/sync`, `/api/cron/*`. Three Supabase clients now: `getServerSupabase` (cookies-aware, default for app reads/writes via authenticated session), `getServerSupabaseAdmin` (service-role bypass for sync, seed, scripts), `getAnonSupabase` (browser-side public reads in autocompletes). RLS tightened: narrative tables drop `anon_read` and gain `auth_all` on `authenticated`; Jira tables (`projects`, `issues`, `issue_links`, `sync_runs`) get a parallel `authenticated` SELECT policy alongside the existing `anon` one. `created_by` / `updated_by` get stamped with the actor's email by Server Actions (`getActor` helper); the new `formatActor` helper renders `null` / `"system"` as **"Sistema"** in the UI. UserMenu (avatar + Dropdown with email + logout) sits in every primary header except `/preview`.
 
 ## Stack
 
@@ -35,7 +37,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 - pnpm 10, ESLint 9
 - Node 20+ (verified on 22)
 
-Planned for later phases (NOT installed): Recharts, React Flow, TanStack Table, background jobs (Inngest or Trigger.dev — undecided), user-level auth.
+Planned for later phases (NOT installed): Recharts, React Flow, TanStack Table, background jobs (Inngest or Trigger.dev — undecided).
+
+Auth: Supabase Auth + `@supabase/ssr` (Google OAuth via the configured Supabase provider). Installed in iter 4f.
 
 ## Commands
 
@@ -76,6 +80,7 @@ No test runner configured yet.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`   | client  | Safe to ship to browser; gated by RLS                         |
 | `SUPABASE_SERVICE_ROLE_KEY`       | server  | **SERVER-ONLY**, bypasses RLS, never log                      |
 | `SYNC_SECRET`                     | server  | Required by `POST /api/sync` via `x-sync-secret` header       |
+| `ALLOWED_EMAIL_DOMAINS`           | server  | Comma-separated whitelist for Google OAuth login. Server-only. Domain check fails closed if unset/empty (refuses every login). |
 
 Document every new var in `.env.example` with inline notes on which side it lives.
 
@@ -84,10 +89,12 @@ Document every new var in `.env.example` with inline notes on which side it live
 1. Create a Supabase cloud project (https://supabase.com), copy URL + anon key + service-role key into `.env.local`.
 2. `SYNC_SECRET=$(openssl rand -hex 32)` → `.env.local`.
 3. Add Jira creds (URL, email, API token) to `.env.local`.
-4. `supabase link --project-ref <ref>` (the ref is the subdomain of `NEXT_PUBLIC_SUPABASE_URL`).
-5. `supabase db push` to apply migrations.
-6. `pnpm install && pnpm dev`.
-7. Open `/projects`. Empty state has a "Sincronizar ahora" button; or trigger via curl below.
+4. Add `ALLOWED_EMAIL_DOMAINS=veevart.com` to `.env.local`.
+5. `supabase link --project-ref <ref>` (the ref is the subdomain of `NEXT_PUBLIC_SUPABASE_URL`).
+6. `supabase db push` to apply migrations.
+7. **Auth setup (manual, one-time)**: Google Cloud Console → create OAuth 2.0 Client (Web application) with redirect URI `https://<ref>.supabase.co/auth/v1/callback`. Paste Client ID + Secret into Supabase → Authentication → Providers → Google. Set Supabase Site URL + Redirect URLs (add `http://localhost:3000/auth/callback`). Detailed steps in the migration `20260505145650_add_user_profiles_and_grant_rpc_to_authenticated.sql`.
+8. `pnpm install && pnpm dev`.
+9. Open `/login`, log in with a `@veevart.com` account that has Jira access. After auth lands you'll see `/projects`; if it's empty, the "Sincronizar ahora" button or the curl below trigger an initial sync.
 
 ### Manual sync (curl)
 
@@ -110,15 +117,20 @@ Returns the resulting `sync_run` row plus stats. 200 on success, 500 on failure 
 
 ```
 src/
+├── middleware.ts                    (NEW iter 4f) Auth gate. Refreshes session via getUser; redirects unauth → /login
 ├── app/
 │   ├── layout.tsx
 │   ├── page.tsx
 │   ├── globals.css                 @import "tailwindcss"; @import "@heroui/styles";
 │   ├── api/sync/route.ts           POST /api/sync (x-sync-secret guard)
+│   ├── login/
+│   │   ├── page.tsx                (NEW iter 4f) Server: card with error banner + LoginButton
+│   │   └── LoginButton.tsx         (NEW iter 4f) Client: signInWithOAuth via createBrowserClient
+│   ├── auth/callback/route.ts      (NEW iter 4f) Code exchange + domain check + Jira verify + cache
 │   ├── dev/components-preview/     Permanent dev tool: visual bench for components (not linked from prod)
 │   │   └── page.tsx
 │   └── projects/
-│       ├── page.tsx                Server Component, reads from Supabase
+│       ├── page.tsx                Server Component, reads from Supabase, mounts UserMenu
 │       ├── actions.ts              Server Action triggerSync()
 │       ├── loading.tsx
 │       ├── error.tsx
@@ -126,14 +138,16 @@ src/
 │           ├── page.tsx            Server Component: project_dashboard RPC + issues query, parses ?view
 │           ├── not-found.tsx       Custom 404 for unknown project keys
 │           └── narratives/
-│               ├── page.tsx        Server Component: list narratives for a project
+│               ├── page.tsx        Server Component: list narratives for a project + UserMenu
 │               └── [id]/
-│                   ├── edit/page.tsx     Server Component: load narrative, hand off to EditorShell
+│                   ├── edit/page.tsx     Server Component: load narrative + currentUser, hand off to EditorShell
 │                   └── preview/page.tsx  Server Component: load narrative + batched issues + derived stats
 ├── app/actions/
-│   └── narratives.ts               "use server" — every narrative mutation as a Server Action
+│   ├── auth.ts                     (NEW iter 4f) "use server" — logoutAction
+│   └── narratives.ts               "use server" — every narrative mutation as a Server Action; resolves actor + stamps created_by/updated_by
 ├── components/
 │   ├── SyncButton.tsx              Client Component invoking the Server Action
+│   ├── UserMenu.tsx                (NEW iter 4f) Client: avatar trigger + Dropdown (email + Cerrar sesión)
 │   ├── narrative-list/
 │   │   ├── NarrativeCard.tsx       Card + 3-dot menu (Duplicar / Eliminar) + draft / published badge
 │   │   └── NewNarrativeButton.tsx  "Nueva narrativa" CTA + creation modal
@@ -180,16 +194,23 @@ src/
 │       ├── AssigneeCell.tsx        Plain
 │       └── DueDateCell.tsx         Plain
 └── lib/
+    ├── auth/                            (NEW iter 4f)
+    │   ├── domain-check.ts              isAllowedDomain(email): reads ALLOWED_EMAIL_DOMAINS, fails closed
+    │   ├── verify-jira-user.ts          verifyUserInJira(email) → accountId | null (5s timeout, fail-closed)
+    │   ├── get-actor.ts                 getActor() → { id, email } from session, throws if no user
+    │   └── get-current-user.ts          getCurrentUser() → user + display_name from user_profiles, for UserMenu
     ├── format/
     │   ├── relativeTime.ts         relativeFromNow() — Spanish relative dates
-    │   └── roadmapDates.ts         UTC date math + dateToX for the roadmap chart
+    │   ├── roadmapDates.ts         UTC date math + dateToX for the roadmap chart
+    │   └── actor.ts                (NEW iter 4f) formatActor() — null/"system" → "Sistema"
     ├── jira/
     │   ├── client.ts               JiraClient: listProjects, getProjectStats, searchIssues(Paginated)
     │   ├── env.ts                  getJiraEnv()
     │   └── types.ts
     ├── supabase/
-    │   ├── service.ts              getServiceSupabase() — service-role, server-only
-    │   ├── anon.ts                 getAnonSupabase() — anon key, RLS-gated reads
+    │   ├── server.ts               (NEW iter 4f) getServerSupabase() — async, cookies-aware, default for app code
+    │   ├── service.ts              getServerSupabaseAdmin() — service-role, server-only, for sync/seed/scripts
+    │   ├── anon.ts                 getAnonSupabase() — anon key, browser-side autocompletes only
     │   └── types.ts                GENERATED by `pnpm gen:types`
     ├── sync/
     │   ├── index.ts                runSync({type?, projectKey?}); describeError() handles PostgrestError
@@ -198,8 +219,8 @@ src/
     │   └── runs.ts                 sync_run lifecycle (open / succeed / fail)
     └── narratives/
         ├── types.ts                Re-exports + NarrativeWithChildren composite (phases, orphans, dependencies, risks)
-        ├── queries.ts              getNarrativesByProject / getNarrativeById / getPublishedNarrative / getDependenciesByNarrative / getRisksByNarrative
-        ├── mutations.ts            create/update/delete + atomic reorder for phases / workstreams / dependencies / risks (service-role); identifier-claim RPC plumbing
+        ├── queries.ts              getNarrativesByProject / getNarrativeById / getPublishedNarrative / getDependenciesByNarrative / getRisksByNarrative — uses getServerSupabase
+        ├── mutations.ts            create/update/delete + atomic reorder for phases / workstreams / dependencies / risks — uses getServerSupabase (authenticated)
         ├── derived.ts              loadIssuesForNarrative + computeDerived (per-WS / per-phase / global)
         ├── seed.ts                 Dev-only idempotent seeder; inline service client (no server-only chain)
         └── index.ts                Public re-exports (excludes seed)
@@ -217,7 +238,10 @@ supabase/
     ├── 20260504234120_add_narrative_dependencies.sql
     ├── 20260505004354_add_project_stats_view.sql
     ├── 20260505015746_add_narrative_risks.sql
-    └── 20260505020350_fix_narrative_risks_array_check.sql
+    ├── 20260505020350_fix_narrative_risks_array_check.sql
+    ├── 20260505145650_add_user_profiles_and_grant_rpc_to_authenticated.sql   (iter 4f Migration A)
+    ├── 20260505192722_add_authenticated_read_to_jira_tables.sql              (iter 4f hotfix)
+    └── 20260505195313_tighten_narratives_rls_to_authenticated.sql            (iter 4f Migration B)
 ```
 
 ### Roadmap view (`?view=roadmap`)
@@ -681,6 +705,128 @@ unrelated cards stay clean.
 `DependenciesSection` — absence is the information). Subtitle
 (`risks_section_subtitle`) renders under the heading when present.
 
+### Authentication (iter 4f)
+
+Google OAuth via Supabase Auth, restricted to `@veevart.com`. Two
+gates run on first login (cached after) — domain whitelist + Jira
+user verification. The whole product sits behind middleware; only
+`/login`, `/auth/callback`, and the secret-gated sync endpoints are
+public.
+
+#### Three Supabase clients
+
+| Client | Role | When |
+| ------ | ---- | ---- |
+| `getServerSupabase()` (`src/lib/supabase/server.ts`) | `authenticated` | Default. Server Components, Server Actions, middleware. Async (cookies are per-request). Used by `queries.ts` reads and `mutations.ts` writes — RLS gates them. |
+| `getServerSupabaseAdmin()` (`src/lib/supabase/service.ts`) | `service_role` | Sync (`src/lib/sync/*`), seed, CLI scripts. Bypasses RLS by design. **Never** call from a request that has a user — use `getServerSupabase()` so writes carry actor identity. |
+| `getAnonSupabase()` (`src/lib/supabase/anon.ts`) | `anon` | Browser-side public reads only. Today: `JiraIssueKeysInput` and `PodAutocompleteInput` autocomplete against `issues` / `projects`. Anything user-specific must use the server client. |
+
+The Supabase / `@supabase/ssr` cookie wiring matters: `setAll` is
+wrapped in `try/catch` in `server.ts` because Server Components have
+a read-only cookie store and the docs explicitly guide swallowing
+that exception there. The middleware does the actual cookie refresh
+(see `src/middleware.ts`).
+
+#### Login flow
+
+1. `/login` (`LoginButton` Client Component) calls
+   `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: '${origin}/auth/callback' } })`.
+2. Supabase redirects to Google → user approves → Google redirects
+   back to Supabase → Supabase redirects to our `/auth/callback?code=...`.
+3. The route handler at `src/app/auth/callback/route.ts`:
+   - `exchangeCodeForSession(code)` — sets cookies, creates the
+     `auth.users` row, fires the `on_auth_user_created` trigger that
+     inserts into `user_profiles`.
+   - **Gate 1 (domain)**: `isAllowedDomain` reads
+     `ALLOWED_EMAIL_DOMAINS` and **fails closed** if unset/empty.
+     Mismatch → `signOut()` + redirect to `/login?error=domain`.
+   - **Gate 2 (Jira)**: skip if `user_profiles.jira_account_id` is
+     already populated (cache hit from a prior login). Otherwise
+     `verifyUserInJira(email)` calls `/rest/api/3/user/search` with
+     a 5-second `AbortSignal.timeout`, requires an exact email match
+     plus `accountId`, and is fail-closed (any timeout, 5xx, missing
+     `emailAddress` → null → reject login).
+   - On success: `update user_profiles set jira_account_id, jira_verified_at`
+     (NOT upsert — there's no INSERT policy by design, the trigger
+     handles inserts via SECURITY DEFINER bypass) and redirect to
+     `/projects`. Cache write failures are logged, non-fatal.
+
+#### Middleware
+
+`src/middleware.ts` runs on every non-asset path. Two responsibilities:
+
+1. **Refresh the Supabase session via `getUser()`**. The Supabase Auth
+   server validates and writes refreshed cookies via the `setAll`
+   hook. **Never** swap to `getSession()` — that reads cookies locally
+   and a tampered cookie would falsely pass.
+2. **Redirect** unauthenticated users to `/login`, and authenticated
+   users away from `/login` (back to `/projects`).
+
+Public allowlist: `/login`, `/auth/callback*`, `/api/sync*`,
+`/api/cron/*`. Static assets are excluded via the matcher.
+`preserveCookies` copies the refreshed-session cookies onto the
+redirect response so the browser stores the new tokens immediately —
+without it, the next request comes in with stale cookies and we
+re-do the refresh.
+
+#### Actor stamping
+
+`getActor()` (`src/lib/auth/get-actor.ts`) pulls the user from the
+session and returns `{ id, email }`. Server Actions that touch
+tables with `created_by` / `updated_by` (`project_narratives`,
+`narrative_dependencies`, `narrative_risks`) stamp `actor.email` on
+creates and updates. `phases` and `workstreams` don't have those
+columns and don't go through `getActor`.
+
+`duplicateNarrative(sourceId, actorEmail)` writes the duplicator's
+email on the new copy (NOT `source.created_by`) — a duplicate is a
+new record with new ownership.
+
+`publishNarrative` was inlined into `publishNarrativeAction` (calls
+`updateNarrative` directly) so the publish toggle gets the same
+actor-stamping path as any other update.
+
+System-context paths (sync, seed, CLI scripts) keep
+`created_by: 'system'` explicitly. The UI helper `formatActor` in
+`src/lib/format/actor.ts` renders `null` / `''` / `"system"` as
+**"Sistema"** so legacy rows from before iter 4f stay readable.
+
+#### user_profiles table + RLS
+
+`user_profiles` (UUID PK = `auth.users(id)` ON DELETE CASCADE,
+unique `email`, `display_name`, `jira_account_id`, `jira_verified_at`).
+Auto-populated via the `on_auth_user_created` trigger
+(SECURITY DEFINER + pinned `search_path`). RLS: `user_profiles_self_read`
++ `user_profiles_self_update` only — INSERT goes through the
+trigger's bypass, DELETE via `service_role` or cascade.
+
+Narrative tables RLS (after Migration B):
+- `auth_all FOR ALL TO authenticated USING (TRUE) WITH CHECK (TRUE)`
+  on the five tables (`project_narratives`, `narrative_phases`,
+  `narrative_workstreams`, `narrative_dependencies`, `narrative_risks`).
+- `service_role` bypasses RLS by design — sync and scripts unaffected.
+- The previous `anon_read` policies are gone.
+
+Jira tables (`projects`, `issues`, `issue_links`, `sync_runs`) and the
+`project_stats` view keep their original `anon` SELECT policy AND a
+parallel `authenticated` SELECT policy (added by the iter 4f hotfix
+migration). Browser-side autocompletes still need anon, server-side
+queries via the user session need authenticated.
+
+#### TODOs (post-4f)
+
+- **Per-project membership**: today every authenticated user can read
+  and write every narrative. When membership lands, replace
+  `USING (TRUE)` with a join against a `project_members` table.
+- **Re-verification cadence**: `jira_verified_at` is recorded but
+  never re-checked. If a user is removed from Jira, they can keep
+  logging in until their Supabase session expires. A periodic cron
+  that nulls `jira_account_id` after N days would force re-verification.
+- **`email` as the actor key**: `created_by` / `updated_by` are TEXT
+  with the user's email today. If email changes (or soft-delete is
+  needed), migrate to `user_id UUID REFERENCES user_profiles(id)`
+  and join for display. Comment in `formatActor.ts` flags this.
+
 ### Query waves (pattern)
 
 Reusable shape for any page that loads N round-trips with mixed
@@ -777,7 +923,7 @@ Don't apply when:
 
 - Server Components by default. `"use client"` only when strictly necessary (today: `error.tsx`, `SyncButton.tsx`, `ProjectViews.tsx`, `ProjectTable.tsx`, `ProjectRoadmap.tsx`, `IssueDrawer.tsx`).
 - The leaf cells `StatusChip` / `AssigneeCell` / `DueDateCell` are **plain components** (no `"use client"` directive) — they get bundled to the client when imported by `ProjectTable`, but they don't add new Server/Client boundaries. Don't add `"use client"` to them.
-- `src/lib/jira/*`, `src/lib/sync/*`, `src/lib/supabase/service.ts`, `src/lib/narratives/queries.ts`, `src/lib/narratives/mutations.ts` import `"server-only"`. Guards the Jira API token and the Supabase service-role key from accidental client bundling. **Exception:** `src/lib/narratives/seed.ts` does NOT import `server-only` and instantiates its own service-role client — `pnpm seed:narrative` runs under raw Node via `tsx`, where `server-only` throws by design. The seed's safety comes from the script entrypoint (only invoked manually) and the dev-only intent of the data it inserts.
+- `src/lib/jira/*`, `src/lib/sync/*`, `src/lib/supabase/service.ts`, `src/lib/supabase/server.ts`, `src/lib/auth/*`, `src/lib/narratives/queries.ts`, `src/lib/narratives/mutations.ts` import `"server-only"`. Guards the Jira API token and the Supabase service-role key from accidental client bundling. **Exception:** `src/lib/narratives/seed.ts` does NOT import `server-only` and instantiates its own service-role client — `pnpm seed:narrative` runs under raw Node via `tsx`, where `server-only` throws by design. The seed's safety comes from the script entrypoint (only invoked manually) and the dev-only intent of the data it inserts.
 - `/api/sync` is the HTTP entry point (gated by `SYNC_SECRET`) for external callers (ops, future cron). The dashboard's "Resincronizar" button uses a Server Action (`triggerSync`) that calls `runSync()` directly — no `SYNC_SECRET` exposed to the browser.
 
 ### Database
@@ -798,9 +944,17 @@ Schemas spread across the `supabase/migrations/` timeline. Tables:
 - `narrative_workstreams` — UUID PK, `narrative_id` FK CASCADE, **`phase_id` nullable** + composite FK `(phase_id, narrative_id) → narrative_phases(id, narrative_id)` ON DELETE CASCADE. NULL `phase_id` = orphan workstream rendered at the narrative root, beside phases. `jira_issue_keys TEXT[]` indexed via GIN — references issues by key only, no FK (live data still comes from `issues`).
 - `narrative_risks` (iter 4e) — UUID PK, `narrative_id` FK CASCADE, `identifier TEXT NOT NULL CHECK (identifier ~ '^R\d+$') UNIQUE per narrative, `title`, `description`, `severity` CHECK in (low / medium / high), `impacts TEXT[] NOT NULL DEFAULT '{}'`, `mitigations TEXT[] NOT NULL DEFAULT '{}'`, both with `cardinality(arr) >= 1` CHECK (see "array_length vs cardinality" below). `related_dependency_ids UUID[] NOT NULL DEFAULT '{}'` indexed via GIN — Postgres can't FK array elements, so dangling refs (after a dep delete) are filtered at render time. `order_index INT NOT NULL`.
 
+**Auth (migration `20260505145650_add_user_profiles_and_grant_rpc_to_authenticated.sql`, iter 4f Migration A)**
+
+- `user_profiles` — UUID PK = `auth.users(id)` ON DELETE CASCADE, unique `email`, `display_name`, `jira_account_id` (cached on first login), `jira_verified_at`. Auto-created via the `on_auth_user_created` trigger (`SECURITY DEFINER` + `SET search_path = public`). RLS: `user_profiles_self_read` + `user_profiles_self_update` only — INSERT goes through the trigger's bypass, DELETE via cascade.
+
 `raw` jsonb policy: **never query from UI**. If a field becomes recurrent, extract it to a typed column in a follow-up migration.
 
-RLS: enabled on all eight tables; SELECT policy `USING(true)` for `anon`. Service role bypasses RLS for writes. Tighten when user auth lands. **TODO (narratives):** when auth is wired, narrow narrative writes to project membership — current state lets any holder of the service-role key write.
+RLS post-iter 4f:
+- **Narrative tables (5)**: `auth_all FOR ALL TO authenticated USING(TRUE) WITH CHECK(TRUE)`. The previous `anon_read` policies were dropped in Migration B. `service_role` bypasses by design — sync, seed, scripts unaffected.
+- **Jira tables (4)**: `anon` SELECT (original) AND `authenticated` SELECT (added by the iter 4f hotfix migration). Browser-side autocompletes still use anon; Server Components via the user session use authenticated. Mutations remain service-role only (sync).
+- **`user_profiles`**: self-read + self-update for `authenticated` only.
+- **TODO**: per-project membership. Today every authenticated user can read/write every narrative; replace `USING(TRUE)` with a join against a future `project_members` table when product needs it.
 
 #### Stable per-narrative identifiers (iter 4e)
 
@@ -854,10 +1008,14 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **No `any`.** Define explicit TS types for external API responses.
 - **Server Components by default.** `"use client"` only when strictly necessary.
 - **All Jira HTTP via `JiraClient`.** No loose `fetch` in components.
-- **All Supabase reads via `getAnonSupabase()`.** **All Supabase writes via `getServiceSupabase()`** from server-only modules.
+- **Supabase clients (post-iter 4f)**:
+  - `getServerSupabase()` (cookies-aware, authenticated session) is the **default** for app code — Server Components, Server Actions, middleware, narrative queries / mutations.
+  - `getServerSupabaseAdmin()` (service-role bypass) only for sync, seed, CLI scripts — anything that runs outside a user request.
+  - `getAnonSupabase()` only for browser-side public reads (autocompletes).
+  - Never use the admin client from a request that has a user — use the server client so writes carry actor identity and respect RLS.
 - **Errors surface explicitly.** Sync errors pass through `describeError()` (handles Supabase `PostgrestError`, which is NOT an Error instance) and persist on `sync_runs.error_message`.
 - **Credentials only via env vars.** Document every new one in `.env.example`. Never log the Authorization header, the Jira API token, or the Supabase service-role key — even on error paths.
-- **Folders:** `src/app/` (routes), `src/lib/jira/`, `src/lib/supabase/`, `src/lib/sync/`, `src/components/`, `src/types/`.
+- **Folders:** `src/app/` (routes), `src/lib/jira/`, `src/lib/supabase/`, `src/lib/sync/`, `src/lib/auth/`, `src/lib/narratives/`, `src/lib/format/`, `src/components/`, `src/types/`.
 - **`raw` jsonb columns are not for UI consumption.** If you find yourself reading a recurrent field from `raw`, promote it to a typed column in a new migration.
 
 ## Known tech debt
@@ -883,4 +1041,4 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 
 ## Out of scope (do NOT add without asking)
 
-User-level auth, cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, **Gantt libraries** (gantt-task-react, frappe-gantt, etc. — the roadmap is intentionally hand-rolled SVG + HTML), new routes beyond `/projects`, `/projects/[key]`, and `/api/sync`, any library outside the locked stack.
+Per-user roles or permissions (every authenticated user has the same rights today), email/password fallback, magic links, 2FA, custom recovery flows, multi-tenancy, public sharing without login, cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, **Gantt libraries** (gantt-task-react, frappe-gantt, etc. — the roadmap is intentionally hand-rolled SVG + HTML), alternative auth libraries (NextAuth, Clerk, Auth.js — Supabase Auth alcanza), new routes beyond the ones listed in Architecture, any library outside the locked stack.
