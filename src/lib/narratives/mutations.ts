@@ -1,5 +1,5 @@
 import "server-only";
-import { getServiceSupabase } from "@/lib/supabase/service";
+import { getServerSupabase } from "@/lib/supabase/server";
 import type {
   NarrativeDependency,
   NarrativeDependencyInsert,
@@ -18,10 +18,12 @@ import type {
   ProjectNarrativeUpdate,
 } from "./types";
 
-// All writes go through the service role — RLS is read-open and we want
-// the writers in one server-only place rather than a policy-per-shape grid.
-// When user auth lands, RLS will drive writes and these helpers will swap
-// to the anon client gated by JWT.
+// All writes go through the cookies-aware server client (authenticated
+// session). Server Actions resolve the actor and call into these helpers;
+// PostgreSQL RLS (auth_all policy on each narrative table) enforces that
+// only authenticated users can write. service_role bypass remains in
+// service.ts for sync, seed, and CLI scripts that don't run in a user
+// context — those keep getServerSupabaseAdmin.
 
 export type CreateNarrativeInput = Omit<
   ProjectNarrativeInsert,
@@ -107,7 +109,7 @@ export interface RiskReorderEntry {
 export async function createNarrative(
   input: CreateNarrativeInput,
 ): Promise<ProjectNarrative> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("project_narratives")
     .insert(input)
@@ -121,7 +123,7 @@ export async function updateNarrative(
   id: string,
   input: UpdateNarrativeInput,
 ): Promise<ProjectNarrative> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("project_narratives")
     .update(input)
@@ -133,7 +135,7 @@ export async function updateNarrative(
 }
 
 export async function deleteNarrative(id: string): Promise<void> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { error } = await supabase
     .from("project_narratives")
     .delete()
@@ -160,7 +162,7 @@ export async function duplicateNarrative(
   sourceId: string,
   actorEmail: string | null,
 ): Promise<ProjectNarrative> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
 
   const sourceRes = await supabase
     .from("project_narratives")
@@ -271,7 +273,7 @@ export async function reorderPhases(
   ordering: PhaseReorderEntry[],
 ): Promise<void> {
   if (ordering.length === 0) return;
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
 
   const ids = ordering.map((o) => o.id);
   const { data: existing, error: fetchError } = await supabase
@@ -316,7 +318,7 @@ export async function reorderPhases(
 export async function createPhase(
   input: CreatePhaseInput,
 ): Promise<NarrativePhase> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_phases")
     .insert(input)
@@ -330,7 +332,7 @@ export async function updatePhase(
   id: string,
   input: UpdatePhaseInput,
 ): Promise<NarrativePhase> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_phases")
     .update(input)
@@ -342,7 +344,7 @@ export async function updatePhase(
 }
 
 export async function deletePhase(id: string): Promise<void> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { error } = await supabase
     .from("narrative_phases")
     .delete()
@@ -357,7 +359,7 @@ export async function deletePhase(id: string): Promise<void> {
 export async function createWorkstream(
   input: CreateWorkstreamInput,
 ): Promise<NarrativeWorkstream> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_workstreams")
     .insert(input)
@@ -371,7 +373,7 @@ export async function updateWorkstream(
   id: string,
   input: UpdateWorkstreamInput,
 ): Promise<NarrativeWorkstream> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_workstreams")
     .update(input)
@@ -383,7 +385,7 @@ export async function updateWorkstream(
 }
 
 export async function deleteWorkstream(id: string): Promise<void> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { error } = await supabase
     .from("narrative_workstreams")
     .delete()
@@ -410,7 +412,7 @@ export async function reorderWorkstreams(
   ordering: WorkstreamReorderEntry[],
 ): Promise<void> {
   if (ordering.length === 0) return;
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
 
   const ids = ordering.map((o) => o.id);
   const { data: existing, error: fetchError } = await supabase
@@ -463,7 +465,7 @@ export async function reorderWorkstreams(
 export async function createDependency(
   input: CreateDependencyInput,
 ): Promise<NarrativeDependency> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
 
   // Claim the next D-identifier atomically. The RPC increments
   // project_narratives.next_dependency_id and returns the previous value
@@ -488,7 +490,7 @@ export async function updateDependency(
   id: string,
   input: UpdateDependencyInput,
 ): Promise<NarrativeDependency> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_dependencies")
     .update(input)
@@ -500,7 +502,7 @@ export async function updateDependency(
 }
 
 export async function deleteDependency(id: string): Promise<void> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { error } = await supabase
     .from("narrative_dependencies")
     .delete()
@@ -519,7 +521,7 @@ export async function reorderDependencies(
   ordering: DependencyReorderEntry[],
 ): Promise<void> {
   if (ordering.length === 0) return;
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
 
   const ids = ordering.map((o) => o.id);
   const { data: existing, error: fetchError } = await supabase
@@ -564,7 +566,7 @@ export async function reorderDependencies(
 export async function createRisk(
   input: CreateRiskInput,
 ): Promise<NarrativeRisk> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
 
   // Same atomic-counter pattern as createDependency: the RPC increments
   // project_narratives.next_risk_id and returns the previous value
@@ -589,7 +591,7 @@ export async function updateRisk(
   id: string,
   input: UpdateRiskInput,
 ): Promise<NarrativeRisk> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_risks")
     .update(input)
@@ -601,7 +603,7 @@ export async function updateRisk(
 }
 
 export async function deleteRisk(id: string): Promise<void> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
   const { error } = await supabase
     .from("narrative_risks")
     .delete()
@@ -618,7 +620,7 @@ export async function reorderRisks(
   ordering: RiskReorderEntry[],
 ): Promise<void> {
   if (ordering.length === 0) return;
-  const supabase = getServiceSupabase();
+  const supabase = await getServerSupabase();
 
   const ids = ordering.map((o) => o.id);
   const { data: existing, error: fetchError } = await supabase
