@@ -70,29 +70,40 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=jira`);
   }
 
-  // Cache the verification so future logins skip the API call.
-  // Upsert (instead of update) defends against the trigger-skipped
-  // edge case mentioned above; emails are unique so the conflict
-  // target works.
-  const { error: upsertError } = await supabase
+  // Cache the verification so future logins skip the Jira call.
+  //
+  // .update() (not .upsert()) on purpose: the on_auth_user_created
+  // trigger has already inserted the row in the same transaction as
+  // the auth.users INSERT. We only need to write the cache columns.
+  // .upsert() would force PostgREST to check the INSERT policy, which
+  // user_profiles intentionally doesn't have (INSERTs go through the
+  // trigger's SECURITY DEFINER bypass) — that produces a 42501.
+  //
+  // .select().maybeSingle() lets us detect the unlikely case where
+  // the trigger didn't fire so we log instead of silently dropping
+  // the cache write.
+  const { data: updated, error: updateError } = await supabase
     .from("user_profiles")
-    .upsert(
-      {
-        id: user.id,
-        email: user.email,
-        jira_account_id: accountId,
-        jira_verified_at: new Date().toISOString(),
-      },
-      { onConflict: "id" },
-    );
-  if (upsertError) {
+    .update({
+      jira_account_id: accountId,
+      jira_verified_at: new Date().toISOString(),
+    })
+    .eq("id", user.id)
+    .select()
+    .maybeSingle();
+  if (updateError) {
     console.warn(
       "[auth/callback] could not cache jira_account_id:",
-      upsertError,
+      updateError,
     );
-    // Non-fatal: the user can still log in, we'll just re-verify on
-    // next login. Don't punish them for a write failure.
+  } else if (!updated) {
+    console.warn(
+      `[auth/callback] user_profiles row missing for ${user.id} — ` +
+        "trigger may not have fired. Login proceeds; cache will retry next time.",
+    );
   }
+  // Either way the user gets in. We don't punish them for a write
+  // failure — worst case we re-verify against Jira on the next login.
 
   return NextResponse.redirect(`${origin}/projects`);
 }
