@@ -1,5 +1,5 @@
 import "server-only";
-import { getServiceSupabase } from "@/lib/supabase/service";
+import { getServerSupabaseAdmin } from "@/lib/supabase/service";
 
 export interface OpenRunArgs {
   syncType: "full" | "incremental";
@@ -14,7 +14,7 @@ export interface RunStats {
 }
 
 export async function openRun(args: OpenRunArgs): Promise<number> {
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabaseAdmin();
   const { data, error } = await supabase
     .from("sync_runs")
     .insert({
@@ -35,7 +35,7 @@ export async function succeedRun(
   stats: RunStats,
   jqlUsed: string | null,
 ): Promise<void> {
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabaseAdmin();
   const { error } = await supabase
     .from("sync_runs")
     .update({
@@ -56,7 +56,7 @@ export async function failRun(
   errorMessage: string,
   jqlUsed: string | null,
 ): Promise<void> {
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabaseAdmin();
   const { error } = await supabase
     .from("sync_runs")
     .update({

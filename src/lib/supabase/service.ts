@@ -36,10 +36,3 @@ export function getServerSupabaseAdmin(): SupabaseClient<Database> {
   });
   return cached;
 }
-
-/**
- * @deprecated Renamed to getServerSupabaseAdmin for symmetry with
- * getServerSupabase. Will be removed at the end of iter 4f. Update
- * call sites at your convenience during this iteration.
- */
-export const getServiceSupabase = getServerSupabaseAdmin;

@@ -1,6 +1,6 @@
 import "server-only";
 import type { JiraClient } from "@/lib/jira/client";
-import { getServiceSupabase } from "@/lib/supabase/service";
+import { getServerSupabaseAdmin } from "@/lib/supabase/service";
 import type { Json } from "@/lib/supabase/types";
 
 export interface SyncProjectsResult {
@@ -10,7 +10,7 @@ export interface SyncProjectsResult {
 export async function syncProjects(
   jira: JiraClient,
 ): Promise<SyncProjectsResult> {
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabaseAdmin();
   const projects = await jira.listProjects();
 
   if (projects.length === 0) {

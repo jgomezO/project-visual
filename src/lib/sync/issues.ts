@@ -6,7 +6,7 @@ import {
   type JiraIssueLink,
   type JiraSearchIssue,
 } from "@/lib/jira/types";
-import { getServiceSupabase } from "@/lib/supabase/service";
+import { getServerSupabaseAdmin } from "@/lib/supabase/service";
 import type { Json } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 100;
@@ -105,7 +105,7 @@ export async function syncIssuesForProject(
   projectKey: string,
   options?: { full?: boolean },
 ): Promise<SyncIssuesResult> {
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabaseAdmin();
 
   const { data: project, error: projError } = await supabase
     .from("projects")
@@ -237,7 +237,7 @@ async function backfillParentIds(
   updates: Array<{ id: string; parentId: string }>,
 ): Promise<void> {
   if (updates.length === 0) return;
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabaseAdmin();
 
   // Filter to parents that actually exist in DB. Cross-project parents
   // (e.g., outside JIRA_PROJECT_KEYS) stay unset; we don't have the row.
@@ -282,7 +282,7 @@ async function backfillIssueLinkTargetsForKeys(
   syncedKeys: string[],
 ): Promise<void> {
   if (syncedKeys.length === 0) return;
-  const supabase = getServiceSupabase();
+  const supabase = getServerSupabaseAdmin();
 
   const { data: pending, error: pendingErr } = await supabase
     .from("issue_links")
