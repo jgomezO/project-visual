@@ -65,6 +65,8 @@ export function NarrativeView({
           globalProgress={derived.globalProgress}
           totalWorkstreams={derived.totalWorkstreams}
           totalIssues={derived.totalIssues}
+          totalDependencies={narrative.dependencies.length}
+          criticalDependencyCount={derived.criticalDependencyCount}
         />
 
         {narrative.status_summary ? (

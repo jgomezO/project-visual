@@ -2,6 +2,22 @@
 @import "@heroui/styles";
 
 /* -----------------------------------------------------------------------
+ * Smooth scroll for in-page anchor navigation. Used by the public
+ * narrative preview header ("N dependencias" → #dependencias,
+ * "Impacta a: WS" → #workstream-{id}). Respects prefers-reduced-motion
+ * via the @media block at the bottom — that overrides smooth back to
+ * the browser default.
+ * --------------------------------------------------------------------- */
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* -----------------------------------------------------------------------
  * Print stylesheet (scoped to the public narrative preview)
  *
  * The preview is the only route that prints meaningfully today. When the

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { AlertTriangle, ExternalLink } from "lucide-react";
 import type { ProjectNarrative } from "@/lib/narratives/types";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 
@@ -15,6 +15,8 @@ interface Props {
   globalProgress: number;
   totalWorkstreams: number;
   totalIssues: number;
+  totalDependencies: number;
+  criticalDependencyCount: number;
 }
 
 export function NarrativeHeader({
@@ -24,6 +26,8 @@ export function NarrativeHeader({
   globalProgress,
   totalWorkstreams,
   totalIssues,
+  totalDependencies,
+  criticalDependencyCount,
 }: Props) {
   return (
     <header className="flex flex-col gap-5">
@@ -62,6 +66,29 @@ export function NarrativeHeader({
           {totalIssues} issue{totalIssues === 1 ? "" : "s"} · {globalProgress}%
           completado
         </span>
+        {totalDependencies > 0 ? (
+          <>
+            <span aria-hidden="true" className="text-default-300">
+              •
+            </span>
+            <a
+              href="#dependencias"
+              className="font-medium hover:text-foreground hover:underline"
+            >
+              {totalDependencies} dependencia
+              {totalDependencies === 1 ? "" : "s"}
+            </a>
+            {criticalDependencyCount > 0 ? (
+              <a
+                href="#dependencias"
+                className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 hover:bg-red-200"
+              >
+                <AlertTriangle className="size-3" aria-hidden="true" />
+                {criticalDependencyCount} en estado crítico
+              </a>
+            ) : null}
+          </>
+        ) : null}
       </div>
 
       {narrative.overview ? <OverviewBlock text={narrative.overview} /> : null}
