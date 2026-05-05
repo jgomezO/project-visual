@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
 import { NarrativeCard } from "@/components/narrative-list/NarrativeCard";
 import { NewNarrativeButton } from "@/components/narrative-list/NewNarrativeButton";
+import { UserMenu } from "@/components/UserMenu";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { getNarrativesByProject } from "@/lib/narratives/queries";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 
@@ -17,11 +19,15 @@ export default async function NarrativesListPage({ params }: PageProps) {
 
   // Validate the project exists before listing — the URL might be wrong.
   const supabase = getAnonSupabase();
-  const { data: project, error: projectError } = await supabase
-    .from("projects")
-    .select("id, key, name")
-    .eq("key", key)
-    .maybeSingle();
+  const [{ data: project, error: projectError }, currentUser] =
+    await Promise.all([
+      supabase
+        .from("projects")
+        .select("id, key, name")
+        .eq("key", key)
+        .maybeSingle(),
+      getCurrentUser(),
+    ]);
   if (projectError) throw projectError;
   if (!project) notFound();
 
@@ -29,7 +35,15 @@ export default async function NarrativesListPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
-      <Breadcrumb projectKey={key} projectName={project.name ?? key} />
+      <div className="flex items-center justify-between gap-3">
+        <Breadcrumb projectKey={key} projectName={project.name ?? key} />
+        {currentUser ? (
+          <UserMenu
+            email={currentUser.email}
+            displayName={currentUser.displayName}
+          />
+        ) : null}
+      </div>
 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">

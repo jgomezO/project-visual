@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Card } from "@heroui/react";
 import { AlertTriangle, Ban, CheckCircle2 } from "lucide-react";
+import { UserMenu } from "@/components/UserMenu";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 
 export interface DashboardData {
@@ -17,7 +19,7 @@ export interface DashboardData {
   blocked_count: number | null;
 }
 
-export function KpiHeader({ data }: { data: DashboardData }) {
+export async function KpiHeader({ data }: { data: DashboardData }) {
   const total = data.total ?? 0;
   const todo = data.todo_count ?? 0;
   const inProgress = data.in_progress_count ?? 0;
@@ -26,9 +28,21 @@ export function KpiHeader({ data }: { data: DashboardData }) {
   const blocked = data.blocked_count ?? 0;
   const donePct = total === 0 ? 0 : Math.round((done / total) * 100);
 
+  const currentUser = await getCurrentUser();
+
   return (
     <header className="space-y-6">
-      <Breadcrumb projectName={data.project_name ?? data.project_key ?? "—"} />
+      <div className="flex items-center justify-between gap-3">
+        <Breadcrumb
+          projectName={data.project_name ?? data.project_key ?? "—"}
+        />
+        {currentUser ? (
+          <UserMenu
+            email={currentUser.email}
+            displayName={currentUser.displayName}
+          />
+        ) : null}
+      </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>

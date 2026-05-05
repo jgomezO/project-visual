@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { EditorShell } from "@/components/narrative-editor/EditorShell";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { getNarrativeById } from "@/lib/narratives/queries";
-import { getAnonSupabase } from "@/lib/supabase/anon";
+import { getServerSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,15 @@ interface PageProps {
 export default async function NarrativeEditPage({ params }: PageProps) {
   const { key, id } = await params;
 
-  const narrative = await getNarrativeById(id);
+  const [narrative, currentUser] = await Promise.all([
+    getNarrativeById(id),
+    getCurrentUser(),
+  ]);
   if (!narrative) notFound();
+  if (!currentUser) notFound(); // middleware should have caught this
 
   // Defensive check: the URL might point at a narrative from another project.
-  const supabase = getAnonSupabase();
+  const supabase = await getServerSupabase();
   const { data: project } = await supabase
     .from("projects")
     .select("id, key, name")
@@ -29,6 +34,8 @@ export default async function NarrativeEditPage({ params }: PageProps) {
       projectKey={key}
       projectName={project.name ?? key}
       initialNarrative={narrative}
+      userEmail={currentUser.email}
+      userDisplayName={currentUser.displayName}
     />
   );
 }
