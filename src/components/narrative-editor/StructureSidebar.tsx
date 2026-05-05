@@ -7,6 +7,7 @@ import {
   Label,
 } from "@heroui/react";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
   CircleDot,
@@ -20,17 +21,21 @@ import {
 import {
   createDependencyAction,
   createPhaseAction,
+  createRiskAction,
   createWorkstreamAction,
   deleteDependencyAction,
   deletePhaseAction,
+  deleteRiskAction,
   deleteWorkstreamAction,
   reorderDependenciesAction,
   reorderPhasesAction,
+  reorderRisksAction,
   updateWorkstreamAction,
 } from "@/app/actions/narratives";
 import type {
   NarrativeDependency,
   NarrativePhaseWithWorkstreams,
+  NarrativeRisk,
   NarrativeWithChildren,
   NarrativeWorkstream,
 } from "@/lib/narratives/types";
@@ -44,6 +49,7 @@ export function StructureSidebar({
   onPhaseListChanged,
   onOrphansChanged,
   onDependencyListChanged,
+  onRiskListChanged,
 }: {
   tree: NarrativeWithChildren;
   selected: SelectedNode;
@@ -53,6 +59,7 @@ export function StructureSidebar({
   onPhaseListChanged: (next: NarrativePhaseWithWorkstreams[]) => void;
   onOrphansChanged: (next: NarrativeWorkstream[]) => void;
   onDependencyListChanged: (next: NarrativeDependency[]) => void;
+  onRiskListChanged: (next: NarrativeRisk[]) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -296,6 +303,78 @@ export function StructureSidebar({
     });
   }
 
+  function handleAddRisk(): void {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const created = await createRiskAction({
+          narrative_id: tree.id,
+          order_index: tree.risks.length,
+          title: "Nuevo riesgo",
+          severity: "medium",
+          // Seed both arrays with one placeholder bullet so the SQL
+          // CHECK (cardinality >= 1) is satisfied at insert time. The PM
+          // edits these in the form before the first auto-save.
+          impacts: ["Describir el impacto…"],
+          mitigations: ["Describir la mitigación…"],
+          related_dependency_ids: [],
+        });
+        onRiskListChanged([...tree.risks, created]);
+        onSelect({ kind: "risk", id: created.id });
+      } catch (err) {
+        setError(messageOf(err, "No se pudo crear el riesgo"));
+      }
+    });
+  }
+
+  function handleDeleteRisk(risk: NarrativeRisk): void {
+    if (!window.confirm(`¿Eliminar el riesgo "${risk.title}"?`)) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteRiskAction(risk.id);
+        onRiskListChanged(tree.risks.filter((r) => r.id !== risk.id));
+        if (selected.kind === "risk" && selected.id === risk.id) {
+          onForceSelect({ kind: "risks" });
+        }
+      } catch (err) {
+        setError(messageOf(err, "No se pudo eliminar el riesgo"));
+      }
+    });
+  }
+
+  function handleMoveRisk(
+    riskId: string,
+    direction: "up" | "down",
+  ): void {
+    const idx = tree.risks.findIndex((r) => r.id === riskId);
+    if (idx === -1) return;
+    const swapWith = direction === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= tree.risks.length) return;
+
+    const reorder = [...tree.risks];
+    [reorder[idx], reorder[swapWith]] = [reorder[swapWith], reorder[idx]];
+    const withNewIndices = reorder.map((r, i) => ({
+      ...r,
+      order_index: i,
+    }));
+    const previous = tree.risks;
+    onRiskListChanged(withNewIndices);
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await reorderRisksAction(
+          tree.id,
+          withNewIndices.map((r) => ({ id: r.id, order_index: r.order_index })),
+        );
+      } catch (err) {
+        onRiskListChanged(previous);
+        setError(messageOf(err, "No se pudo mover el riesgo"));
+      }
+    });
+  }
+
   function handleMoveWorkstreamToPhase(
     workstream: NarrativeWorkstream,
     targetPhaseId: string | null,
@@ -489,6 +568,42 @@ export function StructureSidebar({
             </ul>
           ) : null}
         </li>
+
+        {/* Risks group — same always-visible behavior as Dependencies. */}
+        <li className="mt-3 border-t border-default-200 pt-3">
+          <RisksGroupRow
+            count={tree.risks.length}
+            isSelected={selected.kind === "risks"}
+            onSelect={() => onSelect({ kind: "risks" })}
+          />
+          {tree.risks.length > 0 ? (
+            <ul className="ml-3 mt-0.5 border-l border-default-200 pl-2">
+              {tree.risks.map((risk, idx) => (
+                <li key={risk.id}>
+                  <RiskRow
+                    risk={risk}
+                    isSelected={
+                      selected.kind === "risk" && selected.id === risk.id
+                    }
+                    onSelect={() =>
+                      onSelect({ kind: "risk", id: risk.id })
+                    }
+                    onMoveUp={
+                      idx > 0 ? () => handleMoveRisk(risk.id, "up") : null
+                    }
+                    onMoveDown={
+                      idx < tree.risks.length - 1
+                        ? () => handleMoveRisk(risk.id, "down")
+                        : null
+                    }
+                    onDelete={() => handleDeleteRisk(risk)}
+                    pending={pending}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </li>
       </ul>
 
       <div className="flex flex-col gap-2 border-t border-default-200 p-3">
@@ -519,6 +634,15 @@ export function StructureSidebar({
         >
           <Plus className="size-4" />
           Agregar dependencia
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          isDisabled={pending}
+          onPress={handleAddRisk}
+        >
+          <Plus className="size-4" />
+          Agregar riesgo
         </Button>
       </div>
     </div>
@@ -617,6 +741,105 @@ function DependencyRow({
               textValue="Eliminar"
               variant="danger"
             >
+              <Label>Eliminar</Label>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+    </div>
+  );
+}
+
+function RisksGroupRow({
+  count,
+  isSelected,
+  onSelect,
+}: {
+  count: number;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={selectableRowClasses(isSelected)}
+    >
+      <AlertTriangle
+        className="size-4 shrink-0 text-muted"
+        aria-hidden="true"
+      />
+      <span className="truncate text-sm font-medium">Riesgos</span>
+      <span className="ml-auto rounded-full bg-default-200 px-2 py-0.5 text-[10px] font-semibold text-muted">
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function RiskRow({
+  risk,
+  isSelected,
+  onSelect,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+  pending,
+}: {
+  risk: NarrativeRisk;
+  isSelected: boolean;
+  onSelect: () => void;
+  onMoveUp: (() => void) | null;
+  onMoveDown: (() => void) | null;
+  onDelete: () => void;
+  pending: boolean;
+}) {
+  return (
+    <div className="group relative flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`${selectableRowClasses(isSelected)} flex-1`}
+      >
+        <span className="font-mono text-[10px] text-muted">
+          {risk.identifier}
+        </span>
+        <span className="truncate text-sm">{risk.title}</span>
+      </button>
+      <Dropdown>
+        <Button
+          isIconOnly
+          size="sm"
+          variant="tertiary"
+          aria-label={`Acciones para ${risk.title}`}
+          isDisabled={pending}
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+        >
+          <MoreHorizontal className="size-3.5" />
+        </Button>
+        <Dropdown.Popover>
+          <Dropdown.Menu
+            onAction={(key) => {
+              if (key === "up") onMoveUp?.();
+              else if (key === "down") onMoveDown?.();
+              else if (key === "delete") onDelete();
+            }}
+          >
+            <Dropdown.Item
+              id="up"
+              textValue="Mover arriba"
+              isDisabled={onMoveUp === null}
+            >
+              <Label>Mover arriba</Label>
+            </Dropdown.Item>
+            <Dropdown.Item
+              id="down"
+              textValue="Mover abajo"
+              isDisabled={onMoveDown === null}
+            >
+              <Label>Mover abajo</Label>
+            </Dropdown.Item>
+            <Dropdown.Item id="delete" textValue="Eliminar" variant="danger">
               <Label>Eliminar</Label>
             </Dropdown.Item>
           </Dropdown.Menu>

@@ -43,11 +43,12 @@ export interface NarrativePhaseWithWorkstreams extends NarrativePhase {
 // Full read-shape for the detail view: narrative + ordered phases (each
 // with its ordered workstreams) + workstreams whose phase_id is NULL
 // ("orphans"), rendered alongside phases at the narrative root, plus
-// the cross-team dependencies declared on the narrative.
+// the cross-team dependencies and the risks declared on the narrative.
 export interface NarrativeWithChildren extends ProjectNarrative {
   phases: NarrativePhaseWithWorkstreams[];
   orphan_workstreams: NarrativeWorkstream[];
   dependencies: NarrativeDependency[];
+  risks: NarrativeRisk[];
 }
 
 export type NarrativeDependency =

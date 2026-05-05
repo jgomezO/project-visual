@@ -4,6 +4,7 @@ import type {
   NarrativeDependency,
   NarrativePhase,
   NarrativePhaseWithWorkstreams,
+  NarrativeRisk,
   NarrativeWithChildren,
   NarrativeWorkstream,
   ProjectNarrative,
@@ -56,7 +57,7 @@ export async function getNarrativeById(
 ): Promise<NarrativeWithChildren | null> {
   const supabase = getAnonSupabase();
 
-  const [main, orphans, deps] = await Promise.all([
+  const [main, orphans, deps, risks] = await Promise.all([
     supabase
       .from("project_narratives")
       .select(
@@ -75,14 +76,25 @@ export async function getNarrativeById(
       .select("*")
       .eq("narrative_id", id)
       .order("order_index", { ascending: true }),
+    supabase
+      .from("narrative_risks")
+      .select("*")
+      .eq("narrative_id", id)
+      .order("order_index", { ascending: true }),
   ]);
 
   if (main.error) throw main.error;
   if (orphans.error) throw orphans.error;
   if (deps.error) throw deps.error;
+  if (risks.error) throw risks.error;
   if (!main.data) return null;
 
-  return assembleNarrative(main.data, orphans.data ?? [], deps.data ?? []);
+  return assembleNarrative(
+    main.data,
+    orphans.data ?? [],
+    deps.data ?? [],
+    risks.data ?? [],
+  );
 }
 
 /**
@@ -134,6 +146,23 @@ export async function getDependenciesByNarrative(
   return data ?? [];
 }
 
+/**
+ * Risks declared inside a narrative, ordered by order_index. Same role
+ * as getDependenciesByNarrative — Wave 2 helper for the public preview.
+ */
+export async function getRisksByNarrative(
+  narrativeId: string,
+): Promise<NarrativeRisk[]> {
+  const supabase = getAnonSupabase();
+  const { data, error } = await supabase
+    .from("narrative_risks")
+    .select("*")
+    .eq("narrative_id", narrativeId)
+    .order("order_index", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
 interface NarrativeWithEmbeds extends ProjectNarrative {
   phases: (NarrativePhase & { workstreams: NarrativeWorkstream[] })[] | null;
 }
@@ -142,6 +171,7 @@ function assembleNarrative(
   raw: NarrativeWithEmbeds,
   orphans: NarrativeWorkstream[],
   dependencies: NarrativeDependency[],
+  risks: NarrativeRisk[],
 ): NarrativeWithChildren {
   const { phases: rawPhases, ...narrativeFields } = raw;
   const phases: NarrativePhaseWithWorkstreams[] = (rawPhases ?? [])
@@ -158,5 +188,6 @@ function assembleNarrative(
     phases,
     orphan_workstreams: orphans,
     dependencies,
+    risks,
   };
 }

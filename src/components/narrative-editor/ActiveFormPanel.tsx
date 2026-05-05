@@ -4,12 +4,14 @@ import { forwardRef, useImperativeHandle, useRef, useTransition } from "react";
 import {
   deleteDependencyAction,
   deletePhaseAction,
+  deleteRiskAction,
   deleteWorkstreamAction,
 } from "@/app/actions/narratives";
 import type {
   NarrativeDependency,
   NarrativePhase,
   NarrativePhaseWithWorkstreams,
+  NarrativeRisk,
   NarrativeWithChildren,
   NarrativeWorkstream,
   ProjectNarrative,
@@ -19,6 +21,8 @@ import { DependencyForm } from "./DependencyForm";
 import type { SelectedNode } from "./EditorShell";
 import { NarrativeForm, type FormHandle } from "./NarrativeForm";
 import { PhaseForm } from "./PhaseForm";
+import { RiskForm } from "./RiskForm";
+import { RisksListPanel } from "./RisksListPanel";
 import { WorkstreamForm } from "./WorkstreamForm";
 import type { SaveState } from "./useAutoSave";
 
@@ -32,6 +36,8 @@ interface Props {
   onOrphansChanged: (next: NarrativeWorkstream[]) => void;
   onDependencyListChanged: (next: NarrativeDependency[]) => void;
   onDependencyPatched: (next: NarrativeDependency) => void;
+  onRiskListChanged: (next: NarrativeRisk[]) => void;
+  onRiskPatched: (next: NarrativeRisk) => void;
   // For moves that may save a pending edit first.
   onSelect: (next: SelectedNode) => void;
   // Bypasses the auto-save flush guard. Used after delete: the entity
@@ -52,6 +58,8 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
       onOrphansChanged,
       onDependencyListChanged,
       onDependencyPatched,
+      onRiskListChanged,
+      onRiskPatched,
       onSelect,
       onForceSelect,
       onSaveStateChange,
@@ -189,6 +197,68 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
                   tree.dependencies.filter((d) => d.id !== dep.id),
                 );
                 onForceSelect({ kind: "dependencies" });
+              } catch (err) {
+                window.alert(
+                  err instanceof Error ? err.message : "Error al eliminar",
+                );
+              }
+            });
+          }}
+        />
+      );
+    }
+
+    if (selected.kind === "risks") {
+      return (
+        <RisksListPanel
+          tree={tree}
+          pending={pending}
+          onSelectRisk={(id) => onSelect({ kind: "risk", id })}
+          onDeleteRisk={(risk) => {
+            if (!window.confirm(`¿Eliminar el riesgo "${risk.title}"?`)) {
+              return;
+            }
+            startTransition(async () => {
+              try {
+                await deleteRiskAction(risk.id);
+                onRiskListChanged(
+                  tree.risks.filter((r) => r.id !== risk.id),
+                );
+              } catch (err) {
+                window.alert(
+                  err instanceof Error ? err.message : "Error al eliminar",
+                );
+              }
+            });
+          }}
+        />
+      );
+    }
+
+    if (selected.kind === "risk") {
+      const risk = tree.risks.find((r) => r.id === selected.id);
+      if (!risk) {
+        return <FormNotFound message="Riesgo no encontrado." />;
+      }
+      return (
+        <RiskForm
+          ref={innerRef}
+          risk={risk}
+          dependencies={tree.dependencies}
+          onPatched={onRiskPatched}
+          onSaveStateChange={onSaveStateChange}
+          pendingDelete={pending}
+          onDelete={() => {
+            if (!window.confirm(`¿Eliminar el riesgo "${risk.title}"?`)) {
+              return;
+            }
+            startTransition(async () => {
+              try {
+                await deleteRiskAction(risk.id);
+                onRiskListChanged(
+                  tree.risks.filter((r) => r.id !== risk.id),
+                );
+                onForceSelect({ kind: "risks" });
               } catch (err) {
                 window.alert(
                   err instanceof Error ? err.message : "Error al eliminar",

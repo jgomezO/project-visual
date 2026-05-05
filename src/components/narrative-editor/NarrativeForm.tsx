@@ -28,6 +28,7 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
       subtitle: narrative.subtitle ?? "",
       overview: narrative.overview ?? "",
       status_summary: narrative.status_summary ?? "",
+      risks_section_subtitle: narrative.risks_section_subtitle ?? "",
     });
 
     const titleInvalid = draft.title.trim().length === 0;
@@ -46,6 +47,8 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
           subtitle: snapshot.subtitle.trim() || null,
           overview: snapshot.overview || null,
           status_summary: snapshot.status_summary || null,
+          risks_section_subtitle:
+            snapshot.risks_section_subtitle.trim() || null,
           updated_by: "system",
         });
         onPatched(updated);
@@ -113,6 +116,20 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
           onChange={(v) => setDraft({ ...draft, status_summary: v })}
           rows={4}
         />
+
+        <TextField>
+          <Label>Subtítulo de la sección de riesgos</Label>
+          <Input
+            value={draft.risks_section_subtitle}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                risks_section_subtitle: e.currentTarget.value,
+              })
+            }
+            placeholder="Opcional: aparece bajo el título “Riesgos del proyecto”"
+          />
+        </TextField>
 
         <div className="grid grid-cols-2 gap-4 border-t border-default-200 pt-4 text-xs text-muted">
           <ReadOnlyField

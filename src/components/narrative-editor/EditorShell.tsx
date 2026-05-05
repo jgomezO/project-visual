@@ -10,6 +10,7 @@ import type {
   NarrativeDependency,
   NarrativePhase,
   NarrativePhaseWithWorkstreams,
+  NarrativeRisk,
   NarrativeWithChildren,
   NarrativeWorkstream,
   ProjectNarrative,
@@ -25,7 +26,9 @@ export type SelectedNode =
   | { kind: "phase"; id: string }
   | { kind: "workstream"; id: string }
   | { kind: "dependencies" } // the Dependencies group node (list panel)
-  | { kind: "dependency"; id: string };
+  | { kind: "dependency"; id: string }
+  | { kind: "risks" } // the Risks group node (list panel)
+  | { kind: "risk"; id: string };
 
 const NARRATIVE_NODE: SelectedNode = { kind: "narrative" };
 
@@ -111,6 +114,17 @@ export function EditorShell({
     }));
   }
 
+  function handleRiskListChanged(next: NarrativeRisk[]): void {
+    setTree((prev) => ({ ...prev, risks: next }));
+  }
+
+  function handleRiskPatched(next: NarrativeRisk): void {
+    setTree((prev) => ({
+      ...prev,
+      risks: prev.risks.map((r) => (r.id === next.id ? next : r)),
+    }));
+  }
+
   // Selection guard: flush the active form before changing selection. If
   // the flush fails (validation error or server error), keep the current
   // selection so the user can fix the field. The indicator stays in
@@ -184,6 +198,7 @@ export function EditorShell({
               onPhaseListChanged={handlePhaseListChanged}
               onOrphansChanged={handleOrphansChanged}
               onDependencyListChanged={handleDependencyListChanged}
+              onRiskListChanged={handleRiskListChanged}
             />
           </aside>
           <section className="flex-1 overflow-y-auto p-6">
@@ -199,6 +214,8 @@ export function EditorShell({
               onOrphansChanged={handleOrphansChanged}
               onDependencyListChanged={handleDependencyListChanged}
               onDependencyPatched={handleDependencyPatched}
+              onRiskListChanged={handleRiskListChanged}
+              onRiskPatched={handleRiskPatched}
               onSelect={tryChangeSelection}
               onForceSelect={setSelected}
               onSaveStateChange={handleSaveStateChange}
@@ -320,5 +337,6 @@ function EditorHeader({
 function selectedKey(s: SelectedNode): string {
   if (s.kind === "narrative") return "narrative";
   if (s.kind === "dependencies") return "dependencies";
+  if (s.kind === "risks") return "risks";
   return `${s.kind}:${s.id}`;
 }
