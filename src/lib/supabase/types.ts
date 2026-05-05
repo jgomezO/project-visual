@@ -181,6 +181,7 @@ export type Database = {
           description: string | null
           expected_delivery_date: string | null
           id: string
+          identifier: string
           narrative_id: string
           needed_by_date: string | null
           order_index: number
@@ -200,6 +201,7 @@ export type Database = {
           description?: string | null
           expected_delivery_date?: string | null
           id?: string
+          identifier: string
           narrative_id: string
           needed_by_date?: string | null
           order_index: number
@@ -219,6 +221,7 @@ export type Database = {
           description?: string | null
           expected_delivery_date?: string | null
           id?: string
+          identifier?: string
           narrative_id?: string
           needed_by_date?: string | null
           order_index?: number
@@ -300,6 +303,65 @@ export type Database = {
           },
         ]
       }
+      narrative_risks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          identifier: string
+          impacts: string[]
+          mitigations: string[]
+          narrative_id: string
+          order_index: number
+          related_dependency_ids: string[]
+          severity: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          identifier: string
+          impacts?: string[]
+          mitigations?: string[]
+          narrative_id: string
+          order_index: number
+          related_dependency_ids?: string[]
+          severity?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          identifier?: string
+          impacts?: string[]
+          mitigations?: string[]
+          narrative_id?: string
+          order_index?: number
+          related_dependency_ids?: string[]
+          severity?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "narrative_risks_narrative_id_fkey"
+            columns: ["narrative_id"]
+            isOneToOne: false
+            referencedRelation: "project_narratives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       narrative_workstreams: {
         Row: {
           created_at: string
@@ -356,9 +418,12 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          next_dependency_id: number
+          next_risk_id: number
           overview: string | null
           project_id: string
           published: boolean
+          risks_section_subtitle: string | null
           status_summary: string | null
           subtitle: string | null
           title: string
@@ -369,9 +434,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          next_dependency_id?: number
+          next_risk_id?: number
           overview?: string | null
           project_id: string
           published?: boolean
+          risks_section_subtitle?: string | null
           status_summary?: string | null
           subtitle?: string | null
           title: string
@@ -382,9 +450,12 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          next_dependency_id?: number
+          next_risk_id?: number
           overview?: string | null
           project_id?: string
           published?: boolean
+          risks_section_subtitle?: string | null
           status_summary?: string | null
           subtitle?: string | null
           title?: string
@@ -511,6 +582,14 @@ export type Database = {
       }
     }
     Functions: {
+      claim_next_dependency_identifier: {
+        Args: { p_narrative_id: string }
+        Returns: string
+      }
+      claim_next_risk_identifier: {
+        Args: { p_narrative_id: string }
+        Returns: string
+      }
       project_dashboard: {
         Args: { p_project_key: string }
         Returns: {

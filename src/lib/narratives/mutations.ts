@@ -58,13 +58,19 @@ export interface PhaseReorderEntry {
   order_index: number;
 }
 
+// `identifier` is omitted because createDependency claims it from the
+// per-narrative counter (claim_next_dependency_identifier RPC). Callers
+// must NOT supply one.
 export type CreateDependencyInput = Omit<
   NarrativeDependencyInsert,
-  "id" | "created_at" | "updated_at"
+  "id" | "identifier" | "created_at" | "updated_at"
 >;
+// `identifier` is also omitted from updates: the rule is "immutable
+// post-creation". If a future requirement needs to change the format
+// (e.g. migration to D-001), do it via a SQL migration, not a mutation.
 export type UpdateDependencyInput = Omit<
   NarrativeDependencyUpdate,
-  "id" | "narrative_id" | "created_at" | "updated_at"
+  "id" | "identifier" | "narrative_id" | "created_at" | "updated_at"
 >;
 
 export interface DependencyReorderEntry {
@@ -434,9 +440,20 @@ export async function createDependency(
   input: CreateDependencyInput,
 ): Promise<NarrativeDependency> {
   const supabase = getServiceSupabase();
+
+  // Claim the next D-identifier atomically. The RPC increments
+  // project_narratives.next_dependency_id and returns the previous value
+  // formatted as e.g. "D7". The counter never decreases — deletes do
+  // not reuse identifiers, by design.
+  const { data: identifier, error: idError } = await supabase.rpc(
+    "claim_next_dependency_identifier",
+    { p_narrative_id: input.narrative_id! },
+  );
+  if (idError) throw idError;
+
   const { data, error } = await supabase
     .from("narrative_dependencies")
-    .insert(input)
+    .insert({ ...input, identifier })
     .select()
     .single();
   if (error) throw error;

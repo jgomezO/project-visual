@@ -70,3 +70,13 @@ export type CommitmentStatus =
 // both the editor (small dot in the sidebar) and the public view
 // (lateral border on the dependency card).
 export type RiskLevel = "low" | "medium" | "high" | "critical";
+
+export type NarrativeRisk = NarrativeTables["narrative_risks"]["Row"];
+export type NarrativeRiskInsert =
+  NarrativeTables["narrative_risks"]["Insert"];
+export type NarrativeRiskUpdate =
+  NarrativeTables["narrative_risks"]["Update"];
+
+// Same role as PhaseStatus / CommitmentStatus: narrow at the boundary
+// what the generated types widen to `string`.
+export type RiskSeverity = "low" | "medium" | "high";
