@@ -4,7 +4,15 @@ import type { Database } from "./types";
 
 let cached: SupabaseClient<Database> | null = null;
 
-export function getServiceSupabase(): SupabaseClient<Database> {
+// Service-role Supabase client for operations that bypass RLS by design:
+//   - Sync from Jira (runs outside any user context)
+//   - Seed and CLI scripts
+//   - System-level mutations that aren't tied to a logged-in actor
+//
+// For user-facing reads / writes that should respect RLS, use
+// getServerSupabase() from "./server" instead — that one carries the
+// user's auth cookies.
+export function getServerSupabaseAdmin(): SupabaseClient<Database> {
   if (cached) return cached;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -28,3 +36,10 @@ export function getServiceSupabase(): SupabaseClient<Database> {
   });
   return cached;
 }
+
+/**
+ * @deprecated Renamed to getServerSupabaseAdmin for symmetry with
+ * getServerSupabase. Will be removed at the end of iter 4f. Update
+ * call sites at your convenience during this iteration.
+ */
+export const getServiceSupabase = getServerSupabaseAdmin;
