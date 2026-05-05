@@ -7,26 +7,20 @@ import type {
   IssuePublicData,
 } from "@/lib/narratives/derived";
 import type {
+  CommitmentStatus,
   NarrativeDependency,
   NarrativeWithChildren,
   RiskLevel,
 } from "@/lib/narratives/types";
+import { CommitmentStatusChip } from "./CommitmentStatusChip";
+import { DateGapIndicator } from "./DateGapIndicator";
 import { IssueChip } from "./IssueChip";
 
 const COORDINATION_TRUNCATE_AT = 220;
 
-const STATUS_LABEL: Record<string, string> = {
-  proposed: "Propuesto",
-  agreed: "Acordado",
-  confirmed: "Confirmado",
-  at_risk: "En riesgo",
-  blocked: "Bloqueado",
-};
-
-// Lateral border + dot color per risk level. Visual polish (proper
-// CommitmentStatusChip + DateGapIndicator components) lands in commit 6;
-// here the rendering is intentionally plain so the cards are readable
-// end-to-end without depending on those primitives.
+// Lateral border + dot per risk level. Critical also gets a small
+// AlertTriangle stamp inside the header so it reads as urgent at a
+// glance even on grayscale prints.
 const RISK_BORDER: Record<RiskLevel, string> = {
   low: "border-l-default-300",
   medium: "border-l-amber-500",
@@ -39,6 +33,13 @@ const RISK_DOT: Record<RiskLevel, string> = {
   medium: "bg-amber-500",
   high: "bg-orange-500",
   critical: "bg-red-600",
+};
+
+const RISK_LABEL_ES: Record<RiskLevel, string> = {
+  low: "Riesgo bajo",
+  medium: "Riesgo medio",
+  high: "Riesgo alto",
+  critical: "Riesgo crítico",
 };
 
 interface Props {
@@ -70,10 +71,21 @@ export function DependencyCard({
       className={`flex flex-col gap-4 rounded-xl border border-default-200 border-l-4 bg-surface p-5 shadow-sm ${RISK_BORDER[derived.riskLevel]}`}
     >
       <header className="flex items-start gap-3">
-        <span
-          className={`mt-1.5 inline-block size-2.5 shrink-0 rounded-full ${RISK_DOT[derived.riskLevel]}`}
-          aria-label={`Nivel de riesgo: ${derived.riskLevel}`}
-        />
+        {derived.riskLevel === "critical" ? (
+          <span
+            className="mt-1 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700"
+            aria-label={RISK_LABEL_ES.critical}
+            title={RISK_LABEL_ES.critical}
+          >
+            <AlertTriangle className="size-3.5" aria-hidden="true" />
+          </span>
+        ) : (
+          <span
+            className={`mt-1.5 inline-block size-2.5 shrink-0 rounded-full ${RISK_DOT[derived.riskLevel]}`}
+            aria-label={RISK_LABEL_ES[derived.riskLevel]}
+            title={RISK_LABEL_ES[derived.riskLevel]}
+          />
+        )}
         <h3 className="text-lg font-semibold tracking-tight text-foreground group-data-[mode=presentation]/preview:text-xl">
           {dependency.title}
         </h3>
@@ -94,14 +106,13 @@ export function DependencyCard({
 
       <DatesBlock derived={derived} dependency={dependency} />
 
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Estado del compromiso:
+          Estado del compromiso
         </span>
-        <span className="font-medium text-foreground">
-          {STATUS_LABEL[dependency.commitment_status] ??
-            dependency.commitment_status}
-        </span>
+        <CommitmentStatusChip
+          status={dependency.commitment_status as CommitmentStatus}
+        />
       </div>
 
       {dependency.coordination_notes ? (
@@ -250,36 +261,12 @@ function DatesBlock({
           </span>
         ) : null}
       </div>
-      {/* DateGapIndicator (proper chip with red/green/neutral variants)
-          ships in commit 6. Plain inline text here keeps commit 5
-          self-contained but readable. */}
-      <DelayLine delayRiskDays={derived.delayRiskDays} />
+      <DateGapIndicator
+        delayRiskDays={derived.delayRiskDays}
+        neededDate={dependency.needed_by_date}
+        expectedDate={derived.resolvedExpectedDeliveryDate}
+      />
     </section>
-  );
-}
-
-function DelayLine({ delayRiskDays }: { delayRiskDays: number | null }) {
-  if (delayRiskDays === null) return null;
-  if (delayRiskDays > 0) {
-    return (
-      <p className="text-sm font-medium text-red-700">
-        ⚠ {delayRiskDays} día{delayRiskDays === 1 ? "" : "s"} de retraso
-        esperado.
-      </p>
-    );
-  }
-  if (delayRiskDays === 0) {
-    return (
-      <p className="text-sm font-medium text-emerald-700">
-        ✓ Justo a tiempo.
-      </p>
-    );
-  }
-  const margin = -delayRiskDays;
-  return (
-    <p className="text-sm font-medium text-emerald-700">
-      ✓ {margin} día{margin === 1 ? "" : "s"} de margen.
-    </p>
   );
 }
 
