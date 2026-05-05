@@ -3,6 +3,7 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { Input, Label, TextField } from "@heroui/react";
 import { updateNarrativeAction } from "@/app/actions/narratives";
+import { formatActor } from "@/lib/format/actor";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 import type { ProjectNarrative } from "@/lib/narratives/types";
 import { useAutoSave, type SaveState } from "./useAutoSave";
@@ -133,11 +134,11 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
         <div className="grid grid-cols-2 gap-4 border-t border-default-200 pt-4 text-xs text-muted">
           <ReadOnlyField
             label="Creado por"
-            value={narrative.created_by ?? "—"}
+            value={formatActor(narrative.created_by)}
           />
           <ReadOnlyField
             label="Actualizado por"
-            value={narrative.updated_by ?? "—"}
+            value={formatActor(narrative.updated_by)}
           />
           <ReadOnlyField
             label="Creado"

@@ -16,6 +16,7 @@ import {
   deleteNarrativeAction,
   duplicateNarrativeAction,
 } from "@/app/actions/narratives";
+import { formatActor } from "@/lib/format/actor";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 import type { ProjectNarrative } from "@/lib/narratives/types";
 
@@ -85,9 +86,8 @@ export function NarrativeCard({
             ) : null}
             <p className="mt-3 text-xs text-muted">
               Última edición {relativeFromNow(narrative.updated_at)}
-              {narrative.updated_by
-                ? ` · por ${narrative.updated_by}`
-                : ""}
+              {" · por "}
+              {formatActor(narrative.updated_by)}
             </p>
           </Link>
           <Dropdown>
