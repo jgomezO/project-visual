@@ -49,7 +49,6 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
           status_summary: snapshot.status_summary || null,
           risks_section_subtitle:
             snapshot.risks_section_subtitle.trim() || null,
-          updated_by: "system",
         });
         onPatched(updated);
       },

@@ -61,8 +61,6 @@ export function NewNarrativeButton({
           title: trimmedTitle,
           subtitle: subtitle.trim() || null,
           published: false,
-          created_by: "system",
-          updated_by: "system",
         });
         setIsOpen(false);
         reset();

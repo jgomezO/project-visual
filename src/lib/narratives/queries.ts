@@ -1,5 +1,5 @@
 import "server-only";
-import { getAnonSupabase } from "@/lib/supabase/anon";
+import { getServerSupabase } from "@/lib/supabase/server";
 import type {
   NarrativeDependency,
   NarrativePhase,
@@ -10,8 +10,11 @@ import type {
   ProjectNarrative,
 } from "./types";
 
-// Narrative reads use the anon client — RLS is read-open and a service-role
-// dependency would couple read code paths to a server-only secret unnecessarily.
+// Narrative reads go through the authenticated server client (cookies-aware).
+// All callers are Server Components running behind the auth middleware, so
+// the user is guaranteed to exist by the time we hit these functions.
+// Forward-compatible with Migración B: today the SELECT policies allow both
+// anon and authenticated; after B they're authenticated-only.
 
 /**
  * Lists every narrative for a project, ordered by published-first then
@@ -21,7 +24,7 @@ import type {
 export async function getNarrativesByProject(
   projectKey: string,
 ): Promise<ProjectNarrative[]> {
-  const supabase = getAnonSupabase();
+  const supabase = await getServerSupabase();
   const { data: project, error: projectError } = await supabase
     .from("projects")
     .select("id")
@@ -55,7 +58,7 @@ export async function getNarrativesByProject(
 export async function getNarrativeById(
   id: string,
 ): Promise<NarrativeWithChildren | null> {
-  const supabase = getAnonSupabase();
+  const supabase = await getServerSupabase();
 
   const [main, orphans, deps, risks] = await Promise.all([
     supabase
@@ -105,7 +108,7 @@ export async function getNarrativeById(
 export async function getPublishedNarrative(
   projectKey: string,
 ): Promise<NarrativeWithChildren | null> {
-  const supabase = getAnonSupabase();
+  const supabase = await getServerSupabase();
   const { data: project, error: projectError } = await supabase
     .from("projects")
     .select("id")
@@ -136,7 +139,7 @@ export async function getPublishedNarrative(
 export async function getDependenciesByNarrative(
   narrativeId: string,
 ): Promise<NarrativeDependency[]> {
-  const supabase = getAnonSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_dependencies")
     .select("*")
@@ -153,7 +156,7 @@ export async function getDependenciesByNarrative(
 export async function getRisksByNarrative(
   narrativeId: string,
 ): Promise<NarrativeRisk[]> {
-  const supabase = getAnonSupabase();
+  const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("narrative_risks")
     .select("*")

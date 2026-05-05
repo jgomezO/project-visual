@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getActor } from "@/lib/auth/get-actor";
 import {
   createDependency,
   createNarrative,
@@ -13,7 +14,6 @@ import {
   deleteRisk,
   deleteWorkstream,
   duplicateNarrative,
-  publishNarrative,
   reorderDependencies,
   reorderPhases,
   reorderRisks,
@@ -49,6 +49,11 @@ import type {
 // All mutations route through Server Actions so secrets stay on the server
 // and Client Components can `await` them directly without an HTTP layer.
 //
+// Actions that touch the columns created_by / updated_by (project_narratives,
+// narrative_dependencies, narrative_risks) call getActor() and stamp the
+// authenticated user's email. Phases and workstreams don't have those
+// columns — their actions don't need an actor.
+//
 // `revalidatePath` is fired only on actions whose result changes the list
 // page (`/projects/[key]/narratives`). Editor-side actions skip the
 // revalidation because the editor is already a Client tree-state owner —
@@ -58,7 +63,12 @@ export async function createNarrativeAction(
   projectKey: string,
   input: CreateNarrativeInput,
 ): Promise<ProjectNarrative> {
-  const created = await createNarrative(input);
+  const actor = await getActor();
+  const created = await createNarrative({
+    ...input,
+    created_by: actor.email,
+    updated_by: actor.email,
+  });
   revalidatePath(`/projects/${projectKey}/narratives`);
   return created;
 }
@@ -67,7 +77,8 @@ export async function updateNarrativeAction(
   id: string,
   patch: UpdateNarrativeInput,
 ): Promise<ProjectNarrative> {
-  return updateNarrative(id, patch);
+  const actor = await getActor();
+  return updateNarrative(id, { ...patch, updated_by: actor.email });
 }
 
 export async function deleteNarrativeAction(
@@ -82,7 +93,8 @@ export async function duplicateNarrativeAction(
   projectKey: string,
   sourceId: string,
 ): Promise<ProjectNarrative> {
-  const copy = await duplicateNarrative(sourceId);
+  const actor = await getActor();
+  const copy = await duplicateNarrative(sourceId, actor.email);
   revalidatePath(`/projects/${projectKey}/narratives`);
   return copy;
 }
@@ -92,7 +104,14 @@ export async function publishNarrativeAction(
   id: string,
   published: boolean,
 ): Promise<ProjectNarrative> {
-  const updated = await publishNarrative(id, published);
+  // Inlined what used to be publishNarrative — toggling published is a
+  // narrative update, so we want updated_by to reflect the actor that
+  // pressed the button.
+  const actor = await getActor();
+  const updated = await updateNarrative(id, {
+    published,
+    updated_by: actor.email,
+  });
   revalidatePath(`/projects/${projectKey}/narratives`);
   return updated;
 }
@@ -148,14 +167,20 @@ export async function reorderWorkstreamsAction(
 export async function createDependencyAction(
   input: CreateDependencyInput,
 ): Promise<NarrativeDependency> {
-  return createDependency(input);
+  const actor = await getActor();
+  return createDependency({
+    ...input,
+    created_by: actor.email,
+    updated_by: actor.email,
+  });
 }
 
 export async function updateDependencyAction(
   id: string,
   patch: UpdateDependencyInput,
 ): Promise<NarrativeDependency> {
-  return updateDependency(id, patch);
+  const actor = await getActor();
+  return updateDependency(id, { ...patch, updated_by: actor.email });
 }
 
 export async function deleteDependencyAction(id: string): Promise<void> {
@@ -172,14 +197,20 @@ export async function reorderDependenciesAction(
 export async function createRiskAction(
   input: CreateRiskInput,
 ): Promise<NarrativeRisk> {
-  return createRisk(input);
+  const actor = await getActor();
+  return createRisk({
+    ...input,
+    created_by: actor.email,
+    updated_by: actor.email,
+  });
 }
 
 export async function updateRiskAction(
   id: string,
   patch: UpdateRiskInput,
 ): Promise<NarrativeRisk> {
-  return updateRisk(id, patch);
+  const actor = await getActor();
+  return updateRisk(id, { ...patch, updated_by: actor.email });
 }
 
 export async function deleteRiskAction(id: string): Promise<void> {

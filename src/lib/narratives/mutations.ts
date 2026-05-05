@@ -150,9 +150,15 @@ export async function deleteNarrative(id: string): Promise<void> {
  *
  * If this becomes a hot path or partial failures get common, fold into a
  * SQL function (`duplicate_narrative(p_id uuid)`) and switch the call site.
+ *
+ * `actorEmail` is the duplicator's email (for created_by / updated_by).
+ * NULL when called from a system context (no user, e.g. scripts) — but
+ * the only caller today is duplicateNarrativeAction, which always passes
+ * a real actor.
  */
 export async function duplicateNarrative(
   sourceId: string,
+  actorEmail: string | null,
 ): Promise<ProjectNarrative> {
   const supabase = getServiceSupabase();
 
@@ -164,6 +170,9 @@ export async function duplicateNarrative(
   if (sourceRes.error) throw sourceRes.error;
   const source = sourceRes.data;
 
+  // The copy is a NEW narrative — created_by and updated_by reflect the
+  // user doing the duplication, not the original author. Carrying source
+  // metadata over would mis-represent ownership in the list UI.
   const insertRes = await supabase
     .from("project_narratives")
     .insert({
@@ -173,8 +182,8 @@ export async function duplicateNarrative(
       overview: source.overview,
       status_summary: source.status_summary,
       published: false,
-      created_by: source.created_by,
-      updated_by: source.updated_by,
+      created_by: actorEmail,
+      updated_by: actorEmail,
     })
     .select()
     .single();
@@ -250,13 +259,6 @@ export async function duplicateNarrative(
     await supabase.from("project_narratives").delete().eq("id", copy.id);
     throw err;
   }
-}
-
-export async function publishNarrative(
-  id: string,
-  published: boolean,
-): Promise<ProjectNarrative> {
-  return updateNarrative(id, { published });
 }
 
 /**
