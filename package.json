@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "gen:types": "supabase gen types typescript --linked > src/lib/supabase/types.ts",
-    "seed:narrative": "node --env-file=.env.local --import tsx scripts/seed-narrative.ts"
+    "seed:narrative": "node --env-file=.env.local --import tsx scripts/seed-narrative.ts",
+    "diag:runs": "node --env-file=.env.local --import tsx scripts/diag-runs.ts",
+    "diag:runs:reap": "node --env-file=.env.local --import tsx scripts/diag-runs.ts --reap"
   },
   "dependencies": {
     "@heroui/react": "^3.0.3",

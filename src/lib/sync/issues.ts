@@ -140,6 +140,10 @@ export async function syncIssuesForProject(
   let linksSkipped = 0;
   // Collected during pass 1, applied in pass 2 to avoid self-FK violations.
   const parentUpdates: Array<{ id: string; parentId: string }> = [];
+  // Keys of every issue we touched this run. Drives the scoped link
+  // backfill below — we ask "which previously-orphaned links now point
+  // at something we have?" using exactly this list.
+  const syncedKeys: string[] = [];
 
   for await (const page of jira.searchIssuesPaginated({
     jql,
@@ -167,17 +171,19 @@ export async function syncIssuesForProject(
     for (const row of issueRows) {
       if (existingSet.has(row.id)) issuesUpdated++;
       else issuesCreated++;
+      syncedKeys.push(row.key);
     }
 
+    // Collect links from this page; defer to one batch upsert below.
+    // Sequential per-link upserts were the dominant cost on projects
+    // with hundreds of links — turning N round-trips into 1 makes
+    // syncs of multi-project tenants viable.
+    const linkRows: LinkRow[] = [];
     for (const issue of page) {
       const fields = issue.fields as JiraIssueFields;
       if (fields.parent?.id) {
         parentUpdates.push({ id: issue.id, parentId: fields.parent.id });
       }
-
-      // Upsert links from this page. target_issue_id stays null here; we
-      // backfill below once all pages are synced (the target may be in a
-      // later page or in another already-synced project).
       const links = fields.issuelinks ?? [];
       for (const link of links) {
         const row = toLinkRow(issue.id, link);
@@ -185,17 +191,20 @@ export async function syncIssuesForProject(
           linksSkipped++;
           continue;
         }
-        const { error: linkError } = await supabase
-          .from("issue_links")
-          .upsert([row], {
-            onConflict: "source_issue_id,target_issue_key,link_type",
-          });
-        if (linkError) {
-          console.error(
-            `[sync] link upsert failed for ${issue.key} -> ${row.target_issue_key}: ${linkError.message}`,
-          );
-          linksSkipped++;
-        }
+        linkRows.push(row);
+      }
+    }
+    if (linkRows.length > 0) {
+      const { error: linkError } = await supabase
+        .from("issue_links")
+        .upsert(linkRows, {
+          onConflict: "source_issue_id,target_issue_key,link_type",
+        });
+      if (linkError) {
+        console.error(
+          `[sync] link batch upsert failed for ${projectKey} (${linkRows.length} links): ${linkError.message}`,
+        );
+        linksSkipped += linkRows.length;
       }
     }
   }
@@ -204,8 +213,10 @@ export async function syncIssuesForProject(
   // every issue has been inserted (avoids self-FK violations).
   await backfillParentIds(parentUpdates);
 
-  // Backfill target_issue_id for links whose target now exists in DB.
-  await backfillIssueLinkTargets();
+  // Backfill target_issue_id for links whose target was among the keys
+  // we just synced. Scoped — no longer a global SELECT over every NULL
+  // link in the DB.
+  await backfillIssueLinkTargetsForKeys(syncedKeys);
 
   const { error: stampError } = await supabase
     .from("projects")
@@ -256,28 +267,42 @@ async function backfillParentIds(
   }
 }
 
-async function backfillIssueLinkTargets(): Promise<void> {
+/**
+ * Backfill `target_issue_id` on previously-orphaned issue_links rows
+ * whose target key was just upserted by this sync.
+ *
+ * Earlier this function did a global SELECT over every NULL-target row
+ * in the DB after each project. That works while link counts are low,
+ * but on multi-project tenants the scan grows quadratically with each
+ * project synced. The scoped version asks the precise question we
+ * actually have: of the keys I just touched, which are referenced as
+ * targets by some previously-orphaned link? — and resolves only those.
+ */
+async function backfillIssueLinkTargetsForKeys(
+  syncedKeys: string[],
+): Promise<void> {
+  if (syncedKeys.length === 0) return;
   const supabase = getServiceSupabase();
 
-  const { data: nullLinks, error: nullErr } = await supabase
+  const { data: pending, error: pendingErr } = await supabase
     .from("issue_links")
     .select("id, target_issue_key")
-    .is("target_issue_id", null);
-  if (nullErr) throw nullErr;
-  if (!nullLinks || nullLinks.length === 0) return;
+    .is("target_issue_id", null)
+    .in("target_issue_key", syncedKeys);
+  if (pendingErr) throw pendingErr;
+  if (!pending || pending.length === 0) return;
 
-  const targetKeys = [...new Set(nullLinks.map((l) => l.target_issue_key))];
+  // Resolve key → id in one query, scoped to the keys we just synced
+  // (which trivially exist; this is just to map to ids).
   const { data: matches, error: matchErr } = await supabase
     .from("issues")
     .select("id, key")
-    .in("key", targetKeys);
+    .in("key", syncedKeys);
   if (matchErr) throw matchErr;
   const keyToId = new Map((matches ?? []).map((i) => [i.key, i.id]));
-  if (keyToId.size === 0) return;
 
-  // Group link ids by resolved target_issue_id, do one update per group.
   const updates = new Map<string, number[]>();
-  for (const link of nullLinks) {
+  for (const link of pending) {
     const id = keyToId.get(link.target_issue_key);
     if (!id) continue;
     const list = updates.get(id) ?? [];

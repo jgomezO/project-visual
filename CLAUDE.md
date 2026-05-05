@@ -45,6 +45,8 @@ pnpm start              # Serve the production build
 pnpm lint               # ESLint
 pnpm gen:types          # Regenerate src/lib/supabase/types.ts from the linked project
 pnpm seed:narrative     # Dev-only: idempotent demo narrative on NOXSCRUM (uses tsx + service role)
+pnpm diag:runs          # Dev-only: print recent sync_runs + per-project issue / link counts
+pnpm diag:runs:reap     # Same + mark sync_runs stuck in 'running' >5min as 'failed'
 ```
 
 Database migrations:
@@ -761,7 +763,7 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 
 - **Issue deletion is not detected.** Jira doesn't expose a "what was deleted since X" endpoint cheaply. When it matters: periodic full sync that lists all current ids and diffs.
 - **Watermark uses a 1-day buffer (date-only)** to dodge JQL TZ ambiguity. Refine to a TZ-aware timestamp (using the token user's `/myself.timeZone`) when volume justifies it.
-- **Issue link backfill is a global SELECT each sync.** Fine while link counts are low; switch to per-source filtering or a SQL function when slow.
+- **Stuck `running` rows in `sync_runs`.** When the dev server restarts (HMR, file save) mid-sync, the `runSync` `try/catch` never fires and the row stays `running` forever. Run `pnpm diag:runs:reap` to mark rows older than 5min as `failed`. Long-term fix: a periodic reaper or a NOTIFY-based heartbeat. Acceptable today as a manual recovery step.
 - **`/projects` aggregations are computed in app code** (one query for all issues, group in JS). Promote to a Postgres view (`project_stats`) once project count grows.
 - **`/projects/[key]` issues table is not virtualized.** Fine for the current scale (NOXSCRUM has ~813 issues, render is snappy). At ~2000+ rows, switch to a virtualized renderer or paginate server-side. The bucketize/filter passes are O(n); the cost is in the DOM.
 - **`/projects/[key]` roadmap is not virtualized.** Designed for ~10x current scale (~270 epics). The chart renders one absolutely-positioned `<button>` per visible epic plus a couple of SVG lines per week — at 270 epics × month-ranged ranges that's ~300 DOM nodes, fine. At 2000+ epics consider virtualizing the chart body rows (the left label column would virtualize in lockstep) and pre-bucketing on the server.
