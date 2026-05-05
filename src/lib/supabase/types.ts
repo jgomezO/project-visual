@@ -606,6 +606,7 @@ export type Database = {
           last_synced_at: string | null
           lead_display_name: string | null
           name: string | null
+          narratives_count: number | null
           total_issues: number | null
         }
         Relationships: []
