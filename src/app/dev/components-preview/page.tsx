@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { StatusChip } from "@/components/project/StatusChip";
+import { BulletListPreview } from "./BulletListPreview";
 
 export const dynamic = "force-static";
 
@@ -225,6 +226,13 @@ export default function ComponentsPreviewPage() {
             <DemoChip key={c.typeLabel} {...c} />
           ))}
         </ul>
+      </Section>
+
+      <Section
+        title="BulletListInput"
+        caption="Editor de TEXT[] usado por RiskForm para impacts y mitigations. Probá agregar, remover, llegar al máximo, y validá que Enter en la última fila agregue otra."
+      >
+        <BulletListPreview />
       </Section>
     </main>
   );
