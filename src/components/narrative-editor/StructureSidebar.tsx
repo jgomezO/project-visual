@@ -8,16 +8,16 @@ import {
 } from "@heroui/react";
 import {
   AlertTriangle,
+  BookText,
   ChevronDown,
   ChevronRight,
-  CircleDot,
-  FileText,
+  GitBranch,
   Layers,
   Link2,
   MoreHorizontal,
   Plus,
-  Sparkles,
 } from "lucide-react";
+import { GeistMono } from "geist/font/mono";
 import {
   createDependencyAction,
   createPhaseAction,
@@ -440,7 +440,7 @@ export function StructureSidebar({
           />
         </li>
         {tree.phases.length === 0 && tree.orphan_workstreams.length === 0 ? (
-          <li className="mt-3 px-2 text-xs italic text-muted">
+          <li className="mt-3 px-3 text-xs italic text-text-muted">
             Esta narrativa no tiene fases ni workstreams todavía. Empezá
             agregando una fase o un workstream sin fase.
           </li>
@@ -467,9 +467,9 @@ export function StructureSidebar({
               pending={pending}
             />
             {expanded.has(phase.id) ? (
-              <ul className="ml-3 mt-0.5 border-l border-default-200 pl-2">
+              <ul className="ml-4 mt-0.5 border-l border-border pl-3">
                 {phase.workstreams.length === 0 ? (
-                  <li className="px-2 py-1 text-xs italic text-muted">
+                  <li className="px-3 py-1 text-xs italic text-text-muted">
                     Sin workstreams
                   </li>
                 ) : (
@@ -500,7 +500,7 @@ export function StructureSidebar({
         ))}
         {tree.orphan_workstreams.length > 0 ? (
           <li className="mt-3">
-            <p className="px-2 text-[10px] uppercase tracking-wide text-muted">
+            <p className="px-3 text-[10px] font-medium uppercase tracking-wide text-text-muted">
               Sin fase
             </p>
             <ul>
@@ -520,7 +520,6 @@ export function StructureSidebar({
                     }
                     onDelete={() => handleDeleteWorkstream(w)}
                     pending={pending}
-                    isOrphan
                   />
                 </li>
               ))}
@@ -531,7 +530,7 @@ export function StructureSidebar({
         {/* Dependencies group is always visible — even with 0 deps the
             PM needs to be able to add. Individual children render
             beneath when present. */}
-        <li className="mt-3 border-t border-default-200 pt-3">
+        <li className="mt-3 border-t border-border pt-3">
           <DependenciesGroupRow
             count={tree.dependencies.length}
             isSelected={selected.kind === "dependencies"}
@@ -570,7 +569,7 @@ export function StructureSidebar({
         </li>
 
         {/* Risks group — same always-visible behavior as Dependencies. */}
-        <li className="mt-3 border-t border-default-200 pt-3">
+        <li className="mt-3 border-t border-border pt-3">
           <RisksGroupRow
             count={tree.risks.length}
             isSelected={selected.kind === "risks"}
@@ -606,19 +605,20 @@ export function StructureSidebar({
         </li>
       </ul>
 
-      <div className="flex flex-col gap-2 border-t border-default-200 p-3">
+      <div className="flex flex-col gap-1 border-t border-border p-3">
         {error ? (
-          <p className="text-xs text-danger" role="alert">
+          <p className="px-3 text-xs text-error" role="alert">
             {error}
           </p>
         ) : null}
         <Button
           size="sm"
-          variant="secondary"
+          variant="tertiary"
           isDisabled={pending}
           onPress={handleAddPhase}
+          className={ADD_BUTTON_CLASS}
         >
-          <Plus className="size-4" />
+          <Plus className="size-4" aria-hidden="true" />
           Agregar fase
         </Button>
         <AddWorkstreamButton
@@ -628,26 +628,36 @@ export function StructureSidebar({
         />
         <Button
           size="sm"
-          variant="secondary"
+          variant="tertiary"
           isDisabled={pending}
           onPress={handleAddDependency}
+          className={ADD_BUTTON_CLASS}
         >
-          <Plus className="size-4" />
+          <Plus className="size-4" aria-hidden="true" />
           Agregar dependencia
         </Button>
         <Button
           size="sm"
-          variant="secondary"
+          variant="tertiary"
           isDisabled={pending}
           onPress={handleAddRisk}
+          className={ADD_BUTTON_CLASS}
         >
-          <Plus className="size-4" />
+          <Plus className="size-4" aria-hidden="true" />
           Agregar riesgo
         </Button>
       </div>
     </div>
   );
 }
+
+// Common look for the four "Agregar X" CTAs at the foot of the sidebar.
+// HeroUI Button variant="tertiary" gives us the borderless ghost shell;
+// our className override paints the lavender link-style on top + left-
+// aligns the children so the icon + label cluster sits at the same x
+// across all four buttons.
+const ADD_BUTTON_CLASS =
+  "justify-start gap-1.5 text-primary-700 hover:bg-primary-50 hover:text-primary-700";
 
 function DependenciesGroupRow({
   count,
@@ -664,9 +674,12 @@ function DependenciesGroupRow({
       onClick={onSelect}
       className={selectableRowClasses(isSelected)}
     >
-      <Link2 className="size-4 shrink-0 text-muted" aria-hidden="true" />
-      <span className="truncate text-sm font-medium">Dependencias</span>
-      <span className="ml-auto rounded-full bg-default-200 px-2 py-0.5 text-[10px] font-semibold text-muted">
+      <Link2
+        className="size-4 shrink-0 text-text-secondary"
+        aria-hidden="true"
+      />
+      <span className="truncate font-medium">Dependencias</span>
+      <span className="ml-auto whitespace-nowrap rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-semibold text-text-secondary">
         {count}
       </span>
     </button>
@@ -698,10 +711,10 @@ function DependencyRow({
         className={`${selectableRowClasses(isSelected)} flex-1`}
       >
         <Link2
-          className="size-3.5 shrink-0 text-muted"
+          className="size-4 shrink-0 text-text-secondary"
           aria-hidden="true"
         />
-        <span className="truncate text-sm">{dependency.title}</span>
+        <span className="truncate">{dependency.title}</span>
       </button>
       <Dropdown>
         <Button
@@ -766,11 +779,11 @@ function RisksGroupRow({
       className={selectableRowClasses(isSelected)}
     >
       <AlertTriangle
-        className="size-4 shrink-0 text-muted"
+        className="size-4 shrink-0 text-text-secondary"
         aria-hidden="true"
       />
-      <span className="truncate text-sm font-medium">Riesgos</span>
-      <span className="ml-auto rounded-full bg-default-200 px-2 py-0.5 text-[10px] font-semibold text-muted">
+      <span className="truncate font-medium">Riesgos</span>
+      <span className="ml-auto whitespace-nowrap rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-semibold text-text-secondary">
         {count}
       </span>
     </button>
@@ -801,10 +814,15 @@ function RiskRow({
         onClick={onSelect}
         className={`${selectableRowClasses(isSelected)} flex-1`}
       >
-        <span className="font-mono text-[10px] text-muted">
+        <AlertTriangle
+          className="size-4 shrink-0 text-text-secondary"
+          aria-hidden="true"
+        />
+        <span className={`${GeistMono.className} text-[10px] text-text-muted`}>
           {risk.identifier}
         </span>
-        <span className="truncate text-sm">{risk.title}</span>
+        <span className="min-w-0 flex-1 truncate">{risk.title}</span>
+        <RiskSeverityDot severity={risk.severity} />
       </button>
       <Dropdown>
         <Button
@@ -864,8 +882,11 @@ function NarrativeRow({
       onClick={onSelect}
       className={selectableRowClasses(isSelected)}
     >
-      <FileText className="size-4 shrink-0 text-muted" aria-hidden="true" />
-      <span className="truncate text-sm font-medium">{tree.title}</span>
+      <BookText
+        className="size-4 shrink-0 text-text-secondary"
+        aria-hidden="true"
+      />
+      <span className="truncate font-medium">{tree.title}</span>
     </button>
   );
 }
@@ -897,7 +918,7 @@ function PhaseRow({
       <button
         type="button"
         onClick={onToggleExpanded}
-        className="rounded p-0.5 hover:bg-default-200"
+        className="rounded p-0.5 text-text-secondary transition-colors hover:bg-warm-100 hover:text-text-primary"
         aria-label={isExpanded ? "Colapsar fase" : "Expandir fase"}
       >
         <Chevron className="size-4" />
@@ -908,10 +929,11 @@ function PhaseRow({
         className={`${selectableRowClasses(isSelected)} flex-1`}
       >
         <Layers
-          className="size-4 shrink-0 text-muted"
+          className="size-4 shrink-0 text-text-secondary"
           aria-hidden="true"
         />
-        <span className="truncate text-sm">{phase.name}</span>
+        <span className="min-w-0 flex-1 truncate">{phase.name}</span>
+        <PhaseStatusDot status={phase.status} />
       </button>
       <Dropdown>
         <Button
@@ -968,7 +990,6 @@ function WorkstreamRow({
   onMoveToPhase,
   onDelete,
   pending,
-  isOrphan = false,
 }: {
   workstream: NarrativeWorkstream;
   isSelected: boolean;
@@ -977,7 +998,6 @@ function WorkstreamRow({
   onMoveToPhase: (target: string | null) => void;
   onDelete: () => void;
   pending: boolean;
-  isOrphan?: boolean;
 }) {
   const moveTargets = useMemo(() => {
     const items: { id: string; label: string; phaseId: string | null }[] = [];
@@ -999,18 +1019,11 @@ function WorkstreamRow({
         onClick={onSelect}
         className={`${selectableRowClasses(isSelected)} flex-1`}
       >
-        {isOrphan ? (
-          <Sparkles
-            className="size-3.5 shrink-0 text-amber-500"
-            aria-hidden="true"
-          />
-        ) : (
-          <CircleDot
-            className="size-3.5 shrink-0 text-muted"
-            aria-hidden="true"
-          />
-        )}
-        <span className="truncate text-sm">{workstream.name}</span>
+        <GitBranch
+          className="size-4 shrink-0 text-text-secondary"
+          aria-hidden="true"
+        />
+        <span className="truncate">{workstream.name}</span>
       </button>
       <Dropdown>
         <Button
@@ -1077,19 +1090,25 @@ function AddWorkstreamButton({
     return (
       <Button
         size="sm"
-        variant="secondary"
+        variant="tertiary"
         isDisabled={pending}
         onPress={() => onPick(null)}
+        className={ADD_BUTTON_CLASS}
       >
-        <Plus className="size-4" />
+        <Plus className="size-4" aria-hidden="true" />
         Agregar workstream
       </Button>
     );
   }
   return (
     <Dropdown>
-      <Button size="sm" variant="secondary" isDisabled={pending}>
-        <Plus className="size-4" />
+      <Button
+        size="sm"
+        variant="tertiary"
+        isDisabled={pending}
+        className={ADD_BUTTON_CLASS}
+      >
+        <Plus className="size-4" aria-hidden="true" />
         Agregar workstream
       </Button>
       <Dropdown.Popover>
@@ -1121,12 +1140,50 @@ function AddWorkstreamButton({
   );
 }
 
+// Always-present 2px left border; only the COLOR flips on selection so
+// the row geometry stays constant (no shift-into-place when switching
+// nodes). Spec mandate: active rows get a primary-500 left bar +
+// primary-100 background + primary-900 ink, hover unselected rows get
+// a warm-50 wash.
 function selectableRowClasses(isSelected: boolean): string {
   const base =
-    "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400";
+    "flex min-w-0 items-center gap-2 rounded-md border-l-2 px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500";
   return isSelected
-    ? `${base} bg-default-200 text-foreground`
-    : `${base} hover:bg-default-100`;
+    ? `${base} border-l-primary-500 bg-primary-100 font-medium text-primary-900`
+    : `${base} border-l-transparent text-text-primary hover:bg-warm-50`;
+}
+
+// Status dot for Phase rows. Floats right via ml-auto in the row's
+// flex container so the dot lands in a consistent x-column across all
+// phases (scannable at a glance) instead of drifting with the name's
+// truncate edge.
+function PhaseStatusDot({ status }: { status: string }) {
+  let klass = "bg-text-muted"; // upcoming + unknown fallback
+  if (status === "completed") klass = "bg-success";
+  else if (status === "in_progress") klass = "bg-info";
+  else if (status === "at_risk") klass = "bg-warning";
+  return (
+    <span
+      aria-hidden="true"
+      title={status}
+      className={`ml-auto size-2 shrink-0 rounded-full ${klass}`}
+    />
+  );
+}
+
+// Severity dot for Risk rows. Same floating-right placement as
+// PhaseStatusDot.
+function RiskSeverityDot({ severity }: { severity: string }) {
+  let klass = "bg-text-muted"; // low + unknown fallback
+  if (severity === "high") klass = "bg-error";
+  else if (severity === "medium") klass = "bg-warning";
+  return (
+    <span
+      aria-hidden="true"
+      title={severity}
+      className={`ml-auto size-2 shrink-0 rounded-full ${klass}`}
+    />
+  );
 }
 
 function messageOf(err: unknown, fallback: string): string {

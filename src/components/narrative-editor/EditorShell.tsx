@@ -187,8 +187,8 @@ export function EditorShell({
           saveError={saveError}
           onRetry={() => formRef.current?.retry()}
         />
-        <div className="flex flex-1 overflow-hidden border-t border-default-200">
-          <aside className="flex w-80 shrink-0 flex-col border-r border-default-200 bg-surface">
+        <div className="flex flex-1 overflow-hidden">
+          <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-surface">
             <StructureSidebar
               tree={tree}
               selected={selected}
