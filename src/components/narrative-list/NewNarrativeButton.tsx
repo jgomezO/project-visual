@@ -2,9 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label, Modal, TextField } from "@heroui/react";
+import {
+  Button as HeroButton,
+  Input,
+  Label,
+  Modal,
+  TextField,
+} from "@heroui/react";
 import { Plus } from "lucide-react";
 import { createNarrativeAction } from "@/app/actions/narratives";
+import { Button } from "@/components/ui";
 
 const TITLE_MAX = 200;
 const SUBTITLE_MAX = 200;
@@ -76,8 +83,8 @@ export function NewNarrativeButton({
 
   return (
     <>
-      <Button onPress={() => setIsOpen(true)}>
-        <Plus className="size-4" />
+      <Button onClick={() => setIsOpen(true)}>
+        <Plus className="size-4" aria-hidden="true" />
         {ctaLabel}
       </Button>
 
@@ -110,23 +117,23 @@ export function NewNarrativeButton({
                   />
                 </TextField>
                 {error ? (
-                  <p className="text-sm text-danger" role="alert">
+                  <p className="text-sm text-error" role="alert">
                     {error}
                   </p>
                 ) : null}
               </div>
             </Modal.Body>
             <Modal.Footer>
-              <Button
+              <HeroButton
                 slot="close"
                 variant="secondary"
                 isDisabled={pending}
               >
                 Cancelar
-              </Button>
-              <Button onPress={handleCreate} isDisabled={pending}>
+              </HeroButton>
+              <HeroButton onPress={handleCreate} isDisabled={pending}>
                 {pending ? "Creando…" : "Crear y editar"}
-              </Button>
+              </HeroButton>
             </Modal.Footer>
           </Modal.Dialog>
         </Modal.Container>

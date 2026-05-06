@@ -4,8 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Button,
-  Card,
+  Button as HeroButton,
   Dropdown,
   Label,
   Modal,
@@ -16,6 +15,7 @@ import {
   deleteNarrativeAction,
   duplicateNarrativeAction,
 } from "@/app/actions/narratives";
+import { Button, Card, Chip } from "@/components/ui";
 import { formatActor } from "@/lib/format/actor";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 import type { ProjectNarrative } from "@/lib/narratives/types";
@@ -75,30 +75,34 @@ export function NarrativeCard({
         <div className="flex items-start justify-between gap-3">
           <Link
             href={editHref}
-            className="-m-3 flex-1 rounded-2xl p-3 hover:bg-default-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
+            className="-m-3 flex-1 rounded-2xl p-3 transition-colors hover:bg-warm-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">{narrative.title}</h2>
+              <h3 className="text-base font-semibold text-text-primary">
+                {narrative.title}
+              </h3>
               <PublishedBadge published={narrative.published} />
             </div>
             {narrative.subtitle ? (
-              <p className="mt-1 text-sm text-muted">{narrative.subtitle}</p>
+              <p className="mt-1 text-sm text-text-secondary">
+                {narrative.subtitle}
+              </p>
             ) : null}
-            <p className="mt-3 text-xs text-muted">
+            <p className="mt-3 text-xs text-text-muted">
               Última edición {relativeFromNow(narrative.updated_at)}
               {" · por "}
               {formatActor(narrative.updated_by)}
             </p>
           </Link>
           <Dropdown>
-            <Button
+            <HeroButton
               isIconOnly
               variant="tertiary"
               aria-label="Acciones"
               isDisabled={pending}
             >
               <MoreHorizontal className="size-4" />
-            </Button>
+            </HeroButton>
             <Dropdown.Popover>
               <Dropdown.Menu onAction={handleMenuAction}>
                 <Dropdown.Item id="duplicate" textValue="Duplicar">
@@ -124,7 +128,7 @@ export function NarrativeCard({
         </div>
 
         {error ? (
-          <p className="mt-3 text-xs text-danger" role="alert">
+          <p className="mt-3 text-xs text-error" role="alert">
             {error}
           </p>
         ) : null}
@@ -144,17 +148,9 @@ export function NarrativeCard({
 
 function PublishedBadge({ published }: { published: boolean }) {
   if (published) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-        Publicada
-      </span>
-    );
+    return <Chip variant="status-done">Publicada</Chip>;
   }
-  return (
-    <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
-      Borrador
-    </span>
-  );
+  return <Chip variant="status-todo">Borrador</Chip>;
 }
 
 function PreviewLink({
@@ -168,8 +164,8 @@ function PreviewLink({
     return (
       <Tooltip delay={150}>
         <span tabIndex={0} aria-disabled="true">
-          <Button variant="secondary" size="sm" isDisabled>
-            <ExternalLink className="size-3.5" />
+          <Button variant="secondary" size="sm" disabled>
+            <ExternalLink className="size-3.5" aria-hidden="true" />
             Vista previa
           </Button>
         </span>
@@ -181,14 +177,17 @@ function PreviewLink({
       </Tooltip>
     );
   }
+  // Anchor mimicking the secondary Button — needs the target/rel pair
+  // for "open preview in a new tab", which Button (a real <button>)
+  // can't express on its own.
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-md border border-default-300 bg-surface px-3 py-1 text-xs font-medium hover:bg-default-50"
+      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-warm-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
     >
-      <ExternalLink className="size-3.5" />
+      <ExternalLink className="size-3.5" aria-hidden="true" />
       Vista previa
     </a>
   );
@@ -214,18 +213,18 @@ function ConfirmDeleteModal({
             <Modal.Heading>¿Eliminar narrativa?</Modal.Heading>
           </Modal.Header>
           <Modal.Body>
-            <p className="text-sm text-muted">
+            <p className="text-sm text-text-secondary">
               Esta acción no se puede deshacer. Se eliminarán también las
               fases y workstreams asociados.
             </p>
           </Modal.Body>
           <Modal.Footer>
-            <Button slot="close" variant="secondary" isDisabled={pending}>
+            <HeroButton slot="close" variant="secondary" isDisabled={pending}>
               Cancelar
-            </Button>
-            <Button onPress={onConfirm} isDisabled={pending}>
+            </HeroButton>
+            <HeroButton onPress={onConfirm} isDisabled={pending}>
               {pending ? "Eliminando…" : "Eliminar"}
-            </Button>
+            </HeroButton>
           </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
