@@ -59,7 +59,7 @@ export default async function ProjectDetailPage({
   }));
 
   return (
-    <main className="mx-auto max-w-6xl space-y-8 p-4 sm:p-8">
+    <main className="mx-auto max-w-7xl space-y-8 px-6 py-8">
       <KpiHeader data={dashboard} />
       <ProjectViews
         rows={tableRows}

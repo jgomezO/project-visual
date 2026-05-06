@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Card } from "@heroui/react";
-import { AlertTriangle, Ban, CheckCircle2 } from "lucide-react";
+import { GeistMono } from "geist/font/mono";
+import { AlertTriangle, Ban, CheckCircle2, Clock } from "lucide-react";
+import { Card } from "@/components/ui";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 
 export interface DashboardData {
@@ -27,24 +28,37 @@ export function KpiHeader({ data }: { data: DashboardData }) {
   const donePct = total === 0 ? 0 : Math.round((done / total) * 100);
 
   return (
-    <header className="space-y-6">
+    <header className="space-y-8">
       <Breadcrumb
         projectName={data.project_name ?? data.project_key ?? "—"}
       />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold">
-            {data.project_name ?? "Proyecto sin nombre"}
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            <span className="font-mono">{data.project_key}</span>
-            {data.lead_display_name ? ` · Lead: ${data.lead_display_name}` : ""}
+      <div>
+        <h1 className="text-4xl font-bold tracking-tight text-text-primary">
+          {data.project_name ?? "Proyecto sin nombre"}
+        </h1>
+        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-base text-text-secondary">
+          <span className={`${GeistMono.className} text-sm`}>
+            {data.project_key}
+          </span>
+          {data.lead_display_name ? (
+            <>
+              <span aria-hidden="true" className="text-text-muted">
+                ·
+              </span>
+              <span>Lead: {data.lead_display_name}</span>
+            </>
+          ) : null}
+          <span aria-hidden="true" className="text-text-muted">
+            ·
+          </span>
+          <Clock className="size-4" aria-hidden="true" />
+          <span>
             {data.last_synced_at
-              ? ` · Última sync: ${relativeFromNow(data.last_synced_at)}`
-              : " · Sin sincronizar"}
-          </p>
-        </div>
+              ? `Última sync: ${relativeFromNow(data.last_synced_at)}`
+              : "Sin sincronizar"}
+          </span>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -64,13 +78,29 @@ export function KpiHeader({ data }: { data: DashboardData }) {
 
 function Breadcrumb({ projectName }: { projectName: string }) {
   return (
-    <nav className="flex items-center gap-2 text-sm text-muted">
-      <Link href="/projects" className="hover:underline">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm">
+      <Link
+        href="/projects"
+        className="text-text-secondary transition-colors hover:text-text-primary"
+      >
         Proyectos
       </Link>
-      <span aria-hidden="true">/</span>
-      <span className="text-foreground">{projectName}</span>
+      <span aria-hidden="true" className="text-text-muted">
+        /
+      </span>
+      <span className="font-medium text-text-primary">{projectName}</span>
     </nav>
+  );
+}
+
+// Caption-style label used by every KPI card. Uppercase + tracking-wide
+// + size xs + muted ink — matches the ProjectCard stat captions on
+// /projects, so the two surfaces share a tipographic vocabulary.
+function CardCaption({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+      {children}
+    </p>
   );
 }
 
@@ -92,97 +122,77 @@ function TotalCard({
 
   return (
     <Card>
-      <div className="space-y-3">
-        <div>
-          <p className="text-xs text-muted">Total de issues</p>
-          <p className="text-3xl font-semibold tabular-nums">{total}</p>
-        </div>
-        {total > 0 ? (
-          <>
-            <div
-              title={tooltip}
-              className="flex h-2 w-full overflow-hidden rounded-full"
-              role="img"
-              aria-label={tooltip}
-            >
-              <div className="bg-zinc-300" style={{ width: `${todoPct}%` }} />
-              <div
-                className="bg-blue-500"
-                style={{ width: `${inProgressPct}%` }}
-              />
-              <div
-                className="bg-emerald-500"
-                style={{ width: `${donePct}%` }}
-              />
-            </div>
-            <p className="text-xs text-muted">{tooltip}</p>
-          </>
-        ) : (
-          <p className="text-xs text-muted">Sin issues sincronizadas</p>
-        )}
-      </div>
+      <CardCaption>Total de issues</CardCaption>
+      <p className="mt-2 text-4xl font-bold tabular-nums text-text-primary">
+        {total}
+      </p>
+      {total > 0 ? (
+        <>
+          <div
+            title={tooltip}
+            role="img"
+            aria-label={tooltip}
+            className="mt-4 flex h-1.5 w-full overflow-hidden rounded-full"
+          >
+            <div className="bg-cool-200" style={{ width: `${todoPct}%` }} />
+            <div className="bg-info" style={{ width: `${inProgressPct}%` }} />
+            <div className="bg-success" style={{ width: `${donePct}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-text-muted">{tooltip}</p>
+        </>
+      ) : (
+        <p className="mt-4 text-xs text-text-muted">
+          Sin issues sincronizadas
+        </p>
+      )}
     </Card>
   );
 }
 
 function CompletedCard({ pct }: { pct: number }) {
-  let colorClass = "text-emerald-600";
-  if (pct < 30) colorClass = "text-danger";
-  else if (pct < 70) colorClass = "text-amber-600";
+  let colorClass = "text-success";
+  if (pct < 30) colorClass = "text-error";
+  else if (pct < 70) colorClass = "text-warning";
   return (
     <Card>
-      <div>
-        <p className="text-xs text-muted">% completado</p>
-        <p className={`text-3xl font-semibold tabular-nums ${colorClass}`}>
-          {pct}%
-        </p>
-      </div>
+      <CardCaption>% completado</CardCaption>
+      <p className={`mt-2 text-4xl font-bold tabular-nums ${colorClass}`}>
+        {pct}%
+      </p>
     </Card>
   );
 }
 
 function OverdueCard({ count }: { count: number }) {
   const safe = count === 0;
+  const Icon = safe ? CheckCircle2 : AlertTriangle;
+  const colorClass = safe ? "text-success" : "text-error";
   return (
     <Card>
-      <div>
-        <p className="text-xs text-muted">Issues vencidas</p>
-        <p
-          className={`flex items-center gap-2 text-3xl font-semibold tabular-nums ${
-            safe ? "text-emerald-600" : "text-danger"
-          }`}
-        >
-          {safe ? (
-            <CheckCircle2 className="size-7" />
-          ) : (
-            <AlertTriangle className="size-7" />
-          )}
-          {count}
-        </p>
-      </div>
+      <CardCaption>Issues vencidas</CardCaption>
+      <p
+        className={`mt-2 flex items-center gap-2 text-4xl font-bold tabular-nums ${colorClass}`}
+      >
+        <Icon className="size-7" aria-hidden="true" />
+        {count}
+      </p>
     </Card>
   );
 }
 
 function BlockedCard({ count }: { count: number }) {
   const safe = count === 0;
+  const Icon = safe ? CheckCircle2 : Ban;
+  const colorClass = safe ? "text-success" : "text-error";
   return (
     <Card>
-      <div>
-        <p className="text-xs text-muted">Issues bloqueadas</p>
-        <p
-          className={`flex items-center gap-2 text-3xl font-semibold tabular-nums ${
-            safe ? "text-emerald-600" : "text-danger"
-          }`}
-        >
-          {safe ? (
-            <CheckCircle2 className="size-7" />
-          ) : (
-            <Ban className="size-7" />
-          )}
-          {count}
-        </p>
-      </div>
+      <CardCaption>Issues bloqueadas</CardCaption>
+      <p
+        className={`mt-2 flex items-center gap-2 text-4xl font-bold tabular-nums ${colorClass}`}
+      >
+        <Icon className="size-7" aria-hidden="true" />
+        {count}
+      </p>
     </Card>
   );
 }
