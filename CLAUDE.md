@@ -282,8 +282,9 @@ narrative list, iter 4g). State lives entirely in URL query params:
 back to the default. Range presets ("Este trimestre", "Próximos 6 meses",
 "Próximo año", "Todo") write absolute dates to the URL — there is no
 "preset code" persisted, so a shared link is a deterministic snapshot.
-Manual `<input type="date">` pickers commit on click ("Aplicar"); the
-draft state is local until applied. Toggles that are *not* persisted in
+Manual range picker (HeroUI `DateRangePicker` since iter 4h R2) holds
+a local draft and commits to the URL on click of "Aplicar"; the draft
+state is local until applied. Toggles that are *not* persisted in
 URL: **show-completed** (default OFF on every load) — design
 decision to keep shareable links anchored to planned work.
 
@@ -314,10 +315,17 @@ don't render a row; instead they surface in a clickable counter
 (HeroUI Popover) — turning the count from dead information into a
 recoverable view.
 
-`<input type="date">` is a deliberate fallback over HeroUI v3's
-DatePicker: native pickers are locale-aware via the browser, no extra
-React-side i18n risk. **TODO:** swap to HeroUI DatePicker once `es-AR`
-locale support is verified end-to-end.
+**Date / time inputs use HeroUI DatePicker / DateRangePicker** —
+never native `<input type="date">`. Native browser pickers break
+visual coherence with the rest of the UI; the i18n-risk argument
+that justified them in iter 3b is moot now that we use HeroUI's
+locale-aware composition (the package routes through React Aria +
+`@internationalized/date`). The Roadmap range picker (iter 4h R2)
+is the canonical example of the controlled compound API — value is
+a `RangeValue<DateValue>` from `@internationalized/date`, ISO
+serialization is `value.toString()` (`yyyy-mm-dd` for `CalendarDate`),
+ISO → `CalendarDate` is `parseDate(iso)`. Apply this rule to any
+new date / time field across the product.
 
 ### Custom field mapping
 

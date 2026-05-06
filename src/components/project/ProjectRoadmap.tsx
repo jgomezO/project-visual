@@ -3,7 +3,15 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { GeistMono } from "geist/font/mono";
-import { Popover, Tooltip } from "@heroui/react";
+import {
+  DateField,
+  DateRangePicker,
+  Label,
+  Popover,
+  RangeCalendar,
+  Tooltip,
+} from "@heroui/react";
+import { parseDate, type DateValue } from "@internationalized/date";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -790,6 +798,14 @@ function RangeControls({
   );
 }
 
+// Local-draft + Aplicar pattern preserved from the iter 3b roadmap UX
+// (CLAUDE.md notes: "shared link is a deterministic snapshot"). The
+// DateRangePicker holds the draft as a {start, end} CalendarDate pair;
+// "Aplicar" commits the pair to the URL. Picker re-mounts when the URL
+// range changes (parent re-keys), so the draft initializer always
+// reflects the latest URL.
+type DateRangeValue = { start: DateValue; end: DateValue };
+
 function ManualRangeInputs({
   currentFromIso,
   currentToIso,
@@ -799,59 +815,88 @@ function ManualRangeInputs({
   currentToIso: string;
   onApply: (from: string, to: string) => void;
 }) {
-  // Parent re-keys this component whenever the URL range changes, so the
-  // useState initializers are guaranteed to match the latest URL on mount.
-  const [draftFrom, setDraftFrom] = useState(currentFromIso);
-  const [draftTo, setDraftTo] = useState(currentToIso);
+  const initial: DateRangeValue = {
+    start: parseDate(currentFromIso),
+    end: parseDate(currentToIso),
+  };
+  const [draft, setDraft] = useState<DateRangeValue | null>(initial);
+
+  const draftFromIso = draft?.start.toString() ?? "";
+  const draftToIso = draft?.end.toString() ?? "";
 
   const isValid =
-    isValidISODate(draftFrom) &&
-    isValidISODate(draftTo) &&
-    parseISODate(draftFrom).getTime() < parseISODate(draftTo).getTime();
-  const isDirty = draftFrom !== currentFromIso || draftTo !== currentToIso;
+    draft != null &&
+    isValidISODate(draftFromIso) &&
+    isValidISODate(draftToIso) &&
+    parseISODate(draftFromIso).getTime() <
+      parseISODate(draftToIso).getTime();
+  const isDirty =
+    draftFromIso !== currentFromIso || draftToIso !== currentToIso;
 
   return (
     <div className="flex flex-wrap items-end gap-2">
-      <DateInput
-        label="Desde"
-        value={draftFrom}
-        onChange={setDraftFrom}
-      />
-      <DateInput label="Hasta" value={draftTo} onChange={setDraftTo} />
+      <DateRangePicker
+        className="w-72"
+        value={draft}
+        onChange={(next) => setDraft(next as DateRangeValue | null)}
+        aria-label="Rango del roadmap"
+      >
+        <Label className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          Rango
+        </Label>
+        <DateField.Group fullWidth>
+          <DateField.Input slot="start">
+            {(segment) => <DateField.Segment segment={segment} />}
+          </DateField.Input>
+          <DateRangePicker.RangeSeparator />
+          <DateField.Input slot="end">
+            {(segment) => <DateField.Segment segment={segment} />}
+          </DateField.Input>
+          <DateField.Suffix>
+            <DateRangePicker.Trigger>
+              <DateRangePicker.TriggerIndicator />
+            </DateRangePicker.Trigger>
+          </DateField.Suffix>
+        </DateField.Group>
+        <DateRangePicker.Popover>
+          <RangeCalendar aria-label="Rango del roadmap">
+            <RangeCalendar.Header>
+              <RangeCalendar.YearPickerTrigger>
+                <RangeCalendar.YearPickerTriggerHeading />
+                <RangeCalendar.YearPickerTriggerIndicator />
+              </RangeCalendar.YearPickerTrigger>
+              <RangeCalendar.NavButton slot="previous" />
+              <RangeCalendar.NavButton slot="next" />
+            </RangeCalendar.Header>
+            <RangeCalendar.Grid>
+              <RangeCalendar.GridHeader>
+                {(day) => (
+                  <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>
+                )}
+              </RangeCalendar.GridHeader>
+              <RangeCalendar.GridBody>
+                {(date) => <RangeCalendar.Cell date={date} />}
+              </RangeCalendar.GridBody>
+            </RangeCalendar.Grid>
+            <RangeCalendar.YearPickerGrid>
+              <RangeCalendar.YearPickerGridBody>
+                {({ year }) => (
+                  <RangeCalendar.YearPickerCell year={year} />
+                )}
+              </RangeCalendar.YearPickerGridBody>
+            </RangeCalendar.YearPickerGrid>
+          </RangeCalendar>
+        </DateRangePicker.Popover>
+      </DateRangePicker>
       <Button
         size="sm"
         variant="secondary"
         disabled={!isValid || !isDirty}
-        onClick={() => onApply(draftFrom, draftTo)}
+        onClick={() => onApply(draftFromIso, draftToIso)}
       >
         Aplicar
       </Button>
     </div>
-  );
-}
-
-function DateInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  // Native <input type="date"> until a HeroUI v3 DatePicker with confirmed
-  // es-AR locale support lands. The browser-native picker is locale-aware
-  // and accessible — no React-side i18n risk.
-  return (
-    <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-text-muted">
-      {label}
-      <input
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.currentTarget.value)}
-        className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-      />
-    </label>
   );
 }
 
