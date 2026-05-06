@@ -28,7 +28,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4g:** Narrative access integrated into the main project flows. The `project_stats` view gains a `narratives_count` column (computed via a derived LEFT JOIN over `project_narratives` so the issue COUNT stays a simple aggregate; `COALESCE(..., 0)` so zero-narrative projects return 0 instead of NULL). Each `ProjectCard` on `/projects` shows a "N narrativas" chip top-right when count > 0, using the **stretched-link + group-hover pattern**: a wrapping `<div className="group relative">` carries the hover state, the primary `<Link>` becomes an `absolute inset-0` overlay with a sr-only label, and the badge is a second `<Link relative z-10>` rendered after the overlay so it wins the hit-test. `/projects/[key]` gains a third tab "Narrativas" embedding `NarrativesListPanel` (the same Server Component the standalone page uses); `ViewKey` extends to `"list" | "roadmap" | "narratives"` with an `isViewKey` type guard. The standalone `/projects/[key]/narratives` URL becomes a `permanentRedirect` (308) to `/projects/[key]?view=narratives` — no validation, an invalid key still 404s one hop later. `/projects` switches from the anon client to `getServerSupabase` so the dashboard read carries the user session (today equivalent under `auth_all USING(TRUE)`, but aligns with the iter 4f contract for when per-project membership lands). The four narrative Server Actions retarget `revalidatePath` to `/projects/[key]` (the new home of the list).
 
-**Iteration 4h Round 1 (current):** Product is now called **Prism** — login heading, root metadata, topbar logo, every internal surface. First commit of a multi-round design-system pass after stakeholder feedback ("se ve como un esqueleto"). Round 1 lands the foundation and applies it to one screen (`/projects`); other screens still render with raw HeroUI surfaces and inherit only the new global tokens — accepted visual cost during rollout. Six commits scoped to: (1) OKLCH palette + radius/shadow tokens in `globals.css` `@theme` + Geist Sans/Mono via the `geist` package; (2) UI primitives in `src/components/ui/` (`Card`, `Button`, `Chip`, `ActionButton`, `CurvedLines`) built on `tailwind-variants`; (3) decorative `CurvedLines` SVG (single family this round); (4) persistent topbar in a new `(app)/` route group — `Topbar` Server Component + `TopbarNav` (Client, usePathname active state) + `TopbarMobileMenu` (Client, HeroUI Drawer hamburger); UserMenu migrates from per-page headers into the topbar (one `getCurrentUser()` per request at the layout boundary). `/projects/[key]/narratives/[id]/preview` stays at `app/projects/...` outside `(app)/` so it inherits no topbar — preserves the chrome-free shareable read. (5) `/projects` redesigned: rounded warm-cream hero with `CurvedLines` + RefreshCw `SyncButton`; new `ProjectCard` (lead-initial avatar, mono key, divider, two big stats, narratives chip + decorative `ActionButton`); `Card variant="hero"` empty state with `FolderOpen`. The override of HeroUI v3's `--color-text-muted` / `--color-foreground` / `--color-surface` tokens by our `@theme` block is intentional: one product-wide palette across HeroUI components and our own primitives.
+**Iteration 4h Round 1:** Product is now called **Prism** — login heading, root metadata, topbar logo, every internal surface. First commit of a multi-round design-system pass after stakeholder feedback ("se ve como un esqueleto"). Round 1 lands the foundation and applies it to one screen (`/projects`); other screens still render with raw HeroUI surfaces and inherit only the new global tokens — accepted visual cost during rollout. Six commits scoped to: (1) OKLCH palette + radius/shadow tokens in `globals.css` `@theme` + Geist Sans/Mono via the `geist` package; (2) UI primitives in `src/components/ui/` (`Card`, `Button`, `Chip`, `ActionButton`, `CurvedLines`) built on `tailwind-variants`; (3) decorative `CurvedLines` SVG (single family this round); (4) persistent topbar in a new `(app)/` route group — `Topbar` Server Component + `TopbarNav` (Client, usePathname active state) + `TopbarMobileMenu` (Client, HeroUI Drawer hamburger); UserMenu migrates from per-page headers into the topbar (one `getCurrentUser()` per request at the layout boundary). `/projects/[key]/narratives/[id]/preview` stays at `app/projects/...` outside `(app)/` so it inherits no topbar — preserves the chrome-free shareable read. (5) `/projects` redesigned: rounded warm-cream hero with `CurvedLines` + RefreshCw `SyncButton`; new `ProjectCard` (lead-initial avatar, mono key, divider, two big stats, narratives chip + decorative `ActionButton`); `Card variant="hero"` empty state with `FolderOpen`. The override of HeroUI v3's `--color-text-muted` / `--color-foreground` / `--color-surface` tokens by our `@theme` block is intentional: one product-wide palette across HeroUI components and our own primitives.
+
+**Iteration 4h Round 2 (current):** Prism applied end-to-end on `/projects/[key]`. Six commits + a couple of polish follow-ups: (1) `KpiHeader` rebuilt on the Card primitive — text-4xl page title, mono key, Clock-icon last-sync; KPI numbers bumped to text-4xl bold; functional colors switch to Prism tokens (`text-error/warning/success`); progress bar segments to `bg-cool-200/bg-info/bg-success`. (2) `ProjectViews` swaps HeroUI `Tabs` for a custom underline-style `<button role="tab">` strip — active tab gets a 2px `border-primary-500` underline, ARIA Tabs pattern with arrow / Home / End keyboard nav, conditional panel render (active only). (3) Lista view: `ProjectTable` wrapped in a Card primitive (`p-0 overflow-hidden`); type icon to the left of every key (Epic ⚡ primary-600 / Story BookmarkPlus success / Task CheckSquare info / Bug Bug error) via the new `components/project/issueTypeIcon.tsx` helper; rows hover `bg-warm-50`; `StatusChip` migrates onto the `Chip` primitive; `AssigneeCell` drops HeroUI Avatar for a hand-rolled lavender circle (matches ProjectCard); `DueDateCell` colors → Prism functional; HeroUI Switch → new `Toggle` primitive at `src/components/ui/Toggle.tsx` (lavender on / cool-grey off, role="switch"). (4) Roadmap view: bar palette → Prism functional (`bg-error` overdue, `bg-info-bg` + `bg-info` overlay in-progress, `bg-cool-200` future, `bg-success-bg` done); chart wrapped in Card primitive; "Hoy" line `bg-error`; `UnplannedCard` becomes a borderless rounded-2xl with hover-shadow lift; HeroUI `<input type="date">` pickers → HeroUI `DateRangePicker` compound (CalendarDate + `parseDate(iso)` + `value.toString()`); range presets and "Aplicar" use the Prism `Button` primitive; "Mostrar completadas" Switch → shared `Toggle`. (5) Narratives tab coherence: `NarrativeCard` migrates onto the Prism Card primitive (same shape as ProjectCard); Publicada / Borrador raw badges → `Chip` variants (status-done / status-todo); preview link repainted as pill matching `Button variant="secondary"`; `NewNarrativeButton` trigger → Prism `Button`. HeroUI `Modal` and `Dropdown` compounds keep HeroUI Buttons inside (short-lived modal-only chrome — re-aliased as `HeroButton`). `@internationalized/date` added as a direct dep so the `DateRangePicker` contract is stable across HeroUI bumps.
 
 ## Stack
 
@@ -37,6 +39,7 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 - HeroUI v3 (`@heroui/react`, `@heroui/styles`, `tailwind-variants`)
 - Tailwind CSS v4 (CSS-first config, `@tailwindcss/postcss` plugin)
 - `geist` (Vercel-canonical Geist Sans / Mono) — installed iter 4h R1, replaces the Next.js Google Fonts Geist that was scaffolded
+- `@internationalized/date` — direct dep since iter 4h R2 (powers HeroUI's DatePicker / DateRangePicker)
 - Supabase (cloud), `@supabase/supabase-js` direct — no ORM
 - `lucide-react` for icons
 - pnpm 10, ESLint 9
@@ -164,6 +167,7 @@ src/
 │   │   ├── Button.tsx              tailwind-variants — variants primary (lavender pill) / secondary (border pill) / ghost / circular (Aether-style black circle); sizes sm/md/lg with compoundVariants for circular fixed dimensions. Native onClick.
 │   │   ├── Chip.tsx                tailwind-variants — variants status-todo|progress|done, severity-high|medium|low, accent (lavender), muted. Renders <span>; non-interactive by design.
 │   │   ├── ActionButton.tsx        Opinionated icon-only Aether-style circle. Required aria-label at the type level. tabIndex={-1} + aria-hidden + pointer-events-none turns it decorative when wrapped by a stretched-link card.
+│   │   ├── Toggle.tsx              (iter 4h R2) Switch primitive. <button role="switch" aria-checked> with styled track + thumb (lavender on / cool-grey off). Replaces HeroUI Switch on screens we redesign so the rendered chrome stays on-brand.
 │   │   ├── Decorative.tsx          CurvedLines: 4 staggered cubic-Bezier paths in a 1200×400 viewBox. preserveAspectRatio="none" + vector-effect="non-scaling-stroke" for clean stroke at any container shape. stroke="currentColor" + opacity-[0.08] default.
 │   │   └── index.ts                Barrel re-exports.
 │   ├── projects/
@@ -206,14 +210,15 @@ src/
 │   │   ├── SeverityBadge.tsx           Server: low/medium/high pill (gris/amber/rojo)
 │   │   └── PresentationModeToggle.tsx  Client: ?mode= URL state + ESC handler
 │   └── project/
-│       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
-│       ├── ProjectViews.tsx        Client: HeroUI Tabs (Lista | Roadmap | Narrativas), URL state for ?view; accepts narrativesPanel: ReactNode for the third tab body (iter 4g)
-│       ├── ProjectTable.tsx        Client: filter toggles + epic-grouped table; owns drawer state
-│       ├── ProjectRoadmap.tsx     Client: timeline + bars + Sin planificar; owns drawer state
+│       ├── KpiHeader.tsx           (iter 4h R2) Server Component, synchronous: breadcrumb + page title (text-4xl bold) + Clock-icon meta + 4 KPI cards on the Card primitive. Functional colors via Prism tokens (text-error/warning/success).
+│       ├── ProjectViews.tsx        (iter 4h R2) Client: custom underline-style tab bar (drops HeroUI Tabs), URL state for ?view, ARIA Tabs pattern with arrow / Home / End keys. Accepts narrativesPanel: ReactNode for the third tab body.
+│       ├── ProjectTable.tsx        (iter 4h R2) Client: filter Toggles + epic-grouped table inside a Card primitive (p-0 overflow-hidden). Type icon left of each key (via issueTypeIcon helper). Hover bg-warm-50. Owns drawer state.
+│       ├── ProjectRoadmap.tsx      (iter 4h R2) Client: timeline + bars on Prism functional palette (bg-error / bg-info-bg + bg-info overlay / bg-cool-200 / bg-success-bg) + "Sin planificar" cards. Range picker via HeroUI DateRangePicker. Owns drawer state.
 │       ├── IssueDrawer.tsx         Client: lazy-fetches parent / kids / sub-tasks / links
-│       ├── StatusChip.tsx          Plain (no "use client") — bundled to client by importers
-│       ├── AssigneeCell.tsx        Plain
-│       └── DueDateCell.tsx         Plain
+│       ├── StatusChip.tsx          (iter 4h R2) Migrates onto the Chip primitive (variants status-todo/progress/done). Plain — bundled to client by importers.
+│       ├── AssigneeCell.tsx        (iter 4h R2) Hand-rolled lavender circle (bg-primary-100 + text-primary-700) — drops HeroUI Avatar.
+│       ├── DueDateCell.tsx         (iter 4h R2) Functional colors: text-error font-medium overdue, text-warning ≤7d, text-text-primary future, text-text-muted done.
+│       └── issueTypeIcon.tsx       (iter 4h R2) Project flavor of the type→icon helper. Distinct from narrative-public/issueTypeIcon.tsx so /preview (iter R4 territory) can refresh independently. Returns { Icon, colorClass, label } for Epic / Story / Task / Bug / Sub-task / fallback.
 └── lib/
     ├── auth/                            (NEW iter 4f)
     │   ├── domain-check.ts              isAllowedDomain(email): reads ALLOWED_EMAIL_DOMAINS, fails closed
@@ -941,10 +946,16 @@ e.g. ProjectCard's project key).
 Our values win because `@import "@heroui/styles"` runs before
 `@theme`. **This is by design** — one product-wide visual identity
 across HeroUI components and our own primitives. HeroUI components
-on pages not yet redesigned (Round 1 only landed on `/projects`)
-inherit the new colors automatically. Accepted visual cost during
-the multi-round rollout; if a specific HeroUI surface breaks
-visually we patch that surface, not the token.
+on pages not yet redesigned inherit the new colors automatically.
+After R2, every surface inside `/projects/[key]` (KpiHeader, tabs,
+table, roadmap, narratives tab) consumes Prism primitives directly;
+HeroUI is reserved for compound interactions we don't reimplement
+(Drawer for the issue side panel, Modal + Dropdown for narrative
+actions, DateRangePicker for the roadmap range, Tooltip / Popover).
+Editor (`/narratives/[id]/edit`) and public preview (`/preview`)
+still inherit only the global token override pending R3 / R4.
+Accepted visual cost during the multi-round rollout; if a specific
+HeroUI surface breaks visually we patch that surface, not the token.
 
 #### UI primitives
 
@@ -965,6 +976,11 @@ extension and forward refs.
   required `aria-label` at the type level. Pair with stretched-link
   cards by passing `tabIndex={-1} aria-hidden="true"
   className="pointer-events-none"` to make it decorative.
+- **`Toggle`** (iter 4h R2) — switch primitive backing
+  `<button role="switch" aria-checked>` with a styled track + thumb.
+  Lavender `bg-primary-500` on / `bg-cool-200` off. Used wherever
+  HeroUI Switch's raw blue clashed with the brand (project table
+  filters, roadmap "Mostrar completadas").
 - **`CurvedLines`** (in `Decorative.tsx`) — 4 staggered cubic-Bezier
   curves in a 1200×400 viewBox with `preserveAspectRatio="none"` +
   `vector-effect="non-scaling-stroke"`. Color via parent's
@@ -1100,6 +1116,30 @@ was UserMenu data).
   `IssueRow`'s data instantly and lazy-fetches parent / kids /
   sub-tasks / links via the browser-side anon Supabase client.
   Sub-tasks are matched with `/sub-?task/i`.
+- **Iter 4h R2 redesign**: every surface above is now Prism.
+  `KpiHeader` → Card primitive grid with text-4xl page title +
+  Clock-icon meta + functional-color KPI numbers. `ProjectViews` →
+  custom underline-style tab bar (drops HeroUI Tabs); ARIA Tabs
+  pattern with arrow / Home / End nav. `ProjectTable` → wrapped in a
+  Card (`p-0 overflow-hidden`), type icon left of every key, hover
+  `bg-warm-50`, `Toggle` primitive replaces HeroUI Switch.
+  `ProjectRoadmap` → bars on Prism functional palette
+  (`bg-error` overdue / `bg-info-bg` + `bg-info` overlay in-progress /
+  `bg-cool-200` future / `bg-success-bg` done), chart wrapped in
+  Card, `UnplannedCard` borderless rounded-2xl with hover-shadow,
+  range picker uses HeroUI `DateRangePicker`. `StatusChip` migrates
+  onto the Chip primitive; `AssigneeCell` drops HeroUI Avatar for a
+  hand-rolled lavender circle; `DueDateCell` colors → Prism functional.
+  Narratives tab: `NarrativeCard` migrates to the Card primitive,
+  Publicada / Borrador badges → Chip variants. Saturated lavender is
+  reserved for brand chrome (active tab underline, primary buttons,
+  KPI accents) — never as a status; status colors stay functional.
+- **Type icon helper**: `components/project/issueTypeIcon.tsx`.
+  Returns `{ Icon, colorClass, label }` for Epic (`Zap` lavender) /
+  Story (`BookmarkPlus` success) / Task (`CheckSquare` info) / Bug
+  (`Bug` error) / Sub-task / fallback. Distinct from
+  `narrative-public/issueTypeIcon.tsx` so iter R4 can refresh
+  `/preview` icons independently.
 
 ### Server vs Client
 
