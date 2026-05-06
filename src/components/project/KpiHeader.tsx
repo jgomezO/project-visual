@@ -61,7 +61,7 @@ export function KpiHeader({ data }: { data: DashboardData }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <TotalCard
           total={total}
           todo={todo}
@@ -132,7 +132,7 @@ function TotalCard({
             title={tooltip}
             role="img"
             aria-label={tooltip}
-            className="mt-4 flex h-1.5 w-full overflow-hidden rounded-full"
+            className="mt-4 flex h-2 w-full overflow-hidden rounded-full"
           >
             <div className="bg-cool-200" style={{ width: `${todoPct}%` }} />
             <div className="bg-info" style={{ width: `${inProgressPct}%` }} />
@@ -173,7 +173,7 @@ function OverdueCard({ count }: { count: number }) {
       <p
         className={`mt-2 flex items-center gap-2 text-4xl font-bold tabular-nums ${colorClass}`}
       >
-        <Icon className="size-7" aria-hidden="true" />
+        <Icon className="size-6" aria-hidden="true" />
         {count}
       </p>
     </Card>
@@ -190,7 +190,7 @@ function BlockedCard({ count }: { count: number }) {
       <p
         className={`mt-2 flex items-center gap-2 text-4xl font-bold tabular-nums ${colorClass}`}
       >
-        <Icon className="size-7" aria-hidden="true" />
+        <Icon className="size-6" aria-hidden="true" />
         {count}
       </p>
     </Card>
