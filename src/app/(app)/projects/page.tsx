@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { Card } from "@heroui/react";
-import { FileText } from "lucide-react";
+import { Clock, FolderOpen } from "lucide-react";
 import { SyncButton } from "@/components/SyncButton";
+import { ProjectCard } from "@/components/projects/ProjectCard";
+import { Card, CurvedLines } from "@/components/ui";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 import { getServerSupabase } from "@/lib/supabase/server";
 
@@ -62,109 +62,76 @@ async function loadDashboard(): Promise<DashboardData> {
 export default async function ProjectsPage() {
   const { projects, lastSyncFinishedAt } = await loadDashboard();
 
-  if (projects.length === 0) {
-    return (
-      <main className="mx-auto max-w-2xl p-8">
-        <Card>
-          <Card.Header>
-            <Card.Title>Sin datos sincronizados</Card.Title>
-            <Card.Description>
-              No se encontró ningún proyecto en la base local. Ejecutá una
-              sincronización inicial para traer proyectos e issues desde Jira.
-            </Card.Description>
-          </Card.Header>
-          <Card.Footer>
-            <SyncButton size="lg">Sincronizar ahora</SyncButton>
-          </Card.Footer>
-        </Card>
-      </main>
-    );
-  }
-
   return (
-    <main className="mx-auto max-w-6xl p-8">
-      <header className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold">Proyectos de Jira</h1>
-          <p className="mt-2 text-muted">
-            {projects.length} proyecto{projects.length === 1 ? "" : "s"} ·
-            Última sync: {relativeFromNow(lastSyncFinishedAt)}
-          </p>
-        </div>
-        <SyncButton variant="outline">Resincronizar</SyncButton>
-      </header>
+    <main className="mx-auto max-w-7xl px-6 py-8">
+      <Hero
+        projectCount={projects.length}
+        lastSyncFinishedAt={lastSyncFinishedAt}
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {projects.map((project) => (
-          <ProjectCard key={project.id} project={project} />
-        ))}
-      </div>
+      {projects.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {projects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
 
-// Stretched-link pattern: the card surface is one big click target via
-// an absolute-positioned overlay <Link>, but the narratives badge is a
-// second <Link> rendered AFTER the overlay (later in DOM = higher in
-// the natural stacking order) and pinned with `relative z-10` so it
-// reliably wins over the overlay even if a future style adds z to the
-// overlay. The wrapping div carries `group` + `relative` so:
-//   - absolute children anchor here (instead of to the Card root, where
-//     HeroUI's own classes can fight `hover:`),
-//   - hover styles propagate via `group-hover:` to the Card, the badge,
-//     and any nested element that wants to react.
-function ProjectCard({ project }: { project: ProjectRow }) {
-  const leadName = project.lead_display_name ?? "Sin lead asignado";
-  const donePct =
-    project.total_issues === 0
-      ? 0
-      : Math.round((project.done_issues / project.total_issues) * 100);
+// Hero header — page title + subtitle + sync CTA. Sits inside a
+// rounded warm-cream block; CurvedLines rides the background at very
+// low opacity for personality without distracting from the title.
+// On small screens the curves hide (sm:block) — they're a wide-format
+// flourish, not load-bearing for understanding the page.
+function Hero({
+  projectCount,
+  lastSyncFinishedAt,
+}: {
+  projectCount: number;
+  lastSyncFinishedAt: string | null;
+}) {
   return (
-    <div className="group relative">
-      <Card className="transition group-hover:border-default-400 group-hover:shadow-md">
-        <Card.Header className="pr-20">
-          <Card.Title>{project.name}</Card.Title>
-          <Card.Description>
-            <span className="font-mono text-xs">{project.key}</span> ·{" "}
-            {leadName}
-          </Card.Description>
-        </Card.Header>
-        <Card.Content>
-          <dl className="grid grid-cols-2 gap-4">
-            <div>
-              <dt className="text-xs text-muted">Total de issues</dt>
-              <dd className="text-2xl font-semibold tabular-nums">
-                {project.total_issues}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">% en Done</dt>
-              <dd className="text-2xl font-semibold tabular-nums">
-                {donePct}%
-              </dd>
-            </div>
-          </dl>
-        </Card.Content>
-      </Card>
+    <section className="relative mb-8 overflow-hidden rounded-3xl bg-warm-50 px-6 py-12 sm:px-10">
+      <CurvedLines className="absolute inset-0 hidden text-primary-500 sm:block" />
+      <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight text-text-primary">
+            Proyectos de Jira
+          </h1>
+          <p className="mt-3 inline-flex items-center gap-2 text-base text-text-secondary">
+            <Clock className="size-4" aria-hidden="true" />
+            <span>
+              {projectCount} proyecto{projectCount === 1 ? "" : "s"} · Última
+              sync: {relativeFromNow(lastSyncFinishedAt)}
+            </span>
+          </p>
+        </div>
+        <SyncButton variant="secondary">Resincronizar</SyncButton>
+      </div>
+    </section>
+  );
+}
 
-      <Link
-        href={`/projects/${project.key}`}
-        aria-label={`Ver ${project.name}`}
-        className="absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+function EmptyState() {
+  return (
+    <Card variant="hero" className="mx-auto max-w-xl text-center">
+      <FolderOpen
+        className="mx-auto size-14 text-text-muted"
+        aria-hidden="true"
       />
-
-      {project.narratives_count > 0 ? (
-        <Link
-          href={`/projects/${project.key}?view=narratives`}
-          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full border border-default-200 bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-default-400 hover:bg-default-100"
-        >
-          <FileText className="size-3.5" aria-hidden="true" />
-          <span>
-            {project.narratives_count} narrativa
-            {project.narratives_count === 1 ? "" : "s"}
-          </span>
-        </Link>
-      ) : null}
-    </div>
+      <h2 className="mt-4 text-2xl font-semibold text-text-primary">
+        Aún no hay proyectos sincronizados
+      </h2>
+      <p className="mx-auto mt-2 max-w-sm text-base text-text-secondary">
+        Sincronizá con Jira para empezar a ver tus proyectos.
+      </p>
+      <div className="mt-6 flex justify-center">
+        <SyncButton size="lg">Sincronizar ahora</SyncButton>
+      </div>
+    </Card>
   );
 }

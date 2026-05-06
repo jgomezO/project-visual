@@ -1,27 +1,24 @@
 "use client";
 
-import { Button } from "@heroui/react";
 import { useState, useTransition } from "react";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui";
 import { triggerSync } from "@/app/(app)/projects/actions";
-
-type ButtonVariant =
-  | "secondary"
-  | "tertiary"
-  | "outline"
-  | "ghost"
-  | "danger"
-  | "danger-soft";
 
 interface SyncButtonProps {
   children?: React.ReactNode;
-  variant?: ButtonVariant;
+  // Subset of the Button primitive's variants — sync is either the
+  // primary CTA on the empty state ("Sincronizar ahora") or a secondary
+  // pill in the populated header ("Resincronizar"). No need to expose
+  // the full ghost / circular surface area here.
+  variant?: "primary" | "secondary";
   size?: "sm" | "md" | "lg";
 }
 
 export function SyncButton({
   children = "Sincronizar ahora",
-  variant,
-  size,
+  variant = "primary",
+  size = "md",
 }: SyncButtonProps) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -31,9 +28,8 @@ export function SyncButton({
       <Button
         variant={variant}
         size={size}
-        isPending={pending}
-        isDisabled={pending}
-        onPress={() => {
+        disabled={pending}
+        onClick={() => {
           setError(null);
           startTransition(async () => {
             const result = await triggerSync();
@@ -43,9 +39,13 @@ export function SyncButton({
           });
         }}
       >
+        <RefreshCw
+          className={`size-4 ${pending ? "animate-spin motion-reduce:animate-none" : ""}`}
+          aria-hidden="true"
+        />
         {pending ? "Sincronizando..." : children}
       </Button>
-      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {error ? <p className="text-sm text-error">{error}</p> : null}
     </div>
   );
 }
