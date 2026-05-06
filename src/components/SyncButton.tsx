@@ -2,7 +2,7 @@
 
 import { Button } from "@heroui/react";
 import { useState, useTransition } from "react";
-import { triggerSync } from "@/app/projects/actions";
+import { triggerSync } from "@/app/(app)/projects/actions";
 
 type ButtonVariant =
   | "secondary"

@@ -2,8 +2,6 @@ import Link from "next/link";
 import { Card } from "@heroui/react";
 import { FileText } from "lucide-react";
 import { SyncButton } from "@/components/SyncButton";
-import { UserMenu } from "@/components/UserMenu";
-import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 import { getServerSupabase } from "@/lib/supabase/server";
 
@@ -62,22 +60,11 @@ async function loadDashboard(): Promise<DashboardData> {
 }
 
 export default async function ProjectsPage() {
-  const [{ projects, lastSyncFinishedAt }, currentUser] = await Promise.all([
-    loadDashboard(),
-    getCurrentUser(),
-  ]);
+  const { projects, lastSyncFinishedAt } = await loadDashboard();
 
   if (projects.length === 0) {
     return (
       <main className="mx-auto max-w-2xl p-8">
-        {currentUser ? (
-          <div className="mb-6 flex justify-end">
-            <UserMenu
-              email={currentUser.email}
-              displayName={currentUser.displayName}
-            />
-          </div>
-        ) : null}
         <Card>
           <Card.Header>
             <Card.Title>Sin datos sincronizados</Card.Title>
@@ -104,15 +91,7 @@ export default async function ProjectsPage() {
             Última sync: {relativeFromNow(lastSyncFinishedAt)}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <SyncButton variant="outline">Resincronizar</SyncButton>
-          {currentUser ? (
-            <UserMenu
-              email={currentUser.email}
-              displayName={currentUser.displayName}
-            />
-          ) : null}
-        </div>
+        <SyncButton variant="outline">Resincronizar</SyncButton>
       </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { publishNarrativeAction } from "@/app/actions/narratives";
-import { UserMenu } from "@/components/UserMenu";
 import type {
   NarrativeDependency,
   NarrativePhase,
@@ -37,14 +36,10 @@ export function EditorShell({
   projectKey,
   projectName,
   initialNarrative,
-  userEmail,
-  userDisplayName,
 }: {
   projectKey: string;
   projectName: string;
   initialNarrative: NarrativeWithChildren;
-  userEmail: string;
-  userDisplayName: string;
 }) {
   const [tree, setTree] = useState<NarrativeWithChildren>(initialNarrative);
   const [selected, setSelected] = useState<SelectedNode>(NARRATIVE_NODE);
@@ -191,8 +186,6 @@ export function EditorShell({
           savedAt={savedAt}
           saveError={saveError}
           onRetry={() => formRef.current?.retry()}
-          userEmail={userEmail}
-          userDisplayName={userDisplayName}
         />
         <div className="flex flex-1 overflow-hidden border-t border-default-200">
           <aside className="flex w-80 shrink-0 flex-col border-r border-default-200 bg-surface">
@@ -244,8 +237,6 @@ function EditorHeader({
   savedAt,
   saveError,
   onRetry,
-  userEmail,
-  userDisplayName,
 }: {
   projectKey: string;
   projectName: string;
@@ -256,8 +247,6 @@ function EditorHeader({
   savedAt: number | null;
   saveError: string | null;
   onRetry: () => void;
-  userEmail: string;
-  userDisplayName: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -340,7 +329,6 @@ function EditorHeader({
               ? "Despublicar"
               : "Publicar"}
         </Button>
-        <UserMenu email={userEmail} displayName={userDisplayName} />
       </div>
     </header>
   );

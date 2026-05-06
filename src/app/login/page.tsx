@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
     <main className="flex min-h-screen items-center justify-center bg-default-50 p-6">
       <div className="flex w-full max-w-sm flex-col gap-6 rounded-2xl border border-default-200 bg-surface p-8 shadow-sm">
         <header className="flex flex-col gap-1.5">
-          <h1 className="text-2xl font-bold tracking-tight">Project Visual</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Prism</h1>
           <p className="text-sm text-muted">
             Iniciá sesión para acceder al dashboard.
           </p>
