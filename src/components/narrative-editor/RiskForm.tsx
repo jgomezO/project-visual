@@ -1,14 +1,8 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useState } from "react";
-import {
-  Button,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  TextField,
-} from "@heroui/react";
+import { GeistMono } from "geist/font/mono";
+import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
 import { updateRiskAction } from "@/app/actions/narratives";
 import type {
@@ -17,6 +11,13 @@ import type {
   RiskSeverity,
 } from "@/lib/narratives/types";
 import { BulletListInput } from "./BulletListInput";
+import {
+  Field,
+  FormDeleteButton,
+  SectionHeading,
+  TextInput,
+  Textarea,
+} from "./form-fields";
 import type { FormHandle } from "./NarrativeForm";
 import { useAutoSave, type SaveState } from "./useAutoSave";
 
@@ -119,17 +120,19 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
         onSubmit={(e) => e.preventDefault()}
       >
         <header className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-            Riesgo
-          </h2>
-          <span className="rounded-full bg-default-200 px-2 py-0.5 font-mono text-[10px] font-semibold text-muted">
+          <SectionHeading>Riesgo</SectionHeading>
+          <span
+            className={`${GeistMono.className} rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-semibold text-text-secondary`}
+          >
             {risk.identifier}
           </span>
         </header>
 
-        <TextField>
-          <Label>Título</Label>
-          <Input
+        <Field
+          label="Título"
+          error={titleInvalid ? "El título es obligatorio." : undefined}
+        >
+          <TextInput
             value={draft.title}
             onChange={(e) =>
               setDraft({ ...draft, title: e.currentTarget.value })
@@ -137,32 +140,27 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
             maxLength={TITLE_MAX}
             autoFocus
           />
-          {titleInvalid ? (
-            <p className="mt-1 text-xs text-danger">
-              El título es obligatorio.
-            </p>
-          ) : null}
-        </TextField>
+        </Field>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Descripción</span>
-          <textarea
+        <Field label="Descripción">
+          <Textarea
             value={draft.description}
             onChange={(e) =>
               setDraft({ ...draft, description: e.currentTarget.value })
             }
             rows={3}
             placeholder="¿Qué riesgo es y por qué nos preocupa?"
-            className="w-full rounded-md border border-default-300 bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
           />
-        </label>
+        </Field>
 
         <Select
           className="w-[200px]"
           value={draft.severity}
           onChange={handleSeverityChange}
         >
-          <Label>Severidad</Label>
+          <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+            Severidad
+          </Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator />
@@ -203,17 +201,9 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
           onToggle={toggleDependency}
         />
 
-        <div className="border-t border-default-200 pt-4">
-          <Button
-            variant="tertiary"
-            size="sm"
-            onPress={onDelete}
-            isDisabled={pendingDelete}
-            className="text-danger"
-          >
-            {pendingDelete ? "Eliminando…" : "Eliminar riesgo"}
-          </Button>
-        </div>
+        <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
+          {pendingDelete ? "Eliminando…" : "Eliminar riesgo"}
+        </FormDeleteButton>
       </form>
     );
   },
@@ -231,8 +221,10 @@ function RelatedDependenciesPicker({
   if (dependencies.length === 0) {
     return (
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Dependencias relacionadas</span>
-        <p className="text-xs italic text-muted">
+        <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+          Dependencias relacionadas
+        </span>
+        <p className="text-sm italic text-text-muted">
           Esta narrativa todavía no tiene dependencias para vincular.
         </p>
       </div>
@@ -242,8 +234,10 @@ function RelatedDependenciesPicker({
   const selectedSet = new Set(selected);
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium">Dependencias relacionadas</span>
-      <p className="text-xs text-muted">
+      <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+        Dependencias relacionadas
+      </span>
+      <p className="text-sm text-text-secondary">
         Marcá las dependencias afectadas por este riesgo. Aparecerán
         linkeadas en la vista pública.
       </p>
@@ -258,11 +252,13 @@ function RelatedDependenciesPicker({
                 aria-pressed={isOn}
                 className={
                   isOn
-                    ? "inline-flex items-center gap-1.5 rounded-full bg-default-900 px-2.5 py-1 text-xs text-default-50"
-                    : "inline-flex items-center gap-1.5 rounded-full border border-default-300 bg-surface px-2.5 py-1 text-xs text-foreground hover:bg-default-100"
+                    ? "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-primary-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-primary-600"
+                    : "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-warm-50"
                 }
               >
-                <span className="font-mono text-[10px] opacity-70">
+                <span
+                  className={`${GeistMono.className} text-[10px] ${isOn ? "opacity-80" : "text-text-muted"}`}
+                >
                   {dep.identifier}
                 </span>
                 <span className="max-w-[12rem] truncate">{dep.title}</span>

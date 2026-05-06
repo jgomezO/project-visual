@@ -1,17 +1,18 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useState } from "react";
-import {
-  Button,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  TextField,
-} from "@heroui/react";
+import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
 import { updatePhaseAction } from "@/app/actions/narratives";
 import type { NarrativePhase, PhaseStatus } from "@/lib/narratives/types";
+import {
+  DateInputField,
+  Field,
+  FormDeleteButton,
+  SectionHeading,
+  TextInput,
+  Textarea,
+} from "./form-fields";
 import type { FormHandle } from "./NarrativeForm";
 import { useAutoSave, type SaveState } from "./useAutoSave";
 
@@ -91,13 +92,13 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-          Fase
-        </h2>
+        <SectionHeading>Fase</SectionHeading>
 
-        <TextField>
-          <Label>Nombre</Label>
-          <Input
+        <Field
+          label="Nombre"
+          error={nameInvalid ? "El nombre es obligatorio." : undefined}
+        >
+          <TextInput
             value={draft.name}
             onChange={(e) =>
               setDraft({ ...draft, name: e.currentTarget.value })
@@ -105,35 +106,42 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
             maxLength={NAME_MAX}
             autoFocus
           />
-          {nameInvalid ? (
-            <p className="mt-1 text-xs text-danger">
-              El nombre es obligatorio.
-            </p>
-          ) : null}
-        </TextField>
+        </Field>
 
-        <Textarea
+        <Field
           label="Objetivo"
           helper="El qué — qué se busca lograr en esta fase."
-          value={draft.objective}
-          onChange={(v) => setDraft({ ...draft, objective: v })}
-          rows={3}
-        />
+        >
+          <Textarea
+            value={draft.objective}
+            onChange={(e) =>
+              setDraft({ ...draft, objective: e.currentTarget.value })
+            }
+            rows={3}
+          />
+        </Field>
 
-        <Textarea
+        <Field
           label="Rationale"
           helper="El por qué — clave para narrativas ejecutivas."
-          value={draft.rationale}
-          onChange={(v) => setDraft({ ...draft, rationale: v })}
-          rows={3}
-        />
+        >
+          <Textarea
+            value={draft.rationale}
+            onChange={(e) =>
+              setDraft({ ...draft, rationale: e.currentTarget.value })
+            }
+            rows={3}
+          />
+        </Field>
 
         <Select
           className="w-[260px]"
           value={draft.status}
           onChange={handleStatusChange}
         >
-          <Label>Estado</Label>
+          <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+            Estado
+          </Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator />
@@ -151,38 +159,33 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
         </Select>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Inicio</span>
-            <input
-              type="date"
-              value={draft.start_date}
-              onChange={(e) =>
-                setDraft({ ...draft, start_date: e.currentTarget.value })
-              }
-              className={dateInputClasses}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Fin</span>
-            <input
-              type="date"
-              value={draft.end_date}
-              onChange={(e) =>
-                setDraft({ ...draft, end_date: e.currentTarget.value })
-              }
-              className={dateInputClasses}
-            />
-          </label>
-          {dateOrderInvalid ? (
-            <p className="col-span-full text-xs text-danger">
-              La fecha de inicio debe ser igual o anterior a la de fin.
-            </p>
-          ) : null}
+          <DateInputField
+            label="Inicio"
+            value={draft.start_date}
+            onChange={(v) => setDraft({ ...draft, start_date: v })}
+          />
+          <DateInputField
+            label="Fin"
+            value={draft.end_date}
+            onChange={(v) => setDraft({ ...draft, end_date: v })}
+            error={
+              dateOrderInvalid
+                ? "Debe ser igual o posterior al inicio."
+                : undefined
+            }
+          />
         </div>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Progreso (%)</span>
-          <input
+        <Field
+          label="Progreso (%)"
+          helper="Si lo dejás vacío, se calcula automáticamente desde los issues asociados a sus workstreams."
+          error={
+            progressInvalid
+              ? "El progreso debe estar entre 0 y 100."
+              : undefined
+          }
+        >
+          <TextInput
             type="number"
             min={0}
             max={100}
@@ -199,61 +202,14 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
                 progress_percent: v === "" ? null : Number(v),
               });
             }}
-            className={`${dateInputClasses} max-w-[120px]`}
+            className="max-w-[160px]"
           />
-          <span className="text-xs text-muted">
-            Si lo dejás vacío, se calcula automáticamente desde los issues
-            asociados a sus workstreams.
-          </span>
-          {progressInvalid ? (
-            <p className="text-xs text-danger">
-              El progreso debe estar entre 0 y 100.
-            </p>
-          ) : null}
-        </label>
+        </Field>
 
-        <div className="border-t border-default-200 pt-4">
-          <Button
-            variant="tertiary"
-            size="sm"
-            onPress={onDelete}
-            isDisabled={pendingDelete}
-            className="text-danger"
-          >
-            {pendingDelete ? "Eliminando…" : "Eliminar fase"}
-          </Button>
-        </div>
+        <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
+          {pendingDelete ? "Eliminando…" : "Eliminar fase"}
+        </FormDeleteButton>
       </form>
     );
   },
 );
-
-const dateInputClasses =
-  "rounded-md border border-default-300 bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400";
-
-function Textarea({
-  label,
-  helper,
-  value,
-  onChange,
-  rows,
-}: {
-  label: string;
-  helper?: string;
-  value: string;
-  onChange: (v: string) => void;
-  rows: number;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium">{label}</span>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.currentTarget.value)}
-        rows={rows}
-        className="w-full rounded-md border border-default-300 bg-surface px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
-      />
-      {helper ? <span className="text-xs text-muted">{helper}</span> : null}
-    </label>
-  );
-}

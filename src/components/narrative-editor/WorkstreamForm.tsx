@@ -1,20 +1,20 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useState } from "react";
-import {
-  Button,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  TextField,
-} from "@heroui/react";
+import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
 import { updateWorkstreamAction } from "@/app/actions/narratives";
 import type {
   NarrativePhaseWithWorkstreams,
   NarrativeWorkstream,
 } from "@/lib/narratives/types";
+import {
+  Field,
+  FormDeleteButton,
+  SectionHeading,
+  TextInput,
+  Textarea,
+} from "./form-fields";
 import { JiraIssueKeysInput } from "./JiraIssueKeysInput";
 import type { FormHandle } from "./NarrativeForm";
 import { useAutoSave, type SaveState } from "./useAutoSave";
@@ -87,13 +87,13 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-          Workstream
-        </h2>
+        <SectionHeading>Workstream</SectionHeading>
 
-        <TextField>
-          <Label>Nombre</Label>
-          <Input
+        <Field
+          label="Nombre"
+          error={nameInvalid ? "El nombre es obligatorio." : undefined}
+        >
+          <TextInput
             value={draft.name}
             onChange={(e) =>
               setDraft({ ...draft, name: e.currentTarget.value })
@@ -101,34 +101,29 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
             maxLength={NAME_MAX}
             autoFocus
           />
-          {nameInvalid ? (
-            <p className="mt-1 text-xs text-danger">
-              El nombre es obligatorio.
-            </p>
-          ) : null}
-        </TextField>
+        </Field>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Descripción</span>
-          <textarea
+        <Field
+          label="Descripción"
+          helper="Markdown plain (sin renderizado por ahora)."
+        >
+          <Textarea
             value={draft.description}
             onChange={(e) =>
               setDraft({ ...draft, description: e.currentTarget.value })
             }
             rows={4}
-            className="w-full rounded-md border border-default-300 bg-surface px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
           />
-          <span className="text-xs text-muted">
-            Markdown plain (sin renderizado por ahora).
-          </span>
-        </label>
+        </Field>
 
         <Select
           className="w-[260px]"
           value={phaseSelectValue}
           onChange={handlePhaseChange}
         >
-          <Label>Fase</Label>
+          <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+            Fase
+          </Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator />
@@ -157,17 +152,9 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
           }
         />
 
-        <div className="border-t border-default-200 pt-4">
-          <Button
-            variant="tertiary"
-            size="sm"
-            onPress={onDelete}
-            isDisabled={pendingDelete}
-            className="text-danger"
-          >
-            {pendingDelete ? "Eliminando…" : "Eliminar workstream"}
-          </Button>
-        </div>
+        <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
+          {pendingDelete ? "Eliminando…" : "Eliminar workstream"}
+        </FormDeleteButton>
       </form>
     );
   },

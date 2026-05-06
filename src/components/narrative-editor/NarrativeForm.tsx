@@ -1,11 +1,11 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useState } from "react";
-import { Input, Label, TextField } from "@heroui/react";
 import { updateNarrativeAction } from "@/app/actions/narratives";
 import { formatActor } from "@/lib/format/actor";
 import { relativeFromNow } from "@/lib/format/relativeTime";
 import type { ProjectNarrative } from "@/lib/narratives/types";
+import { Field, SectionHeading, TextInput, Textarea } from "./form-fields";
 import { useAutoSave, type SaveState } from "./useAutoSave";
 
 const TITLE_MAX = 200;
@@ -41,7 +41,9 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
       draft,
       async (snapshot) => {
         if (isInvalid) {
-          throw new Error("El título es obligatorio y no puede ser tan largo.");
+          throw new Error(
+            "El título es obligatorio y no puede ser tan largo.",
+          );
         }
         const updated = await updateNarrativeAction(narrative.id, {
           title: snapshot.title,
@@ -58,8 +60,6 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
 
     useImperativeHandle(ref, () => ({ flush, retry }), [flush, retry]);
 
-    // Surface flush state to the parent via the `state` returned. Kept here
-    // (commented) for completeness — `onSaveStateChange` already publishes it.
     void state;
     void errorMessage;
     void lastSavedAt;
@@ -69,29 +69,23 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-          Narrativa
-        </h2>
+        <SectionHeading>Narrativa</SectionHeading>
 
-        <TextField>
-          <Label>Título</Label>
-          <Input
+        <Field
+          label="Título"
+          error={titleInvalid ? "El título es obligatorio." : undefined}
+        >
+          <TextInput
             value={draft.title}
             onChange={(e) =>
               setDraft({ ...draft, title: e.currentTarget.value })
             }
             maxLength={TITLE_MAX}
           />
-          {titleInvalid ? (
-            <p className="mt-1 text-xs text-danger">
-              El título es obligatorio.
-            </p>
-          ) : null}
-        </TextField>
+        </Field>
 
-        <TextField>
-          <Label>Subtítulo</Label>
-          <Input
+        <Field label="Subtítulo">
+          <TextInput
             value={draft.subtitle}
             onChange={(e) =>
               setDraft({ ...draft, subtitle: e.currentTarget.value })
@@ -99,27 +93,36 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
             maxLength={SUBTITLE_MAX}
             placeholder="Audiencia / contexto / fecha"
           />
-        </TextField>
+        </Field>
 
-        <LabeledTextarea
+        <Field
           label="Overview"
           helper="Contexto general del proyecto. Markdown plain (sin renderizado por ahora)."
-          value={draft.overview}
-          onChange={(v) => setDraft({ ...draft, overview: v })}
-          rows={6}
-        />
+        >
+          <Textarea
+            value={draft.overview}
+            onChange={(e) =>
+              setDraft({ ...draft, overview: e.currentTarget.value })
+            }
+            rows={6}
+          />
+        </Field>
 
-        <LabeledTextarea
+        <Field
           label="Estado actual"
           helper="Resumen del momento actual del proyecto. Aparece en la vista pública."
-          value={draft.status_summary}
-          onChange={(v) => setDraft({ ...draft, status_summary: v })}
-          rows={4}
-        />
+        >
+          <Textarea
+            value={draft.status_summary}
+            onChange={(e) =>
+              setDraft({ ...draft, status_summary: e.currentTarget.value })
+            }
+            rows={4}
+          />
+        </Field>
 
-        <TextField>
-          <Label>Subtítulo de la sección de riesgos</Label>
-          <Input
+        <Field label="Subtítulo de la sección de riesgos">
+          <TextInput
             value={draft.risks_section_subtitle}
             onChange={(e) =>
               setDraft({
@@ -129,9 +132,9 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
             }
             placeholder="Opcional: aparece bajo el título “Riesgos del proyecto”"
           />
-        </TextField>
+        </Field>
 
-        <div className="grid grid-cols-2 gap-4 border-t border-default-200 pt-4 text-xs text-muted">
+        <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
           <ReadOnlyField
             label="Creado por"
             value={formatActor(narrative.created_by)}
@@ -154,44 +157,13 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
   },
 );
 
-function LabeledTextarea({
-  label,
-  helper,
-  value,
-  onChange,
-  rows,
-}: {
-  label: string;
-  helper?: string;
-  value: string;
-  onChange: (v: string) => void;
-  rows: number;
-}) {
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium">{label}</span>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.currentTarget.value)}
-        rows={rows}
-        className="w-full rounded-md border border-default-300 bg-surface px-3 py-2 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
-      />
-      {helper ? <span className="text-xs text-muted">{helper}</span> : null}
-    </label>
-  );
-}
-
-function ReadOnlyField({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] uppercase tracking-wide">{label}</p>
-      <p className="text-foreground">{value}</p>
+    <div className="flex flex-col gap-0.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+        {label}
+      </p>
+      <p className="text-sm text-text-primary">{value}</p>
     </div>
   );
 }

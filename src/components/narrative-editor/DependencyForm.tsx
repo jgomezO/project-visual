@@ -1,14 +1,7 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useState } from "react";
-import {
-  Button,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  TextField,
-} from "@heroui/react";
+import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
 import { updateDependencyAction } from "@/app/actions/narratives";
 import type {
@@ -17,6 +10,14 @@ import type {
   NarrativePhaseWithWorkstreams,
   NarrativeWorkstream,
 } from "@/lib/narratives/types";
+import {
+  DateInputField,
+  Field,
+  FormDeleteButton,
+  SectionHeading,
+  TextInput,
+  Textarea,
+} from "./form-fields";
 import { JiraIssueKeysInput } from "./JiraIssueKeysInput";
 import type { FormHandle } from "./NarrativeForm";
 import { PodAutocompleteInput } from "./PodAutocompleteInput";
@@ -124,13 +125,13 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-          Dependencia
-        </h2>
+        <SectionHeading>Dependencia</SectionHeading>
 
-        <TextField>
-          <Label>Título</Label>
-          <Input
+        <Field
+          label="Título"
+          error={titleInvalid ? "El título es obligatorio." : undefined}
+        >
+          <TextInput
             value={draft.title}
             onChange={(e) =>
               setDraft({ ...draft, title: e.currentTarget.value })
@@ -138,32 +139,27 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
             maxLength={TITLE_MAX}
             autoFocus
           />
-          {titleInvalid ? (
-            <p className="mt-1 text-xs text-danger">
-              El título es obligatorio.
-            </p>
-          ) : null}
-        </TextField>
+        </Field>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Descripción</span>
-          <textarea
+        <Field label="Descripción">
+          <Textarea
             value={draft.description}
             onChange={(e) =>
               setDraft({ ...draft, description: e.currentTarget.value })
             }
             rows={3}
             placeholder="¿Qué se necesita del provider?"
-            className="w-full rounded-md border border-default-300 bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
           />
-        </label>
+        </Field>
 
         <Select
           className="w-[320px]"
           value={workstreamSelectValue}
           onChange={handleWorkstreamChange}
         >
-          <Label>Workstream impactado</Label>
+          <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+            Workstream impactado
+          </Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator />
@@ -211,35 +207,19 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Cuándo lo necesitamos</span>
-            <input
-              type="date"
-              value={draft.needed_by_date}
-              onChange={(e) =>
-                setDraft({ ...draft, needed_by_date: e.currentTarget.value })
-              }
-              className="rounded-md border border-default-300 bg-surface px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Cuándo se entregaría</span>
-            <input
-              type="date"
-              value={draft.expected_delivery_date}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  expected_delivery_date: e.currentTarget.value,
-                })
-              }
-              className="rounded-md border border-default-300 bg-surface px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
-            />
-            <span className="text-xs text-muted">
-              Si lo dejás vacío y vinculaste issues, se calcula automáticamente
-              desde la fecha de entrega más tardía de esos issues.
-            </span>
-          </label>
+          <DateInputField
+            label="Cuándo lo necesitamos"
+            value={draft.needed_by_date}
+            onChange={(v) => setDraft({ ...draft, needed_by_date: v })}
+          />
+          <DateInputField
+            label="Cuándo se entregaría"
+            value={draft.expected_delivery_date}
+            onChange={(v) =>
+              setDraft({ ...draft, expected_delivery_date: v })
+            }
+            helper="Si lo dejás vacío y vinculaste issues, se calcula automáticamente desde la fecha de entrega más tardía de esos issues."
+          />
         </div>
 
         <Select
@@ -247,7 +227,9 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
           value={draft.commitment_status}
           onChange={handleStatusChange}
         >
-          <Label>Estado del compromiso</Label>
+          <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+            Estado del compromiso
+          </Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator />
@@ -264,9 +246,8 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
           </Select.Popover>
         </Select>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Esfuerzo de coordinación</span>
-          <textarea
+        <Field label="Esfuerzo de coordinación">
+          <Textarea
             value={draft.coordination_notes}
             onChange={(e) =>
               setDraft({
@@ -276,21 +257,12 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
             }
             rows={5}
             placeholder="¿Qué hay que sincronizar entre equipos? Reuniones, dependencias técnicas, escalations…"
-            className="w-full rounded-md border border-default-300 bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
           />
-        </label>
+        </Field>
 
-        <div className="border-t border-default-200 pt-4">
-          <Button
-            variant="tertiary"
-            size="sm"
-            onPress={onDelete}
-            isDisabled={pendingDelete}
-            className="text-danger"
-          >
-            {pendingDelete ? "Eliminando…" : "Eliminar dependencia"}
-          </Button>
-        </div>
+        <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
+          {pendingDelete ? "Eliminando…" : "Eliminar dependencia"}
+        </FormDeleteButton>
       </form>
     );
   },
