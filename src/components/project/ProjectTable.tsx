@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { GeistMono } from "geist/font/mono";
 import { CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
-import { Card } from "@/components/ui";
+import { Card, Toggle } from "@/components/ui";
 import { AssigneeCell } from "./AssigneeCell";
 import { DueDateCell } from "./DueDateCell";
 import { IssueDrawer } from "./IssueDrawer";
@@ -138,48 +138,6 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
         </Card>
       )}
     </div>
-  );
-}
-
-// Custom toggle pill (iter 4h R2). Replaces HeroUI Switch which still
-// renders in raw blue under our token override. No external deps —
-// just a styled <button role="switch"> with native aria semantics.
-function Toggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (next: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="group inline-flex items-center gap-2 rounded-full px-3 py-1.5 transition-colors hover:bg-warm-50"
-    >
-      <span
-        className={
-          checked
-            ? "relative h-5 w-9 rounded-full bg-primary-500 transition-colors"
-            : "relative h-5 w-9 rounded-full bg-cool-200 transition-colors"
-        }
-      >
-        <span
-          className={
-            checked
-              ? "absolute left-0.5 top-0.5 size-4 rounded-full bg-surface shadow-sm transition-transform translate-x-4"
-              : "absolute left-0.5 top-0.5 size-4 rounded-full bg-surface shadow-sm transition-transform translate-x-0"
-          }
-        />
-      </span>
-      <span className="text-sm text-text-secondary group-hover:text-text-primary">
-        {label}
-      </span>
-    </button>
   );
 }
 

@@ -2,8 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Button, Label, Popover, Switch, Tooltip } from "@heroui/react";
-import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { GeistMono } from "geist/font/mono";
+import { Popover, Tooltip } from "@heroui/react";
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+} from "lucide-react";
+import { Button, Card, Toggle } from "@/components/ui";
 import { AssigneeCell } from "./AssigneeCell";
 import { IssueDrawer } from "./IssueDrawer";
 import { StatusChip } from "./StatusChip";
@@ -259,13 +266,13 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
         <OutOfRangeCounter epics={outOfRange} />
       ) : null}
 
-      <div className="flex overflow-hidden rounded-2xl border border-default-200">
+      <Card className="flex overflow-hidden p-0">
         <div
-          className="shrink-0 border-r border-default-200 bg-surface"
+          className="shrink-0 border-r border-border bg-surface"
           style={{ width: LEFT_COL_WIDTH }}
         >
           <div
-            className="border-b border-default-200 px-3 text-xs uppercase tracking-wide text-muted"
+            className="border-b border-border px-3 text-xs font-medium uppercase tracking-wide text-text-muted"
             style={{
               height: HEADER_HEIGHT,
               lineHeight: `${HEADER_HEIGHT}px`,
@@ -326,7 +333,7 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
             ) : null}
           </div>
         </div>
-      </div>
+      </Card>
 
       <UnplannedSection
         rows={rows}
@@ -339,21 +346,30 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
 function EpicLabel({ epic }: { epic: PlannedEpic }) {
   return (
     <div
-      className="flex flex-col justify-center border-b border-default-100 px-3 last:border-b-0"
+      className="flex flex-col justify-center border-b border-border px-3 last:border-b-0"
       style={{ height: ROW_HEIGHT }}
       title={epic.row.summary}
     >
-      <span className="truncate text-sm font-medium">{epic.row.summary}</span>
-      <span className="font-mono text-xs text-muted">{epic.row.key}</span>
+      <span className="truncate text-sm font-medium text-text-primary">
+        {epic.row.summary}
+      </span>
+      <span className={`${GeistMono.className} text-xs text-text-muted`}>
+        {epic.row.key}
+      </span>
     </div>
   );
 }
 
+// Functional palette for the timeline bars (iter 4h R2). Each bucket
+// reads as its own status — overdue is the only saturated value
+// (deliberately loud), the rest are the suave -bg pairs of the Prism
+// functional ramp so they don't fight the saturated In Progress
+// overlay (bg-info) or the saturated Today line (bg-error).
 const STATUS_BG: Record<EpicStatus, string> = {
-  overdue: "bg-red-500",
-  inProgress: "bg-blue-200",
-  future: "bg-zinc-200",
-  done: "bg-emerald-200",
+  overdue: "bg-error",
+  inProgress: "bg-info-bg",
+  future: "bg-cool-200",
+  done: "bg-success-bg",
 };
 
 const STATUS_LABEL: Record<EpicStatus, string> = {
@@ -399,26 +415,26 @@ function EpicBar({
       <button
         type="button"
         onClick={onSelect}
-        className={`absolute rounded-md text-left ring-offset-2 transition-shadow hover:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400 ${STATUS_BG[epic.status]}`}
+        className={`absolute rounded-md text-left ring-offset-2 transition-shadow hover:ring-2 hover:ring-primary-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${STATUS_BG[epic.status]}`}
         style={{ left, top, width, height: BAR_HEIGHT }}
         aria-label={`${epic.row.key}: ${epic.row.summary}`}
       >
         {showProgress ? (
           <span
-            className="pointer-events-none absolute inset-y-0 left-0 rounded-l-md bg-blue-600"
+            className="pointer-events-none absolute inset-y-0 left-0 rounded-l-md bg-info"
             style={{ width: progressWidth }}
             aria-hidden="true"
           />
         ) : null}
         {clippedLeft ? (
           <ChevronLeft
-            className="pointer-events-none absolute -left-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
+            className="pointer-events-none absolute -left-1 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
             aria-hidden="true"
           />
         ) : null}
         {clippedRight ? (
           <ChevronRight
-            className="pointer-events-none absolute -right-1 top-1/2 size-4 -translate-y-1/2 text-default-500"
+            className="pointer-events-none absolute -right-1 top-1/2 size-4 -translate-y-1/2 text-text-secondary"
             aria-hidden="true"
           />
         ) : null}
@@ -434,14 +450,18 @@ function BarTooltipBody({ epic }: { epic: PlannedEpic }) {
   return (
     <div className="flex flex-col gap-1.5 text-xs">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-muted">{epic.row.key}</span>
+        <span className={`${GeistMono.className} text-text-muted`}>
+          {epic.row.key}
+        </span>
         <StatusChip
           category={epic.row.status_category}
           statusName={epic.row.status_name}
         />
       </div>
-      <p className="text-sm font-medium">{epic.row.summary}</p>
-      <p className="text-muted">
+      <p className="text-sm font-medium text-text-primary">
+        {epic.row.summary}
+      </p>
+      <p className="text-text-muted">
         {STATUS_LABEL[epic.status]} · {formatShortDate(epic.start)} →{" "}
         {formatShortDate(epic.due)}
       </p>
@@ -463,7 +483,7 @@ function TodayLine({
   return (
     <>
       <span
-        className="pointer-events-none absolute z-10 select-none rounded-md bg-danger px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm"
+        className="pointer-events-none absolute z-10 select-none rounded-md bg-error px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm"
         style={{
           left: x,
           top: 4,
@@ -473,7 +493,7 @@ function TodayLine({
         Hoy · {formatShortDate(today)}
       </span>
       <span
-        className="pointer-events-none absolute bg-danger"
+        className="pointer-events-none absolute bg-error"
         style={{
           left: x,
           top: 0,
@@ -488,11 +508,11 @@ function TodayLine({
 
 function NoEpicsEmpty() {
   return (
-    <div className="rounded-2xl border border-dashed border-default-300 p-10 text-center">
-      <p className="text-sm font-medium">
+    <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+      <p className="text-sm font-medium text-text-primary">
         Este proyecto no tiene épicas todavía.
       </p>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-sm text-text-secondary">
         Cuando se sincronice una épica desde Jira aparecerá acá.
       </p>
     </div>
@@ -515,18 +535,18 @@ function ChartEmptyOverlay({
         : "Sin épicas planificadas en este momento.";
     return (
       <div className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center">
-        <p className="max-w-sm text-sm text-muted">{message}</p>
+        <p className="max-w-sm text-sm text-text-secondary">{message}</p>
       </div>
     );
   }
   return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-6 text-center">
-      <p className="max-w-sm text-sm text-muted">
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 px-6 text-center">
+      <p className="max-w-sm text-sm text-text-secondary">
         No hay épicas en este rango. Probá ajustar las fechas o ver
         &ldquo;Todo&rdquo;.
       </p>
       {onPickAll ? (
-        <Button size="sm" variant="secondary" onPress={onPickAll}>
+        <Button size="sm" variant="secondary" onClick={onPickAll}>
           Ver todo
         </Button>
       ) : null}
@@ -597,8 +617,8 @@ function UnplannedSection({
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center gap-2 border-t border-default-200 pt-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+      <div className="flex items-center gap-2 border-t border-border pt-4">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-text-muted">
           Sin planificar ({unplanned.length}{" "}
           {unplanned.length === 1 ? "épica" : "épicas"})
         </h2>
@@ -631,11 +651,15 @@ function UnplannedCard({
       <button
         type="button"
         onClick={onSelect}
-        className="flex w-full flex-col gap-2 rounded-xl border border-default-200 bg-surface px-3 py-2.5 text-left transition-colors hover:bg-default-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
+        className="flex w-full flex-col gap-2 rounded-2xl bg-surface px-4 py-3 text-left shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       >
         <div className="flex min-w-0 items-center gap-2 pr-32">
-          <span className="font-mono text-xs text-muted">{row.key}</span>
-          <span className="truncate text-sm font-medium">{row.summary}</span>
+          <span className={`${GeistMono.className} text-xs text-text-muted`}>
+            {row.key}
+          </span>
+          <span className="truncate text-sm font-medium text-text-primary">
+            {row.summary}
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <StatusChip
@@ -643,7 +667,7 @@ function UnplannedCard({
             statusName={row.status_name}
           />
           <AssigneeCell displayName={row.assignee_display_name} />
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning">
             <AlertTriangle className="size-3" aria-hidden="true" />
             {MISSING_LABEL[missing]}
           </span>
@@ -654,7 +678,7 @@ function UnplannedCard({
           href={jiraUrl}
           target="_blank"
           rel="noreferrer"
-          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-xs font-medium text-background hover:opacity-90"
+          className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-text-primary px-2.5 py-1 text-xs font-medium text-surface hover:opacity-90"
         >
           Editar en Jira
           <ExternalLink className="size-3" aria-hidden="true" />
@@ -667,7 +691,7 @@ function UnplannedCard({
 function OutOfRangeCounter({ epics }: { epics: PlannedEpic[] }) {
   return (
     <Popover>
-      <Button size="sm" variant="tertiary">
+      <Button size="sm" variant="ghost">
         {epics.length}{" "}
         {epics.length === 1
           ? "épica fuera del rango actual"
@@ -680,15 +704,19 @@ function OutOfRangeCounter({ epics }: { epics: PlannedEpic[] }) {
             {epics.map((e) => (
               <li
                 key={e.row.id}
-                className="flex flex-col gap-0.5 rounded-md bg-default-50 px-2 py-1.5 text-sm"
+                className="flex flex-col gap-0.5 rounded-md bg-warm-50 px-2 py-1.5 text-sm"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-muted">
+                  <span
+                    className={`${GeistMono.className} text-xs text-text-muted`}
+                  >
                     {e.row.key}
                   </span>
-                  <span className="truncate">{e.row.summary}</span>
+                  <span className="truncate text-text-primary">
+                    {e.row.summary}
+                  </span>
                 </div>
-                <span className="text-xs text-muted">
+                <span className="text-xs text-text-muted">
                   {formatShortDate(e.start)} → {formatShortDate(e.due)}
                 </span>
               </li>
@@ -733,9 +761,9 @@ function RangeControls({
             <Button
               key={p.id}
               size="sm"
-              variant={active ? undefined : "secondary"}
-              isDisabled={range === null}
-              onPress={() => range && onPick(range)}
+              variant={active ? "primary" : "secondary"}
+              disabled={range === null}
+              onClick={() => range && onPick(range)}
             >
               {p.label}
             </Button>
@@ -752,18 +780,12 @@ function RangeControls({
         }
       />
 
-      <Switch
-        isSelected={showCompleted}
+      <Toggle
+        checked={showCompleted}
         onChange={onToggleCompleted}
+        label="Mostrar completadas"
         className="ml-auto"
-      >
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        <Switch.Content>
-          <Label className="text-sm">Mostrar completadas</Label>
-        </Switch.Content>
-      </Switch>
+      />
     </div>
   );
 }
@@ -799,8 +821,8 @@ function ManualRangeInputs({
       <Button
         size="sm"
         variant="secondary"
-        isDisabled={!isValid || !isDirty}
-        onPress={() => onApply(draftFrom, draftTo)}
+        disabled={!isValid || !isDirty}
+        onClick={() => onApply(draftFrom, draftTo)}
       >
         Aplicar
       </Button>
@@ -821,13 +843,13 @@ function DateInput({
   // es-AR locale support lands. The browser-native picker is locale-aware
   // and accessible — no React-side i18n risk.
   return (
-    <label className="flex flex-col gap-1 text-xs text-muted">
+    <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-text-muted">
       {label}
       <input
         type="date"
         value={value}
         onChange={(e) => onChange(e.currentTarget.value)}
-        className="rounded-md border border-default-300 bg-surface px-2 py-1 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-default-400"
+        className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
       />
     </label>
   );
@@ -900,7 +922,7 @@ function TimelineHeader({
 }) {
   return (
     <div
-      className="relative border-b border-default-200"
+      className="relative border-b border-border"
       style={{ height: HEADER_HEIGHT }}
     >
       {labelTicks.map((tick) => {
@@ -908,7 +930,7 @@ function TimelineHeader({
         return (
           <span
             key={tick.date.toISOString()}
-            className="absolute top-0 select-none whitespace-nowrap pl-2 text-xs text-muted"
+            className="absolute top-0 select-none whitespace-nowrap pl-2 text-xs font-medium text-text-muted"
             style={{
               left: x,
               height: HEADER_HEIGHT,
