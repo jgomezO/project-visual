@@ -24,7 +24,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4e:** Risks declared inside a narrative + stable per-narrative identifiers. New table `narrative_risks` (title, description, severity low/medium/high, `impacts TEXT[]` and `mitigations TEXT[]` with `cardinality >= 1` CHECKs, `related_dependency_ids UUID[]` with no FK on array elements). Stable identifiers `R1, R2, ...` and `D1, D2, ...` are auto-assigned via `claim_next_risk_identifier(uuid)` / `claim_next_dependency_identifier(uuid)` RPCs that atomically increment per-narrative counter columns (`next_risk_id`, `next_dependency_id`) on `project_narratives` — counters never decrease, so deletes don't reuse identifiers. Editor sidebar gains a "Riesgos" group with the same shape as Dependencies; `RiskForm` uses a reusable `BulletListInput` for impacts/mitigations and a toggle-chip picker for related dependencies. Public preview ships `RisksSection` (`#riesgos` anchor, omitted on zero risks) with `RiskCard` (severity-bordered, identifier chip, impacts/mitigations bullet sections, related-dep chips anchor-linked to `#dep-{id}`); `DependencyCard` reciprocates with a "Mencionada por" footer of risk chips → `#risk-{id}`. Header gains "N riesgos" + "⚠ N de severidad alta" counters anchor-linked to `#riesgos`. `NarrativeForm` adds an optional `risks_section_subtitle` field. Preview page is refactored to the canonical Query Waves shape (Wave 1: narrative + project parallel; Wave 2: issue closure; pure compute).
 
-**Iteration 4f (current):** Google OAuth via Supabase Auth, restricted to `@veevart.com` (whitelist via `ALLOWED_EMAIL_DOMAINS`) with a per-user check against Jira's user search. New `user_profiles` table mirrors `auth.users` and caches the resolved Jira `accountId` so subsequent logins skip the API hit. `/login` + `/auth/callback` route handler enforce the two gates; failed gates sign the user out and redirect to `/login?error=domain|jira|unknown`. New middleware refreshes the Supabase session via `getUser()` (validated against the auth server, never `getSession()` which trusts cookies) and gates every path except `/login`, `/auth/callback`, `/api/sync`, `/api/cron/*`. Three Supabase clients now: `getServerSupabase` (cookies-aware, default for app reads/writes via authenticated session), `getServerSupabaseAdmin` (service-role bypass for sync, seed, scripts), `getAnonSupabase` (browser-side public reads in autocompletes). RLS tightened: narrative tables drop `anon_read` and gain `auth_all` on `authenticated`; Jira tables (`projects`, `issues`, `issue_links`, `sync_runs`) get a parallel `authenticated` SELECT policy alongside the existing `anon` one. `created_by` / `updated_by` get stamped with the actor's email by Server Actions (`getActor` helper); the new `formatActor` helper renders `null` / `"system"` as **"Sistema"** in the UI. UserMenu (avatar + Dropdown with email + logout) sits in every primary header except `/preview`.
+**Iteration 4f:** Google OAuth via Supabase Auth, restricted to `@veevart.com` (whitelist via `ALLOWED_EMAIL_DOMAINS`) with a per-user check against Jira's user search. New `user_profiles` table mirrors `auth.users` and caches the resolved Jira `accountId` so subsequent logins skip the API hit. `/login` + `/auth/callback` route handler enforce the two gates; failed gates sign the user out and redirect to `/login?error=domain|jira|unknown`. New middleware refreshes the Supabase session via `getUser()` (validated against the auth server, never `getSession()` which trusts cookies) and gates every path except `/login`, `/auth/callback`, `/api/sync`, `/api/cron/*`. Three Supabase clients now: `getServerSupabase` (cookies-aware, default for app reads/writes via authenticated session), `getServerSupabaseAdmin` (service-role bypass for sync, seed, scripts), `getAnonSupabase` (browser-side public reads in autocompletes). RLS tightened: narrative tables drop `anon_read` and gain `auth_all` on `authenticated`; Jira tables (`projects`, `issues`, `issue_links`, `sync_runs`) get a parallel `authenticated` SELECT policy alongside the existing `anon` one. `created_by` / `updated_by` get stamped with the actor's email by Server Actions (`getActor` helper); the new `formatActor` helper renders `null` / `"system"` as **"Sistema"** in the UI. UserMenu (avatar + Dropdown with email + logout) sits in every primary header except `/preview`.
+
+**Iteration 4g (current):** Narrative access integrated into the main project flows. The `project_stats` view gains a `narratives_count` column (computed via a derived LEFT JOIN over `project_narratives` so the issue COUNT stays a simple aggregate; `COALESCE(..., 0)` so zero-narrative projects return 0 instead of NULL). Each `ProjectCard` on `/projects` shows a "N narrativas" chip top-right when count > 0, using the **stretched-link + group-hover pattern**: a wrapping `<div className="group relative">` carries the hover state, the primary `<Link>` becomes an `absolute inset-0` overlay with a sr-only label, and the badge is a second `<Link relative z-10>` rendered after the overlay so it wins the hit-test. `/projects/[key]` gains a third tab "Narrativas" embedding `NarrativesListPanel` (the same Server Component the standalone page uses); `ViewKey` extends to `"list" | "roadmap" | "narratives"` with an `isViewKey` type guard. The standalone `/projects/[key]/narratives` URL becomes a `permanentRedirect` (308) to `/projects/[key]?view=narratives` — no validation, an invalid key still 404s one hop later. `/projects` switches from the anon client to `getServerSupabase` so the dashboard read carries the user session (today equivalent under `auth_all USING(TRUE)`, but aligns with the iter 4f contract for when per-project membership lands). The four narrative Server Actions retarget `revalidatePath` to `/projects/[key]` (the new home of the list).
 
 ## Stack
 
@@ -130,15 +132,15 @@ src/
 │   ├── dev/components-preview/     Permanent dev tool: visual bench for components (not linked from prod)
 │   │   └── page.tsx
 │   └── projects/
-│       ├── page.tsx                Server Component, reads from Supabase, mounts UserMenu
+│       ├── page.tsx                Server Component (getServerSupabase), reads project_stats incl. narratives_count, mounts UserMenu, renders ProjectCard with narratives badge (iter 4g)
 │       ├── actions.ts              Server Action triggerSync()
 │       ├── loading.tsx
 │       ├── error.tsx
 │       └── [key]/
-│           ├── page.tsx            Server Component: project_dashboard RPC + issues query, parses ?view
+│           ├── page.tsx            Server Component: project_dashboard RPC + issues query, parses ?view (list|roadmap|narratives), mounts NarrativesListPanel inside the tab (iter 4g)
 │           ├── not-found.tsx       Custom 404 for unknown project keys
 │           └── narratives/
-│               ├── page.tsx        Server Component: list narratives for a project + UserMenu
+│               ├── page.tsx        (iter 4g) permanentRedirect (308) → /projects/[key]?view=narratives
 │               └── [id]/
 │                   ├── edit/page.tsx     Server Component: load narrative + currentUser, hand off to EditorShell
 │                   └── preview/page.tsx  Server Component: load narrative + batched issues + derived stats
@@ -149,6 +151,7 @@ src/
 │   ├── SyncButton.tsx              Client Component invoking the Server Action
 │   ├── UserMenu.tsx                (NEW iter 4f) Client: avatar trigger + Dropdown (email + Cerrar sesión)
 │   ├── narrative-list/
+│   │   ├── NarrativesListPanel.tsx (iter 4g) Server Component: heading + list/empty + CTA. Reusable across the standalone redirect target and the /projects/[key]?view=narratives tab. projectName: string | null — null → "Narrativas del proyecto" (generic, when KpiHeader already shows the name); string → "Narrativas de <name>".
 │   │   ├── NarrativeCard.tsx       Card + 3-dot menu (Duplicar / Eliminar) + draft / published badge
 │   │   └── NewNarrativeButton.tsx  "Nueva narrativa" CTA + creation modal
 │   ├── narrative-editor/
@@ -186,7 +189,7 @@ src/
 │   │   └── PresentationModeToggle.tsx  Client: ?mode= URL state + ESC handler
 │   └── project/
 │       ├── KpiHeader.tsx           Server Component: 4 KPI cards + breadcrumb
-│       ├── ProjectViews.tsx        Client: HeroUI Tabs (Lista | Roadmap), URL state for ?view
+│       ├── ProjectViews.tsx        Client: HeroUI Tabs (Lista | Roadmap | Narrativas), URL state for ?view; accepts narrativesPanel: ReactNode for the third tab body (iter 4g)
 │       ├── ProjectTable.tsx        Client: filter toggles + epic-grouped table; owns drawer state
 │       ├── ProjectRoadmap.tsx     Client: timeline + bars + Sin planificar; owns drawer state
 │       ├── IssueDrawer.tsx         Client: lazy-fetches parent / kids / sub-tasks / links
@@ -241,18 +244,19 @@ supabase/
     ├── 20260505020350_fix_narrative_risks_array_check.sql
     ├── 20260505145650_add_user_profiles_and_grant_rpc_to_authenticated.sql   (iter 4f Migration A)
     ├── 20260505192722_add_authenticated_read_to_jira_tables.sql              (iter 4f hotfix)
-    └── 20260505195313_tighten_narratives_rls_to_authenticated.sql            (iter 4f Migration B)
+    ├── 20260505195313_tighten_narratives_rls_to_authenticated.sql            (iter 4f Migration B)
+    └── 20260505213418_add_narratives_count_to_project_stats.sql              (iter 4g Migration C)
 ```
 
 ### Roadmap view (`?view=roadmap`)
 
-`/projects/[key]` has two tabs — **Lista** (the issues table) and
-**Roadmap** (epics on a timeline). State lives entirely in URL query
-params:
+`/projects/[key]` has three tabs — **Lista** (the issues table),
+**Roadmap** (epics on a timeline), and **Narrativas** (the editable
+narrative list, iter 4g). State lives entirely in URL query params:
 
 | Param   | Values                          | Default                                |
 | ------- | ------------------------------- | -------------------------------------- |
-| `view`  | `list` (default) \| `roadmap`   | `list`                                 |
+| `view`  | `list` (default) \| `roadmap` \| `narratives` | `list`                           |
 | `from`  | `YYYY-MM-DD`                    | today (UTC)                            |
 | `to`    | `YYYY-MM-DD`                    | today + 6 months (UTC)                 |
 
@@ -349,22 +353,32 @@ swap into.
   key match. The GIN index makes "which workstreams reference this
   issue?" queries fast as the narrative count grows.
 
-### Narrative editor (`/projects/[key]/narratives` + `[id]/edit`)
+### Narrative editor (`/projects/[key]?view=narratives` + `narratives/[id]/edit`)
 
 #### Routes & Server Actions
 
-- `/projects/[key]/narratives` — Server Component list page; each card
-  is a Client Component for its 3-dot menu and confirm-delete modal.
+- `/projects/[key]?view=narratives` (iter 4g) — the **Narrativas** tab
+  inside the project detail page. Embeds `NarrativesListPanel` (a
+  Server Component, reusable) under the existing `KpiHeader`. Each
+  card is a Client Component for its 3-dot menu and confirm-delete
+  modal.
+- `/projects/[key]/narratives` — **legacy URL**, now a 308
+  `permanentRedirect` to `/projects/[key]?view=narratives` (iter 4g).
+  Kept for external bookmarks; browsers and the Next router cache
+  the hop. No project-key validation here — invalid keys 404 one hop
+  later via `/projects/[key]`'s own `notFound()`.
 - `/projects/[key]/narratives/[id]/edit` — Server Component loads the
   full narrative (`getNarrativeById`) and hands the tree to a Client
   shell. The route is desktop-first; a CSS-only `md:hidden` block
   shows "Editor disponible en pantallas más anchas" on small screens.
-- `/projects/[key]/narratives/[id]/preview` — placeholder until 4c.
+- `/projects/[key]/narratives/[id]/preview` — public read-only view
+  (see "Narrative public view" section below).
 - All mutations live in `src/app/actions/narratives.ts` ("use server").
-  `revalidatePath` fires only on actions whose result the list page
-  needs to see (create / duplicate / delete / publish toggle); editor-
-  side actions skip revalidation because the editor patches its tree
-  in place from the returned entity.
+  `revalidatePath` fires only on actions whose result the list panel
+  needs to see (create / duplicate / delete / publish toggle); since
+  iter 4g it targets `/projects/[key]` (where the tab embed renders).
+  Editor-side actions skip revalidation because the editor patches
+  its tree in place from the returned entity.
 
 #### Auto-save pattern (`useAutoSave` + flush-on-navigate)
 
@@ -873,17 +887,38 @@ Don't apply when:
 ### `/projects` list view
 
 - **`project_stats` SQL view** (in
-  `20260505004354_add_project_stats_view.sql`, granted to `anon` +
-  `authenticated`): one row per project with `total_issues` and
-  `done_issues` aggregated server-side. The list page reads from it
-  directly. Replaced an in-app group-by over a single `IN()` query
-  that broke once total issues across projects went past PostgREST's
-  default 1000-row response cap — projects at the alphabetical tail
-  silently showed zero issues on the card while the per-project
-  detail (which uses the `project_dashboard` RPC) was correct.
+  `20260505004354_add_project_stats_view.sql`, extended in
+  `20260505213418_add_narratives_count_to_project_stats.sql`, granted
+  to `anon` + `authenticated`): one row per project with
+  `total_issues`, `done_issues`, and `narratives_count` aggregated
+  server-side. The list page reads from it directly. Replaced an in-app
+  group-by over a single `IN()` query that broke once total issues
+  across projects went past PostgREST's default 1000-row response cap.
 - **`security_invoker = true`** on the view: it executes with the
   caller's privileges and respects the underlying tables' RLS. When
   RLS tightens, the view follows automatically.
+- **`narratives_count`** (iter 4g) is fetched via a derived-table
+  LEFT JOIN over `project_narratives` rather than a third peer LEFT
+  JOIN, so the issue COUNT stays a simple non-DISTINCT aggregate; two
+  parallel LEFT JOINs to peer tables under one GROUP BY would
+  Cartesian-multiply rows. `COALESCE(..., 0)` keeps the value `0`
+  (never NULL) for projects without narratives. The list page uses
+  it to render a "N narrativas" badge per ProjectCard, only when
+  count > 0 (absence is the information).
+- **`/projects/page.tsx` uses `getServerSupabase`** (iter 4f migration,
+  cemented in iter 4g); the dashboard read carries the user session
+  through the authenticated role. Today the result is unchanged
+  because Jira tables have parallel `anon`+`authenticated` SELECT
+  policies and `project_narratives` uses `auth_all USING(TRUE)`, but
+  the contract is in place for when per-project membership lands.
+- **Stretched-link + group-hover pattern** for the ProjectCard: the
+  card surface is one big click target via an `absolute inset-0`
+  overlay `<Link>`, plus a second `<Link relative z-10>` for the
+  narratives badge. The wrapping `<div className="group relative">`
+  carries the hover state via `group-hover:` so the fade / shadow
+  triggers reliably regardless of HeroUI Card's internal class
+  composition. Use this pattern any time you need a clickable nested
+  inside a clickable card.
 - If we ever need overdue / blocked counts on the list page, extend
   the view rather than re-introducing client-side grouping.
 
