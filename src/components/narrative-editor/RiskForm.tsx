@@ -182,6 +182,7 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
           value={draft.impacts}
           onChange={(next) => setDraft({ ...draft, impacts: next })}
           placeholder="Describí un impacto…"
+          tone="danger"
           errorMessage={impactsInvalid ? "Mínimo un impacto no vacío." : null}
         />
 
@@ -190,6 +191,7 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
           value={draft.mitigations}
           onChange={(next) => setDraft({ ...draft, mitigations: next })}
           placeholder="Describí una mitigación…"
+          tone="success"
           errorMessage={
             mitigationsInvalid ? "Mínimo una mitigación no vacía." : null
           }

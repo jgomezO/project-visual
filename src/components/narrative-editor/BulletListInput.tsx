@@ -2,6 +2,9 @@
 
 import { useId, useRef } from "react";
 import { Plus, X } from "lucide-react";
+import { TextInput } from "./form-fields";
+
+export type BulletTone = "neutral" | "danger" | "success";
 
 interface Props {
   label: string;
@@ -18,9 +21,19 @@ interface Props {
   // "Mínimo un elemento" message after a failed save attempt; the
   // component does NOT compute validation itself.
   errorMessage?: string | null;
+  // Color of the dot left of each row. RiskForm uses `danger` for
+  // impacts and `success` for mitigations so the two lists read at a
+  // glance even when collapsed.
+  tone?: BulletTone;
 }
 
 const DEFAULT_MAX = 10;
+
+const TONE_TO_DOT: Record<BulletTone, string> = {
+  neutral: "bg-text-muted",
+  danger: "bg-error",
+  success: "bg-success",
+};
 
 // Reusable editor for TEXT[] columns. Renders the array as-is — empty
 // strings are allowed during typing — and fires `onChange` with the raw
@@ -37,12 +50,14 @@ export function BulletListInput({
   placeholder,
   maxItems = DEFAULT_MAX,
   errorMessage,
+  tone = "neutral",
 }: Props) {
   const labelId = useId();
   // Track refs by index so newly-added rows can autofocus.
   const inputRefs = useRef<Map<number, HTMLInputElement | null>>(new Map());
 
   const atMax = value.length >= maxItems;
+  const dotClass = TONE_TO_DOT[tone];
 
   function setItem(index: number, text: string): void {
     const next = value.slice();
@@ -60,7 +75,6 @@ export function BulletListInput({
     if (atMax) return;
     const next = [...value, ""];
     onChange(next);
-    // Focus the newly-added input on the next paint.
     requestAnimationFrame(() => {
       inputRefs.current.get(next.length - 1)?.focus();
     });
@@ -79,27 +93,28 @@ export function BulletListInput({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm font-medium" id={labelId}>
+        <span
+          id={labelId}
+          className="text-xs font-medium uppercase tracking-wide text-text-secondary"
+        >
           {label}
         </span>
-        <span className="text-xs text-muted tabular-nums">
+        <span className="text-xs tabular-nums text-text-muted">
           {value.length} / {maxItems}
         </span>
       </div>
 
       {value.length === 0 ? (
-        <p className="text-xs italic text-muted">Sin elementos.</p>
+        <p className="text-sm italic text-text-muted">Sin elementos.</p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="flex flex-col gap-2">
           {value.map((item, index) => (
             <li key={index} className="flex items-center gap-2">
               <span
                 aria-hidden="true"
-                className="select-none text-xs text-muted tabular-nums"
-              >
-                {index + 1}.
-              </span>
-              <input
+                className={`inline-block size-2 shrink-0 rounded-full ${dotClass}`}
+              />
+              <TextInput
                 ref={(el) => {
                   if (el) inputRefs.current.set(index, el);
                   else inputRefs.current.delete(index);
@@ -109,13 +124,13 @@ export function BulletListInput({
                 onKeyDown={(e) => onKeyDown(e, index)}
                 placeholder={placeholder}
                 aria-labelledby={labelId}
-                className="flex-1 rounded-md border border-default-300 bg-surface px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-default-400"
+                className="flex-1"
               />
               <button
                 type="button"
                 onClick={() => removeItem(index)}
                 aria-label={`Remover elemento ${index + 1}`}
-                className="rounded-md p-1 text-muted hover:bg-default-100 hover:text-foreground"
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-warm-50 hover:text-text-primary disabled:opacity-30"
               >
                 <X className="size-4" aria-hidden="true" />
               </button>
@@ -129,13 +144,15 @@ export function BulletListInput({
           type="button"
           onClick={addItem}
           disabled={atMax}
-          className="inline-flex items-center gap-1.5 rounded-md border border-default-300 bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:bg-default-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Plus className="size-3.5" aria-hidden="true" />
-          Agregar
+          <Plus className="size-4" aria-hidden="true" />
+          Agregar item
         </button>
         {errorMessage ? (
-          <span className="text-xs text-danger">{errorMessage}</span>
+          <span className="text-sm text-error" role="alert">
+            {errorMessage}
+          </span>
         ) : null}
       </div>
     </div>
