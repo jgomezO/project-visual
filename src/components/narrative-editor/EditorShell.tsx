@@ -3,9 +3,9 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
 import { publishNarrativeAction } from "@/app/actions/narratives";
+import { Button } from "@/components/ui";
 import type {
   NarrativeDependency,
   NarrativePhase,
@@ -280,26 +280,49 @@ function EditorHeader({
     });
   }
 
+  const publishLabel = pending
+    ? "Aplicando…"
+    : narrative.published
+      ? "Despublicar"
+      : "Publicar";
+
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <nav className="flex flex-wrap items-center gap-2 text-sm text-muted">
-          <Link href="/projects" className="hover:underline">
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">
+        <nav
+          aria-label="Breadcrumb"
+          className="flex min-w-0 flex-wrap items-center gap-2 text-sm"
+        >
+          <Link
+            href="/projects"
+            className="text-text-secondary transition-colors hover:text-text-primary"
+          >
             Proyectos
           </Link>
-          <span aria-hidden="true">/</span>
-          <Link href={`/projects/${projectKey}`} className="hover:underline">
+          <span aria-hidden="true" className="text-text-muted">
+            /
+          </span>
+          <Link
+            href={`/projects/${projectKey}`}
+            className="text-text-secondary transition-colors hover:text-text-primary"
+          >
             {projectName}
           </Link>
-          <span aria-hidden="true">/</span>
+          <span aria-hidden="true" className="text-text-muted">
+            /
+          </span>
           <Link
-            href={`/projects/${projectKey}/narratives`}
-            className="hover:underline"
+            href={`/projects/${projectKey}?view=narratives`}
+            className="text-text-secondary transition-colors hover:text-text-primary"
           >
             Narrativas
           </Link>
-          <span aria-hidden="true">/</span>
-          <span className="truncate text-foreground">{narrative.title}</span>
+          <span aria-hidden="true" className="text-text-muted">
+            /
+          </span>
+          <span className="truncate font-medium text-text-primary">
+            {narrative.title}
+          </span>
         </nav>
         <AutosaveIndicator
           state={saveState}
@@ -313,21 +336,18 @@ function EditorHeader({
           href={previewHref}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md border border-default-300 bg-surface px-3 py-1.5 text-sm hover:bg-default-50"
+          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-warm-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
         >
-          <ExternalLink className="size-4" />
+          <ExternalLink className="size-3.5" aria-hidden="true" />
           Vista previa
         </a>
         <Button
-          variant={narrative.published ? "secondary" : undefined}
-          isDisabled={pending}
-          onPress={handlePublishToggle}
+          size="sm"
+          variant="primary"
+          disabled={pending}
+          onClick={handlePublishToggle}
         >
-          {pending
-            ? "Aplicando…"
-            : narrative.published
-              ? "Despublicar"
-              : "Publicar"}
+          {publishLabel}
         </Button>
       </div>
     </header>
