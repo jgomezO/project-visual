@@ -2,6 +2,89 @@
 @import "@heroui/styles";
 
 /* -----------------------------------------------------------------------
+ * Design tokens (iter 4h Round 1 — Prism design system)
+ *
+ * Tailwind v4 reads these from `@theme` and emits utility classes
+ * (`bg-primary-500`, `text-text-primary`, `rounded-md`, `shadow-md`).
+ * OKLCH lets us pick perceptually uniform shades — the lavanda ramp
+ * stays balanced from 50 to 900 without the muddy mid-tones HSL
+ * tends to produce.
+ *
+ * Intentional override of HeroUI v3 internal tokens: HeroUI ships its
+ * own `--color-text-muted` / `--color-foreground` / `--color-surface`
+ * etc. via @import "@heroui/styles" above. Our @theme block below
+ * redefines the same names, so HeroUI components (Card.Description,
+ * tab labels, etc.) inherit the new palette automatically. This is
+ * the design intent: one product-wide visual identity, not two
+ * coexisting systems. Pages still rendering raw HeroUI surfaces will
+ * pick up the new colors before they are individually redesigned —
+ * accepted in iter 4h plan as visual cost during multi-round rollout.
+ *
+ * Radius is also redefined: the OOTB Tailwind `--radius-md` (0.375rem)
+ * is bumped to 0.75rem to match the rounder Aether-inspired shapes;
+ * `--radius-2xl` and `--radius-3xl` keep their Tailwind defaults
+ * (1rem / 1.5rem), used directly by Card variants.
+ * --------------------------------------------------------------------- */
+@theme {
+  /* Brand: lavanda / púrpura */
+  --color-primary-50: oklch(0.97 0.02 290);
+  --color-primary-100: oklch(0.94 0.04 290);
+  --color-primary-200: oklch(0.88 0.07 290);
+  --color-primary-300: oklch(0.80 0.10 290);
+  --color-primary-400: oklch(0.72 0.13 290);
+  --color-primary-500: oklch(0.64 0.16 290);
+  --color-primary-600: oklch(0.55 0.18 290);
+  --color-primary-700: oklch(0.45 0.18 290);
+  --color-primary-800: oklch(0.35 0.15 290);
+  --color-primary-900: oklch(0.25 0.10 290);
+
+  /* Warm accents: peach / cream */
+  --color-warm-50: oklch(0.97 0.02 50);
+  --color-warm-100: oklch(0.94 0.04 50);
+  --color-warm-200: oklch(0.88 0.07 50);
+  --color-warm-500: oklch(0.75 0.10 50);
+  --color-warm-700: oklch(0.55 0.10 50);
+
+  /* Cool accents: blue-grey */
+  --color-cool-50: oklch(0.97 0.02 230);
+  --color-cool-100: oklch(0.94 0.04 230);
+  --color-cool-200: oklch(0.88 0.07 230);
+  --color-cool-500: oklch(0.70 0.10 230);
+  --color-cool-700: oklch(0.50 0.10 230);
+
+  /* Neutrals con tinte cálido */
+  --color-bg: oklch(0.99 0.005 80);
+  --color-surface: oklch(1.00 0 0);
+  --color-border: oklch(0.92 0.01 80);
+  --color-text-primary: oklch(0.20 0.01 290);
+  --color-text-secondary: oklch(0.50 0.01 290);
+  --color-text-muted: oklch(0.65 0.01 290);
+
+  /* Functional (suaves, no neón) */
+  --color-success: oklch(0.65 0.15 150);
+  --color-success-bg: oklch(0.95 0.05 150);
+  --color-warning: oklch(0.75 0.15 70);
+  --color-warning-bg: oklch(0.95 0.05 70);
+  --color-error: oklch(0.65 0.20 25);
+  --color-error-bg: oklch(0.95 0.05 25);
+  --color-info: oklch(0.65 0.15 230);
+  --color-info-bg: oklch(0.95 0.05 230);
+
+  /* Radius — bumped vs Tailwind defaults; --radius-2xl / --radius-3xl
+     stay at OOTB defaults (1rem / 1.5rem). */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Shadows — purple-tinted ink, lighter than Tailwind's pure-black
+     defaults. Replaces shadow-sm / shadow-md / shadow-lg utilities. */
+  --shadow-sm: 0 1px 2px 0 oklch(0.20 0.01 290 / 0.05);
+  --shadow-md: 0 2px 8px 0 oklch(0.20 0.01 290 / 0.08);
+  --shadow-lg: 0 8px 24px 0 oklch(0.20 0.01 290 / 0.12);
+}
+
+/* -----------------------------------------------------------------------
  * Smooth scroll for in-page anchor navigation. Used by the public
  * narrative preview header ("N dependencias" → #dependencias,
  * "Impacta a: WS" → #workstream-{id}). Respects prefers-reduced-motion
