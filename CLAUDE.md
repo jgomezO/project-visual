@@ -26,7 +26,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4f:** Google OAuth via Supabase Auth, restricted to `@veevart.com` (whitelist via `ALLOWED_EMAIL_DOMAINS`) with a per-user check against Jira's user search. New `user_profiles` table mirrors `auth.users` and caches the resolved Jira `accountId` so subsequent logins skip the API hit. `/login` + `/auth/callback` route handler enforce the two gates; failed gates sign the user out and redirect to `/login?error=domain|jira|unknown`. New middleware refreshes the Supabase session via `getUser()` (validated against the auth server, never `getSession()` which trusts cookies) and gates every path except `/login`, `/auth/callback`, `/api/sync`, `/api/cron/*`. Three Supabase clients now: `getServerSupabase` (cookies-aware, default for app reads/writes via authenticated session), `getServerSupabaseAdmin` (service-role bypass for sync, seed, scripts), `getAnonSupabase` (browser-side public reads in autocompletes). RLS tightened: narrative tables drop `anon_read` and gain `auth_all` on `authenticated`; Jira tables (`projects`, `issues`, `issue_links`, `sync_runs`) get a parallel `authenticated` SELECT policy alongside the existing `anon` one. `created_by` / `updated_by` get stamped with the actor's email by Server Actions (`getActor` helper); the new `formatActor` helper renders `null` / `"system"` as **"Sistema"** in the UI. UserMenu (avatar + Dropdown with email + logout) sits in every primary header except `/preview`.
 
-**Iteration 4g (current):** Narrative access integrated into the main project flows. The `project_stats` view gains a `narratives_count` column (computed via a derived LEFT JOIN over `project_narratives` so the issue COUNT stays a simple aggregate; `COALESCE(..., 0)` so zero-narrative projects return 0 instead of NULL). Each `ProjectCard` on `/projects` shows a "N narrativas" chip top-right when count > 0, using the **stretched-link + group-hover pattern**: a wrapping `<div className="group relative">` carries the hover state, the primary `<Link>` becomes an `absolute inset-0` overlay with a sr-only label, and the badge is a second `<Link relative z-10>` rendered after the overlay so it wins the hit-test. `/projects/[key]` gains a third tab "Narrativas" embedding `NarrativesListPanel` (the same Server Component the standalone page uses); `ViewKey` extends to `"list" | "roadmap" | "narratives"` with an `isViewKey` type guard. The standalone `/projects/[key]/narratives` URL becomes a `permanentRedirect` (308) to `/projects/[key]?view=narratives` — no validation, an invalid key still 404s one hop later. `/projects` switches from the anon client to `getServerSupabase` so the dashboard read carries the user session (today equivalent under `auth_all USING(TRUE)`, but aligns with the iter 4f contract for when per-project membership lands). The four narrative Server Actions retarget `revalidatePath` to `/projects/[key]` (the new home of the list).
+**Iteration 4g:** Narrative access integrated into the main project flows. The `project_stats` view gains a `narratives_count` column (computed via a derived LEFT JOIN over `project_narratives` so the issue COUNT stays a simple aggregate; `COALESCE(..., 0)` so zero-narrative projects return 0 instead of NULL). Each `ProjectCard` on `/projects` shows a "N narrativas" chip top-right when count > 0, using the **stretched-link + group-hover pattern**: a wrapping `<div className="group relative">` carries the hover state, the primary `<Link>` becomes an `absolute inset-0` overlay with a sr-only label, and the badge is a second `<Link relative z-10>` rendered after the overlay so it wins the hit-test. `/projects/[key]` gains a third tab "Narrativas" embedding `NarrativesListPanel` (the same Server Component the standalone page uses); `ViewKey` extends to `"list" | "roadmap" | "narratives"` with an `isViewKey` type guard. The standalone `/projects/[key]/narratives` URL becomes a `permanentRedirect` (308) to `/projects/[key]?view=narratives` — no validation, an invalid key still 404s one hop later. `/projects` switches from the anon client to `getServerSupabase` so the dashboard read carries the user session (today equivalent under `auth_all USING(TRUE)`, but aligns with the iter 4f contract for when per-project membership lands). The four narrative Server Actions retarget `revalidatePath` to `/projects/[key]` (the new home of the list).
+
+**Iteration 4h Round 1 (current):** Product is now called **Prism** — login heading, root metadata, topbar logo, every internal surface. First commit of a multi-round design-system pass after stakeholder feedback ("se ve como un esqueleto"). Round 1 lands the foundation and applies it to one screen (`/projects`); other screens still render with raw HeroUI surfaces and inherit only the new global tokens — accepted visual cost during rollout. Six commits scoped to: (1) OKLCH palette + radius/shadow tokens in `globals.css` `@theme` + Geist Sans/Mono via the `geist` package; (2) UI primitives in `src/components/ui/` (`Card`, `Button`, `Chip`, `ActionButton`, `CurvedLines`) built on `tailwind-variants`; (3) decorative `CurvedLines` SVG (single family this round); (4) persistent topbar in a new `(app)/` route group — `Topbar` Server Component + `TopbarNav` (Client, usePathname active state) + `TopbarMobileMenu` (Client, HeroUI Drawer hamburger); UserMenu migrates from per-page headers into the topbar (one `getCurrentUser()` per request at the layout boundary). `/projects/[key]/narratives/[id]/preview` stays at `app/projects/...` outside `(app)/` so it inherits no topbar — preserves the chrome-free shareable read. (5) `/projects` redesigned: rounded warm-cream hero with `CurvedLines` + RefreshCw `SyncButton`; new `ProjectCard` (lead-initial avatar, mono key, divider, two big stats, narratives chip + decorative `ActionButton`); `Card variant="hero"` empty state with `FolderOpen`. The override of HeroUI v3's `--color-text-muted` / `--color-foreground` / `--color-surface` tokens by our `@theme` block is intentional: one product-wide palette across HeroUI components and our own primitives.
 
 ## Stack
 
@@ -34,6 +36,7 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 - React 19, Turbopack
 - HeroUI v3 (`@heroui/react`, `@heroui/styles`, `tailwind-variants`)
 - Tailwind CSS v4 (CSS-first config, `@tailwindcss/postcss` plugin)
+- `geist` (Vercel-canonical Geist Sans / Mono) — installed iter 4h R1, replaces the Next.js Google Fonts Geist that was scaffolded
 - Supabase (cloud), `@supabase/supabase-js` direct — no ORM
 - `lucide-react` for icons
 - pnpm 10, ESLint 9
@@ -119,37 +122,52 @@ Returns the resulting `sync_run` row plus stats. 200 on success, 500 on failure 
 
 ```
 src/
-├── middleware.ts                    (NEW iter 4f) Auth gate. Refreshes session via getUser; redirects unauth → /login
+├── middleware.ts                    (iter 4f) Auth gate. Refreshes session via getUser; redirects unauth → /login
 ├── app/
-│   ├── layout.tsx
-│   ├── page.tsx
-│   ├── globals.css                 @import "tailwindcss"; @import "@heroui/styles";
-│   ├── api/sync/route.ts           POST /api/sync (x-sync-secret guard)
+│   ├── layout.tsx                  (iter 4h R1) Root html/body + GeistSans.className + GeistMono.variable + Prism metadata
+│   ├── globals.css                 @import "tailwindcss"; @import "@heroui/styles"; @theme { ...Prism tokens... }
+│   ├── api/sync/route.ts           POST /api/sync (x-sync-secret guard) — outside (app), no topbar
 │   ├── login/
-│   │   ├── page.tsx                (NEW iter 4f) Server: card with error banner + LoginButton
-│   │   └── LoginButton.tsx         (NEW iter 4f) Client: signInWithOAuth via createBrowserClient
-│   ├── auth/callback/route.ts      (NEW iter 4f) Code exchange + domain check + Jira verify + cache
-│   ├── dev/components-preview/     Permanent dev tool: visual bench for components (not linked from prod)
-│   │   └── page.tsx
-│   └── projects/
-│       ├── page.tsx                Server Component (getServerSupabase), reads project_stats incl. narratives_count, mounts UserMenu, renders ProjectCard with narratives badge (iter 4g)
-│       ├── actions.ts              Server Action triggerSync()
-│       ├── loading.tsx
-│       ├── error.tsx
-│       └── [key]/
-│           ├── page.tsx            Server Component: project_dashboard RPC + issues query, parses ?view (list|roadmap|narratives), mounts NarrativesListPanel inside the tab (iter 4g)
-│           ├── not-found.tsx       Custom 404 for unknown project keys
-│           └── narratives/
-│               ├── page.tsx        (iter 4g) permanentRedirect (308) → /projects/[key]?view=narratives
-│               └── [id]/
-│                   ├── edit/page.tsx     Server Component: load narrative + currentUser, hand off to EditorShell
-│                   └── preview/page.tsx  Server Component: load narrative + batched issues + derived stats
+│   │   ├── page.tsx                Server: card with error banner + LoginButton — outside (app), no topbar
+│   │   └── LoginButton.tsx         Client: signInWithOAuth via createBrowserClient
+│   ├── auth/callback/route.ts      Code exchange + domain check + Jira verify + cache — outside (app), no topbar
+│   ├── projects/[key]/narratives/[id]/preview/page.tsx
+│   │                               (iter 4c) Public shareable narrative — DELIBERATELY outside the (app) group so it inherits NO topbar. Different leaf URL than (app)/projects/[key]/..., so no filesystem conflict on the [key]/[id] segments.
+│   └── (app)/                      (iter 4h R1) Route group for every authenticated surface that should render under the persistent Topbar. Adds layout.tsx that fetches getCurrentUser once and passes it to <Topbar>.
+│       ├── layout.tsx              Server: getCurrentUser() + <Topbar user={...}>{children}</Topbar>
+│       ├── page.tsx                Root smoke test (HeroUI button)
+│       ├── dev/components-preview/ Permanent dev tool: visual bench for components (not linked from prod)
+│       │   └── page.tsx
+│       └── projects/
+│           ├── page.tsx            (iter 4h R1) Hero with CurvedLines + grid of new ProjectCard. Reads project_stats incl. narratives_count via getServerSupabase.
+│           ├── actions.ts          Server Action triggerSync()
+│           ├── loading.tsx
+│           ├── error.tsx
+│           └── [key]/
+│               ├── page.tsx        Server Component: project_dashboard RPC + issues query, parses ?view (list|roadmap|narratives), mounts NarrativesListPanel inside the tab (iter 4g)
+│               ├── not-found.tsx   Custom 404 for unknown project keys
+│               └── narratives/
+│                   ├── page.tsx    (iter 4g) permanentRedirect (308) → /projects/[key]?view=narratives
+│                   └── [id]/edit/page.tsx
+│                                   Server Component: load narrative, hand off to EditorShell. UserMenu is now in the topbar — page does not fetch currentUser.
 ├── app/actions/
 │   ├── auth.ts                     (NEW iter 4f) "use server" — logoutAction
 │   └── narratives.ts               "use server" — every narrative mutation as a Server Action; resolves actor + stamps created_by/updated_by
 ├── components/
-│   ├── SyncButton.tsx              Client Component invoking the Server Action
-│   ├── UserMenu.tsx                (NEW iter 4f) Client: avatar trigger + Dropdown (email + Cerrar sesión)
+│   ├── SyncButton.tsx              (iter 4h R1) Client: built on the new Button primitive with a RefreshCw icon (animate-spin while pending). variant primary | secondary, size sm/md/lg.
+│   ├── UserMenu.tsx                (iter 4f) Client: avatar trigger + Dropdown (email + Cerrar sesión). Mounted ONCE in the Topbar (iter 4h R1) — was previously per-page.
+│   ├── Topbar.tsx                  (iter 4h R1) Server Component: brand "PRISM" + TopbarNav + UserMenu. max-w-7xl inner container so nav items align with the page-content column.
+│   ├── TopbarNav.tsx               (iter 4h R1) Client: desktop nav items, usePathname for active state. "Settings" is a real <button disabled aria-disabled> with a "Próximamente" badge — not a fake <Link>.
+│   ├── TopbarMobileMenu.tsx        (iter 4h R1) Client: hamburger button + HeroUI Drawer (controlled, same pattern as IssueDrawer). md:hidden.
+│   ├── ui/                         (iter 4h R1) Prism design system primitives — see "Design system" section below.
+│   │   ├── Card.tsx                tailwind-variants — variants default (rounded-2xl/shadow-md/p-6), hero (rounded-3xl/shadow-lg/p-8), compact (rounded-xl/shadow-sm/p-4). Sits next to HeroUI Card.
+│   │   ├── Button.tsx              tailwind-variants — variants primary (lavender pill) / secondary (border pill) / ghost / circular (Aether-style black circle); sizes sm/md/lg with compoundVariants for circular fixed dimensions. Native onClick.
+│   │   ├── Chip.tsx                tailwind-variants — variants status-todo|progress|done, severity-high|medium|low, accent (lavender), muted. Renders <span>; non-interactive by design.
+│   │   ├── ActionButton.tsx        Opinionated icon-only Aether-style circle. Required aria-label at the type level. tabIndex={-1} + aria-hidden + pointer-events-none turns it decorative when wrapped by a stretched-link card.
+│   │   ├── Decorative.tsx          CurvedLines: 4 staggered cubic-Bezier paths in a 1200×400 viewBox. preserveAspectRatio="none" + vector-effect="non-scaling-stroke" for clean stroke at any container shape. stroke="currentColor" + opacity-[0.08] default.
+│   │   └── index.ts                Barrel re-exports.
+│   ├── projects/
+│   │   └── ProjectCard.tsx         (iter 4h R1) Server: lead-initial avatar + truncated name + mono key + lead. Two-column stat block (Total issues / Completado), narratives Chip + decorative ActionButton in the footer. Stretched-link + group-hover pattern wraps the whole card; the chip's Link wins z-10 hit-test for ?view=narratives.
 │   ├── narrative-list/
 │   │   ├── NarrativesListPanel.tsx (iter 4g) Server Component: heading + list/empty + CTA. Reusable across the standalone redirect target and the /projects/[key]?view=narratives tab. projectName: string | null — null → "Narrativas del proyecto" (generic, when KpiHeader already shows the name); string → "Narrativas de <name>".
 │   │   ├── NarrativeCard.tsx       Card + 3-dot menu (Duplicar / Eliminar) + draft / published badge
@@ -872,6 +890,118 @@ Don't apply when:
   or a sequential pair is clearer.
 - Dependency edges are flat (everything can run together).
 
+### Design system (Prism — iter 4h R1)
+
+#### Tokens (Tailwind v4 `@theme`)
+
+Defined in `src/app/globals.css` inside an `@theme` block; Tailwind v4
+emits utility classes for each token (`bg-primary-500`,
+`text-text-primary`, `rounded-md`, `shadow-md`).
+
+**Color** — OKLCH for perceptual uniformity:
+- `--color-primary-{50..900}` lavender / púrpura (brand).
+- `--color-warm-{50,100,200,500,700}` peach / cream accents.
+- `--color-cool-{50,100,200,500,700}` blue-grey accents.
+- Tinted neutrals: `--color-bg`, `--color-surface`, `--color-border`,
+  `--color-text-primary`, `--color-text-secondary`, `--color-text-muted`.
+- Functional pairs: `--color-success`/`-bg`, `--color-warning`/`-bg`,
+  `--color-error`/`-bg`, `--color-info`/`-bg`.
+
+**Radius** — bumped vs Tailwind defaults to match Aether-inspired
+rounder shapes:
+- `--radius-sm: 0.5rem`, `--radius-md: 0.75rem`,
+  `--radius-lg: 1rem`, `--radius-xl: 1.5rem`.
+- `--radius-2xl` and `--radius-3xl` keep their OOTB Tailwind values
+  (`1rem` / `1.5rem`) — used directly by Card variants.
+
+**Shadow** — purple-tinted ink, lighter than Tailwind's pure-black
+defaults:
+- `--shadow-sm: 0 1px 2px 0 oklch(0.20 0.01 290 / 0.05)`.
+- `--shadow-md: 0 2px 8px 0 oklch(0.20 0.01 290 / 0.08)`.
+- `--shadow-lg: 0 8px 24px 0 oklch(0.20 0.01 290 / 0.12)`.
+
+**Typography**: Geist Sans (default body via `GeistSans.className` on
+`<html>` in the root layout) and Geist Mono (exposed as
+`--font-geist-mono` via `GeistMono.variable`; consumers that want
+mono import `GeistMono` and apply `.className` on the specific span,
+e.g. ProjectCard's project key).
+
+#### Intentional override of HeroUI v3 tokens
+
+`@theme` redefines names HeroUI v3 also tokenizes:
+`--color-text-muted`, `--color-foreground`, `--color-surface`, etc.
+Our values win because `@import "@heroui/styles"` runs before
+`@theme`. **This is by design** — one product-wide visual identity
+across HeroUI components and our own primitives. HeroUI components
+on pages not yet redesigned (Round 1 only landed on `/projects`)
+inherit the new colors automatically. Accepted visual cost during
+the multi-round rollout; if a specific HeroUI surface breaks
+visually we patch that surface, not the token.
+
+#### UI primitives
+
+Live under `src/components/ui/` and built on `tailwind-variants` (the
+same lib HeroUI v3 uses internally). All accept `className` for
+extension and forward refs.
+
+- **`Card`** — variants `default` / `hero` / `compact`. Use this for
+  simple "rounded surface with content" cases; HeroUI Card stays for
+  compound (`Card.Header / Card.Title / Card.Description`) needs.
+- **`Button`** — variants `primary` / `secondary` / `ghost` /
+  `circular` × sizes `sm` / `md` / `lg` (compoundVariants give
+  `circular` fixed square dimensions). Native `onClick` semantics.
+- **`Chip`** — variants `status-todo|progress|done`,
+  `severity-high|medium|low`, `accent`, `muted`. Renders `<span>`,
+  non-interactive by design — wrap in a Link/button if needed.
+- **`ActionButton`** — opinionated icon-only Aether-style circle,
+  required `aria-label` at the type level. Pair with stretched-link
+  cards by passing `tabIndex={-1} aria-hidden="true"
+  className="pointer-events-none"` to make it decorative.
+- **`CurvedLines`** (in `Decorative.tsx`) — 4 staggered cubic-Bezier
+  curves in a 1200×400 viewBox with `preserveAspectRatio="none"` +
+  `vector-effect="non-scaling-stroke"`. Color via parent's
+  `text-*` utility, opacity overridable via `className`.
+
+#### Topbar architecture
+
+Persistent header lives in `src/app/(app)/layout.tsx`. The `(app)/`
+route group is the home of every authenticated surface that should
+render under the topbar — `/`, `/projects`, `/projects/[key]`,
+`/projects/[key]/narratives`, `/projects/[key]/narratives/[id]/edit`,
+`/dev/components-preview`. The layout fetches `getCurrentUser()` once
+per request and passes the user to `<Topbar>`.
+
+**`/preview` opt-out**: `/projects/[key]/narratives/[id]/preview/`
+sits OUTSIDE the `(app)/` group (it lives at the root-level
+`app/projects/...` path). Same URL as before, just no topbar. The
+two filesystem trees coexist because they define different leaf
+URLs — `(app)/projects/[key]/...` resolves to `/projects/[key]/...`
+for everything except preview, and `app/projects/[key]/narratives/[id]/preview`
+resolves to that single leaf URL. No conflict on `[key]/[id]`.
+
+Public routes outside `(app)/`: `/login`, `/auth/callback`,
+`/api/sync`, `/api/cron/*` — same allowlist as the middleware.
+
+**Topbar internals**:
+- `Topbar.tsx` (Server) — brand "PRISM" Link + `TopbarNav` slot +
+  `UserMenu` + `TopbarMobileMenu`. `max-w-7xl` inner container so
+  the desktop nav aligns horizontally with the page-content column.
+- `TopbarNav.tsx` (Client) — desktop items, `usePathname` for active
+  state ("Proyectos" matches `/projects` + any subpath). "Settings"
+  is a real disabled `<button>` with a "Próximamente" badge — not a
+  fake `<Link>`, so keyboard tab stops are correct.
+- `TopbarMobileMenu.tsx` (Client) — `md:hidden` hamburger button +
+  HeroUI Drawer (controlled, same pattern as IssueDrawer). Drawer
+  closes on Link click.
+
+**UserMenu migration**: pre-iter-4h, `UserMenu` was mounted in
+`/projects/page.tsx`, `KpiHeader.tsx`, and `EditorShell.tsx`, each
+of which called `getCurrentUser()` independently. With UserMenu
+now in the topbar, those mounts are gone — `getCurrentUser()` runs
+once at the layout boundary, pages no longer fetch user data.
+KpiHeader is now a synchronous Server Component (its only async dep
+was UserMenu data).
+
 ### Sync flow
 
 1. `runSync()` opens a `sync_runs` row with `status='running'`.
@@ -911,13 +1041,22 @@ Don't apply when:
   because Jira tables have parallel `anon`+`authenticated` SELECT
   policies and `project_narratives` uses `auth_all USING(TRUE)`, but
   the contract is in place for when per-project membership lands.
-- **Stretched-link + group-hover pattern** for the ProjectCard: the
-  card surface is one big click target via an `absolute inset-0`
-  overlay `<Link>`, plus a second `<Link relative z-10>` for the
-  narratives badge. The wrapping `<div className="group relative">`
-  carries the hover state via `group-hover:` so the fade / shadow
-  triggers reliably regardless of HeroUI Card's internal class
-  composition. Use this pattern any time you need a clickable nested
+- **Iter 4h R1 redesign**: hero rounded warm-cream block with
+  `CurvedLines` decorative SVG and a secondary `SyncButton` for
+  "Resincronizar"; grid (1 / 2 / 3 cols) of the new
+  `components/projects/ProjectCard` (lead-initial avatar in a
+  primary-100 circle + mono key + lead, divider, two big stats with
+  uppercase captions, narratives `Chip` + decorative `ActionButton`
+  in the footer). Empty state is a centered `Card variant="hero"` with
+  `FolderOpen` icon and primary `SyncButton`.
+- **Stretched-link + group-hover pattern** (extended in iter 4h R1
+  with the new design tokens): wrapping `<div className="group relative">`
+  + Card painted normally + decorative ActionButton with
+  `pointer-events-none tabIndex={-1} aria-hidden` + chip `<Link relative z-10>`
+  + stretched `<Link absolute inset-0>` rendered last in DOM. The
+  group on the wrapper drives `group-hover:shadow-lg` on the Card so
+  the lift cue triggers reliably regardless of HeroUI Card's internal
+  classes. Use this pattern any time you need a clickable nested
   inside a clickable card.
 - If we ever need overdue / blocked counts on the list page, extend
   the view rather than re-introducing client-side grouping.
@@ -1030,6 +1169,8 @@ When a row needs to point at a parent that itself belongs to a grandparent (here
 - `globals.css` MUST `@import "tailwindcss"` BEFORE `@import "@heroui/styles"`.
 - HeroUI ships semantic Tailwind utilities (`text-muted`, `text-foreground`, `bg-surface*`, `text-danger`) — prefer these over raw colors.
 - **`Card.Description` renders a `<p>`** — don't nest `<div>` inside it (e.g. `<Skeleton>`). Use bare divs in skeleton layouts instead.
+- **HeroUI tokens are intentionally overridden** by Prism's `@theme` block (iter 4h R1). `text-muted`, `text-foreground`, `bg-surface`, `text-danger` etc. now resolve to our OKLCH palette. Don't try to "fix" this — it is the design contract.
+- For new screens, prefer the **Prism UI primitives** in `src/components/ui/` (Card, Button, Chip, ActionButton) over raw HeroUI. Reach for HeroUI only when you need its compound API (`Card.Header / Title / Description`) or richer interaction (Tabs, Drawer, Dropdown, DatePicker).
 - Component docs: `https://heroui.com/docs/react/components/{name}.mdx`. Skill at `~/.claude/skills/heroui-react/`; helper: `node ~/.claude/skills/heroui-react/scripts/get_component_docs.mjs <Component>`. Always fetch v3 docs before using a component you haven't used.
 
 ### Next.js 16 caveat
