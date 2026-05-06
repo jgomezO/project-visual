@@ -6,7 +6,7 @@ import { tv, type VariantProps } from "tailwind-variants";
 // button if you need interactivity; the surrounding wrapper carries
 // the hit-target semantics, the chip just paints.
 const chip = tv({
-  base: "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+  base: "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium",
   variants: {
     variant: {
       // Status chips (Jira state buckets)

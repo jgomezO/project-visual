@@ -240,7 +240,7 @@ function EpicGroup({
               />
             ) : null}
             {showEmptyEpicBadge ? (
-              <span className="rounded-full bg-warm-100 px-2 py-0.5 text-xs text-text-muted">
+              <span className="whitespace-nowrap rounded-full bg-warm-100 px-2 py-0.5 text-xs text-text-muted">
                 Sin historias
               </span>
             ) : null}
