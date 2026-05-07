@@ -36,11 +36,15 @@ export function NarrativeHeader({
   return (
     <header className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <h1 className="text-balance text-4xl font-bold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-5xl">
+        {/* Two-step clamp on the H1 in presentation mode: text-5xl on
+            small viewports (mobile-shared link), text-7xl from sm+
+            (the realistic target — desk monitor in a meeting). The
+            `text-balance` keeps long titles wrapping cleanly. */}
+        <h1 className="text-balance text-4xl font-bold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-5xl group-data-[mode=presentation]/preview:sm:text-7xl">
           {narrative.title}
         </h1>
         {narrative.subtitle ? (
-          <p className="text-xl font-normal text-text-secondary group-data-[mode=presentation]/preview:text-2xl">
+          <p className="text-xl font-normal text-text-secondary group-data-[mode=presentation]/preview:text-2xl group-data-[mode=presentation]/preview:sm:text-3xl">
             {narrative.subtitle}
           </p>
         ) : null}

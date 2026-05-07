@@ -11,7 +11,7 @@ export function PreviewFooter() {
   return (
     <footer
       data-print="hide"
-      className="mx-auto mt-4 max-w-[1200px] px-4 pb-8 text-center text-xs text-text-muted sm:px-6"
+      className="mx-auto mt-4 max-w-5xl px-4 pb-8 text-center text-xs text-text-muted sm:px-6 group-data-[mode=presentation]/preview:hidden"
     >
       <span>Creado con Prism · Veevart</span>
     </footer>

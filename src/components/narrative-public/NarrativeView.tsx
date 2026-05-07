@@ -51,9 +51,13 @@ export function NarrativeView({
 
       {!narrative.published ? <DraftBanner /> : null}
 
+      {/* Top action bar. In presentation mode the whole strip hides
+          (PRISM logo + Editor link + toggle are all "chrome" — see
+          spec). ESC exits presentation; it's surfaced via the toggle's
+          tooltip in normal mode and is the documented way out. */}
       <div
         data-print="hide"
-        className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-6"
+        className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-6 group-data-[mode=presentation]/preview:hidden"
       >
         <span className="text-sm font-medium tracking-wide text-text-muted">
           PRISM
@@ -72,7 +76,7 @@ export function NarrativeView({
         </div>
       </div>
 
-      <main className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-10 sm:gap-10 sm:px-6 sm:py-12 group-data-[mode=presentation]/preview:py-20">
+      <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-10 sm:gap-10 sm:px-6 sm:py-12 group-data-[mode=presentation]/preview:max-w-6xl group-data-[mode=presentation]/preview:gap-12 group-data-[mode=presentation]/preview:py-20 group-data-[mode=presentation]/preview:sm:gap-16">
         <NarrativeHeader
           narrative={narrative}
           projectKey={projectKey}
