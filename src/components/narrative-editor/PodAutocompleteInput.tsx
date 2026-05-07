@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { GeistMono } from "geist/font/mono";
 import { Search, X } from "lucide-react";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 
@@ -93,13 +94,16 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium" id={`${inputId}-label`}>
+      <span
+        id={`${inputId}-label`}
+        className="text-xs font-medium uppercase tracking-wide text-text-secondary"
+      >
         Provider (PoD / equipo)
       </span>
       <div className="relative">
-        <div className="flex items-center gap-2 rounded-md border border-default-300 bg-surface px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-default-400">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 transition-colors focus-within:border-transparent focus-within:ring-2 focus-within:ring-primary-500">
           <Search
-            className="size-3.5 shrink-0 text-muted"
+            className="size-4 shrink-0 text-text-muted"
             aria-hidden="true"
           />
           <input
@@ -110,20 +114,20 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
               if (query !== (pod ?? "")) commitFreeText(query);
             }}
             placeholder="Equipo o proyecto provider…"
-            className="w-full bg-transparent text-sm focus:outline-none"
+            className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
             aria-labelledby={`${inputId}-label`}
             autoComplete="off"
           />
           {podKey ? (
             <span
-              className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-mono font-semibold text-blue-700"
+              className={`${GeistMono.className} inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold text-primary-700`}
               title={`Vinculado al proyecto Jira ${podKey}`}
             >
               → {podKey}
               <button
                 type="button"
                 onClick={() => onChange({ pod, podKey: null })}
-                className="rounded-full p-0.5 hover:bg-blue-200"
+                className="rounded-full p-0.5 transition-colors hover:bg-primary-200"
                 aria-label="Desvincular del proyecto"
               >
                 <X className="size-2.5" aria-hidden="true" />
@@ -131,27 +135,33 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
             </span>
           ) : null}
           {searching ? (
-            <span className="text-xs text-muted">…</span>
+            <span className="text-xs text-text-muted">…</span>
           ) : null}
         </div>
         {suggestions.length > 0 ? (
-          <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-default-200 bg-surface shadow-lg">
+          <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-lg">
             {suggestions.map((s) => (
               <li key={s.key}>
                 <button
                   type="button"
                   onClick={() => pickSuggestion(s)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-default-100"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-primary-50 focus-visible:bg-primary-100 focus-visible:outline-none"
                 >
-                  <span className="font-mono text-xs text-muted">{s.key}</span>
-                  <span className="truncate">{s.name ?? s.key}</span>
+                  <span
+                    className={`${GeistMono.className} text-xs text-text-muted`}
+                  >
+                    {s.key}
+                  </span>
+                  <span className="truncate text-text-primary">
+                    {s.name ?? s.key}
+                  </span>
                 </button>
               </li>
             ))}
           </ul>
         ) : null}
       </div>
-      <p className="text-xs text-muted">
+      <p className="text-sm text-text-secondary">
         Si el equipo provider no es un proyecto Jira sincronizado, escribilo
         libre y dejá el link sin completar.
       </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { GeistMono } from "geist/font/mono";
 import { Tooltip } from "@heroui/react";
 import { AlertTriangle, ExternalLink, Search, X } from "lucide-react";
 import { StatusChip } from "@/components/project/StatusChip";
@@ -46,9 +47,9 @@ export function JiraIssueKeysInput({
   value,
   onChange,
 }: Props) {
-  const [resolvedProviderId, setResolvedProviderId] = useState<string | null | "pending">(
-    providerProjectKey ? "pending" : null,
-  );
+  const [resolvedProviderId, setResolvedProviderId] = useState<
+    string | null | "pending"
+  >(providerProjectKey ? "pending" : null);
 
   useEffect(() => {
     if (!providerProjectKey) {
@@ -82,12 +83,11 @@ export function JiraIssueKeysInput({
   // the provider key is resolving we treat it as null so we don't fire
   // queries against the narrative's own project (would surface wrong
   // suggestions for a moment).
-  const effectiveProjectId =
-    providerProjectKey
-      ? resolvedProviderId === "pending"
-        ? null
-        : resolvedProviderId
-      : projectId;
+  const effectiveProjectId = providerProjectKey
+    ? resolvedProviderId === "pending"
+      ? null
+      : resolvedProviderId
+    : projectId;
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<IssueChipData[]>([]);
   const [searching, setSearching] = useState(false);
@@ -115,7 +115,6 @@ export function JiraIssueKeysInput({
       if (cancelled) return;
       if (error) {
         console.error("[jira-keys] hydration failed", error);
-        // Mark all as miss so we don't loop.
         for (const k of missing) chipCache.set(cacheKey(scopeId, k), null);
         setHydrationTick((t) => t + 1);
         return;
@@ -208,12 +207,15 @@ export function JiraIssueKeysInput({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium" id={`${inputId}-label`}>
+      <span
+        id={`${inputId}-label`}
+        className="text-xs font-medium uppercase tracking-wide text-text-secondary"
+      >
         Issues de Jira
       </span>
 
       {chipsForRender.length === 0 ? (
-        <p className="text-xs italic text-muted">Sin issues vinculadas.</p>
+        <p className="text-sm italic text-text-muted">Sin issues vinculadas.</p>
       ) : (
         <ul className="flex flex-wrap gap-1.5">
           {chipsForRender.map(({ key, data }) => (
@@ -229,9 +231,9 @@ export function JiraIssueKeysInput({
       )}
 
       <div className="relative">
-        <div className="flex items-center gap-2 rounded-md border border-default-300 bg-surface px-2.5 py-1.5 focus-within:ring-2 focus-within:ring-default-400">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 transition-colors focus-within:border-transparent focus-within:ring-2 focus-within:ring-primary-500">
           <Search
-            className="size-3.5 shrink-0 text-muted"
+            className="size-4 shrink-0 text-text-muted"
             aria-hidden="true"
           />
           <input
@@ -239,27 +241,31 @@ export function JiraIssueKeysInput({
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
             placeholder="Buscar por key o título…"
-            className="w-full bg-transparent text-sm focus:outline-none"
+            className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
             aria-labelledby={`${inputId}-label`}
             autoComplete="off"
           />
           {searching ? (
-            <span className="text-xs text-muted">…</span>
+            <span className="text-xs text-text-muted">…</span>
           ) : null}
         </div>
         {suggestions.length > 0 ? (
-          <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-default-200 bg-surface shadow-lg">
+          <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-lg">
             {suggestions.map((s) => (
               <li key={s.key}>
                 <button
                   type="button"
                   onClick={() => addKey(s.key)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-default-100"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-primary-50 focus-visible:bg-primary-100 focus-visible:outline-none"
                 >
-                  <span className="font-mono text-xs text-muted">
+                  <span
+                    className={`${GeistMono.className} text-xs text-text-muted`}
+                  >
                     {s.key}
                   </span>
-                  <span className="truncate">{s.summary}</span>
+                  <span className="truncate text-text-primary">
+                    {s.summary}
+                  </span>
                 </button>
               </li>
             ))}
@@ -285,9 +291,11 @@ function IssueChip({
   if (data === undefined) {
     // Hydrating; render a placeholder that doesn't shift width on resolve.
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-default-100 px-2 py-0.5 text-xs">
-        <span className="font-mono text-muted">{issueKey}</span>
-        <span className="text-muted">…</span>
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-warm-100 px-2.5 py-1 text-xs">
+        <span className={`${GeistMono.className} text-text-muted`}>
+          {issueKey}
+        </span>
+        <span className="text-text-muted">…</span>
         <ChipRemoveButton onClick={onRemove} />
       </span>
     );
@@ -297,9 +305,9 @@ function IssueChip({
     // Not found in sync.
     return (
       <Tooltip delay={150}>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-warning-bg px-2.5 py-1 text-xs text-warning">
           <AlertTriangle className="size-3" aria-hidden="true" />
-          <span className="font-mono">{issueKey}</span>
+          <span className={GeistMono.className}>{issueKey}</span>
           <ChipRemoveButton onClick={onRemove} />
         </span>
         <Tooltip.Content>
@@ -313,8 +321,10 @@ function IssueChip({
 
   return (
     <Tooltip delay={150}>
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-default-100 px-2 py-0.5 text-xs">
-        <span className="font-mono text-muted">{issueKey}</span>
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-primary-100 px-2.5 py-1 text-xs text-primary-700">
+        <span className={`${GeistMono.className} text-primary-800`}>
+          {issueKey}
+        </span>
         <span className="max-w-[14rem] truncate">{data.summary}</span>
         <StatusChip category={data.status_category} />
         {jiraHref ? (
@@ -322,7 +332,7 @@ function IssueChip({
             href={jiraHref}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center text-muted hover:text-foreground"
+            className="inline-flex items-center text-primary-700 transition-colors hover:text-primary-900"
             onClick={(e) => e.stopPropagation()}
             aria-label={`Abrir ${issueKey} en Jira`}
           >
@@ -333,8 +343,10 @@ function IssueChip({
       </span>
       <Tooltip.Content>
         <div className="flex flex-col gap-1">
-          <span className="font-mono text-xs text-muted">{issueKey}</span>
-          <span className="text-sm">{data.summary}</span>
+          <span className={`${GeistMono.className} text-xs text-text-muted`}>
+            {issueKey}
+          </span>
+          <span className="text-sm text-text-primary">{data.summary}</span>
         </div>
       </Tooltip.Content>
     </Tooltip>
@@ -346,7 +358,7 @@ function ChipRemoveButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full p-0.5 hover:bg-default-200"
+      className="rounded-full p-0.5 transition-colors hover:bg-primary-200"
       aria-label="Remover issue"
     >
       <X className="size-3" aria-hidden="true" />
