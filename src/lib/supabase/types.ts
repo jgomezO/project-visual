@@ -39,6 +39,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          cost_usd: number | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input: Json
+          input_tokens: number | null
+          narrative_id: string | null
+          operation: string
+          output: string | null
+          output_tokens: number | null
+          status: string
+          user_email: string
+          user_id: string
+          workstream_id: string | null
+        }
+        Insert: {
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input: Json
+          input_tokens?: number | null
+          narrative_id?: string | null
+          operation: string
+          output?: string | null
+          output_tokens?: number | null
+          status: string
+          user_email: string
+          user_id: string
+          workstream_id?: string | null
+        }
+        Update: {
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input?: Json
+          input_tokens?: number | null
+          narrative_id?: string | null
+          operation?: string
+          output?: string | null
+          output_tokens?: number | null
+          status?: string
+          user_email?: string
+          user_id?: string
+          workstream_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_narrative_id_fkey"
+            columns: ["narrative_id"]
+            isOneToOne: false
+            referencedRelation: "project_narratives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_workstream_id_fkey"
+            columns: ["workstream_id"]
+            isOneToOne: false
+            referencedRelation: "narrative_workstreams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       issue_links: {
         Row: {
           created_at: string
