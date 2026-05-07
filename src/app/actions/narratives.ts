@@ -61,6 +61,12 @@ import type {
 // Editor-side actions skip revalidation because the editor is already
 // a Client tree-state owner — the form receives the returned entity
 // and patches in place.
+//
+// Path patterns include the literal `[locale]` segment (iter 5) so a
+// single revalidation flushes both /en/projects/[key] and
+// /es/projects/[key] — narrative list state is language-independent.
+// The "page" type tells Next to invalidate the page route (not the
+// surrounding layout).
 
 export async function createNarrativeAction(
   projectKey: string,
@@ -72,7 +78,7 @@ export async function createNarrativeAction(
     created_by: actor.email,
     updated_by: actor.email,
   });
-  revalidatePath(`/projects/${projectKey}`);
+  revalidatePath(`/[locale]/projects/${projectKey}`, "page");
   return created;
 }
 
@@ -89,7 +95,7 @@ export async function deleteNarrativeAction(
   id: string,
 ): Promise<void> {
   await deleteNarrative(id);
-  revalidatePath(`/projects/${projectKey}`);
+  revalidatePath(`/[locale]/projects/${projectKey}`, "page");
 }
 
 export async function duplicateNarrativeAction(
@@ -98,7 +104,7 @@ export async function duplicateNarrativeAction(
 ): Promise<ProjectNarrative> {
   const actor = await getActor();
   const copy = await duplicateNarrative(sourceId, actor.email);
-  revalidatePath(`/projects/${projectKey}`);
+  revalidatePath(`/[locale]/projects/${projectKey}`, "page");
   return copy;
 }
 
@@ -115,7 +121,7 @@ export async function publishNarrativeAction(
     published,
     updated_by: actor.email,
   });
-  revalidatePath(`/projects/${projectKey}`);
+  revalidatePath(`/[locale]/projects/${projectKey}`, "page");
   return updated;
 }
 

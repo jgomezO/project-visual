@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui";
-import { triggerSync } from "@/app/(app)/projects/actions";
+import { triggerSync } from "@/app/[locale]/(app)/projects/actions";
 
 interface SyncButtonProps {
   children?: React.ReactNode;
