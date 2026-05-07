@@ -20,17 +20,26 @@ interface IssueTypeMeta {
   label: string;
 }
 
+// Prism palette mapping (iter 4h R4 — fulfills the R2 TODO):
+//   - epic     → primary-700 (lavender; an epic is the largest narrative
+//                unit, so it gets the brand color)
+//   - story    → success (green; positive narrative beat)
+//   - task     → info (blue; operational unit)
+//   - bug      → error (red)
+//   - subtask  → text-muted (recessive)
+//   - other    → text-muted/60 (more recessive — visually distinct from
+//                subtask without introducing a second neutral)
 const META: Record<NormalisedIssueType, IssueTypeMeta> = {
-  epic: { Icon: Zap, iconClass: "text-purple-700", label: "Épica" },
-  story: { Icon: BookmarkPlus, iconClass: "text-green-700", label: "Historia" },
-  task: { Icon: CheckSquare, iconClass: "text-blue-700", label: "Tarea" },
-  bug: { Icon: Bug, iconClass: "text-red-700", label: "Bug" },
+  epic: { Icon: Zap, iconClass: "text-primary-700", label: "Épica" },
+  story: { Icon: BookmarkPlus, iconClass: "text-success", label: "Historia" },
+  task: { Icon: CheckSquare, iconClass: "text-info", label: "Tarea" },
+  bug: { Icon: Bug, iconClass: "text-error", label: "Bug" },
   subtask: {
     Icon: CornerDownRight,
-    iconClass: "text-gray-500",
+    iconClass: "text-text-muted",
     label: "Subtarea",
   },
-  other: { Icon: Circle, iconClass: "text-gray-400", label: "Otro" },
+  other: { Icon: Circle, iconClass: "text-text-muted/60", label: "Otro" },
 };
 
 function normalise(raw: string): NormalisedIssueType {

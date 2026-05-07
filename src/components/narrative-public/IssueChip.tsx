@@ -19,13 +19,13 @@ export function IssueChip({ issueKey, issue }: Props) {
 
   if (!issue) {
     return (
-      <li className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+      <li className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning-bg px-3 py-2 text-sm">
         <AlertTriangle
-          className="size-4 shrink-0 text-amber-600"
+          className="size-4 shrink-0 text-warning"
           aria-hidden="true"
         />
-        <span className="font-mono text-xs text-amber-800">{issueKey}</span>
-        <span className="text-xs text-amber-700">
+        <span className="font-mono text-xs text-warm-700">{issueKey}</span>
+        <span className="text-xs text-warm-700">
           Issue no encontrada en sync.
         </span>
       </li>
@@ -33,7 +33,7 @@ export function IssueChip({ issueKey, issue }: Props) {
   }
 
   return (
-    <li className="flex items-start gap-2.5 rounded-md border border-default-200 bg-default-50/60 px-3 py-2 text-sm">
+    <li className="flex items-start gap-2.5 rounded-md border border-border bg-warm-50/60 px-3 py-2 text-sm">
       <a
         href={jiraHref ?? "#"}
         target="_blank"
@@ -47,8 +47,8 @@ export function IssueChip({ issueKey, issue }: Props) {
         className="group/issue flex flex-1 flex-wrap items-center gap-2 hover:underline"
       >
         <IssueTypeIcon rawType={issue.issue_type} />
-        <span className="font-mono text-xs text-muted">{issueKey}</span>
-        <span className="flex-1 min-w-0 truncate text-foreground">
+        <span className="font-mono text-xs text-text-muted">{issueKey}</span>
+        <span className="min-w-0 flex-1 truncate text-text-primary">
           {issue.summary}
         </span>
         <StatusChip
@@ -56,14 +56,14 @@ export function IssueChip({ issueKey, issue }: Props) {
           statusName={issue.status_name}
         />
         {issue.assignee_display_name ? (
-          <span className="hidden items-center gap-1 text-xs text-muted sm:inline-flex">
+          <span className="hidden items-center gap-1 text-xs text-text-muted sm:inline-flex">
             <User className="size-3" aria-hidden="true" />
             {issue.assignee_display_name}
           </span>
         ) : null}
         {jiraHref ? (
           <ExternalLink
-            className="size-3.5 text-muted opacity-0 transition-opacity group-hover/issue:opacity-100 motion-reduce:transition-none"
+            className="size-3.5 text-text-muted opacity-0 transition-opacity group-hover/issue:opacity-100 motion-reduce:transition-none"
             aria-hidden="true"
           />
         ) : null}
