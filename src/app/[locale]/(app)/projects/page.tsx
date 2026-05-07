@@ -2,6 +2,10 @@ import { Clock, FolderOpen } from "lucide-react";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { SyncButton } from "@/components/SyncButton";
 import { ProjectCard } from "@/components/projects/ProjectCard";
+import {
+  SyncStatusBadge,
+  type LastRun,
+} from "@/components/projects/SyncStatusBadge";
 import { Card, CurvedLines } from "@/components/ui";
 import { getServerSupabase } from "@/lib/supabase/server";
 
@@ -20,7 +24,14 @@ interface ProjectRow {
 
 interface DashboardData {
   projects: ProjectRow[];
+  // Last clean sync — drives the Hero subtitle "Last sync: 1 day ago".
+  // NULL when no successful run has happened yet.
   lastSyncFinishedAt: string | null;
+  // Last completed run, regardless of status (excluding 'running' to
+  // dodge stuck rows). Drives the SyncStatusBadge — a partial / failed
+  // run AFTER the last successful one wants to surface even though the
+  // Hero subtitle still happily reports the older success time.
+  lastRun: LastRun | null;
 }
 
 async function loadDashboard(): Promise<DashboardData> {
@@ -47,26 +58,69 @@ async function loadDashboard(): Promise<DashboardData> {
     narratives_count: row.narratives_count ?? 0,
   }));
 
-  const { data: runs, error: runsError } = await supabase
-    .from("sync_runs")
-    .select("finished_at")
-    .eq("status", "success")
-    .order("finished_at", { ascending: false })
-    .limit(1);
-  if (runsError) throw runsError;
-  const lastSyncFinishedAt = runs?.[0]?.finished_at ?? null;
+  // Two queries against sync_runs serve different UI slots:
+  //   - lastSuccessfulSync: pins the Hero subtitle to "the last time
+  //     everything was clean". Stable timestamp, not affected by a
+  //     more-recent partial / failed run.
+  //   - lastRun: the absolute most recent finished run (any status).
+  //     Drives the badge — a partial run today should surface even
+  //     when yesterday's full success is still the most recent OK.
+  // Two separate queries (vs. one fetched-and-massaged) because each
+  // composes its own ORDER BY + LIMIT 1 on the same indexed
+  // `finished_at`; PostgREST can't express "give me the latest of each
+  // status" in one round-trip without a SQL function.
+  const [
+    { data: successRuns, error: successRunsError },
+    { data: lastRunRows, error: lastRunError },
+  ] = await Promise.all([
+    supabase
+      .from("sync_runs")
+      .select("finished_at")
+      .eq("status", "success")
+      .order("finished_at", { ascending: false })
+      .limit(1),
+    supabase
+      .from("sync_runs")
+      .select(
+        "id, status, triggered_by, finished_at, failed_projects, error_message",
+      )
+      .in("status", ["success", "partial", "failed"])
+      .order("finished_at", { ascending: false, nullsFirst: false })
+      .limit(1),
+  ]);
+  if (successRunsError) throw successRunsError;
+  if (lastRunError) throw lastRunError;
+  const lastSyncFinishedAt = successRuns?.[0]?.finished_at ?? null;
 
-  return { projects, lastSyncFinishedAt };
+  const rawLastRun = lastRunRows?.[0] ?? null;
+  const lastRun: LastRun | null = rawLastRun
+    ? {
+        id: rawLastRun.id,
+        // CHECK constraint guarantees one of these four; the cast is
+        // safe but the generated types still surface `string`.
+        status: rawLastRun.status as "success" | "partial" | "failed",
+        triggeredBy: rawLastRun.triggered_by as "manual" | "cron",
+        finishedAt: rawLastRun.finished_at,
+        failedProjects:
+          (rawLastRun.failed_projects as
+            | { projectKey: string; error: string }[]
+            | null) ?? null,
+        errorMessage: rawLastRun.error_message,
+      }
+    : null;
+
+  return { projects, lastSyncFinishedAt, lastRun };
 }
 
 export default async function ProjectsPage() {
-  const { projects, lastSyncFinishedAt } = await loadDashboard();
+  const { projects, lastSyncFinishedAt, lastRun } = await loadDashboard();
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
       <Hero
         projectCount={projects.length}
         lastSyncFinishedAt={lastSyncFinishedAt}
+        lastRun={lastRun}
       />
 
       {projects.length === 0 ? (
@@ -96,9 +150,11 @@ export default async function ProjectsPage() {
 async function Hero({
   projectCount,
   lastSyncFinishedAt,
+  lastRun,
 }: {
   projectCount: number;
   lastSyncFinishedAt: string | null;
+  lastRun: LastRun | null;
 }) {
   const t = await getTranslations("projects");
   const format = await getFormatter();
@@ -118,6 +174,13 @@ async function Hero({
             <Clock className="size-4" aria-hidden="true" />
             <span>{t("subtitle", { count: projectCount, time })}</span>
           </p>
+          {/* Badge renders inline below the subtitle when the most
+              recent finished run was partial or failed. Returns null
+              for clean runs / no runs yet, so the layout stays
+              identical in the happy path. */}
+          <div className="mt-3">
+            <SyncStatusBadge lastRun={lastRun} />
+          </div>
         </div>
         <SyncButton variant="secondary" mode="idle" />
       </div>

@@ -32,5 +32,27 @@
     "detailLabel": "Detalle:",
     "digestLabel": "digest:",
     "retry": "Reintentar"
+  },
+  "syncBadge": {
+    "partial": {
+      "label": "Sync parcial",
+      "summary": "{count, plural, one {# proyecto falló} other {# proyectos fallaron}}"
+    },
+    "failed": {
+      "label": "Sync falló",
+      "summary": "Todos los proyectos fallaron"
+    },
+    "popover": {
+      "heading": "Detalles del último sync",
+      "summaryLabel": "Resumen",
+      "affectedProjects": "Proyectos afectados",
+      "runIdLabel": "Ejecución #{id}",
+      "triggerCron": "Ejecutado por cron",
+      "triggerManual": "Ejecutado manualmente"
+    },
+    "ariaTrigger": {
+      "partial": "El último sync fue parcial. Click para ver detalles.",
+      "failed": "El último sync falló. Click para ver detalles."
+    }
   }
 }
