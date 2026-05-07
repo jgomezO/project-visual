@@ -38,6 +38,8 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 After R4 the multi-round Prism rollout is complete: every internal surface (`/projects`, `/projects/[key]`, narrative editor, public preview) consumes Prism primitives directly. Subsequent visual work should be feature-driven, not round-driven.
 
+**Iteration 5 (i18n):** Big-bang internationalization via `next-intl@4.11`. English is the new `defaultLocale` (no Accept-Language detection — `localeDetection: false`); Spanish (Argentinian voseo where it lands naturally) ships beside it. URL contract is `localePrefix: "always"`, so every authenticated path now lives under `/<locale>/...` (e.g. `/en/projects`, `/es/projects/[key]/narratives/[id]/edit`). Filesystem restructure: every page route moved under `src/app/[locale]/`, route handlers (`/api/sync`, `/auth/callback`) stay at the root unprefixed. The middleware combines `intlMiddleware` (locale resolution + cookie write) with the existing Supabase auth gate in three steps: bypass route handlers + cron, run intlMiddleware first and short-circuit on its redirect, then run `getUser()` on locale-prefixed paths and chain the refreshed cookies onto the intl response. Messages live as one JSON per domain per locale (`messages/{en,es}/{common,auth,topbar,projects,projectDetail,narratives,preview,errors}.json`) and are merged into a single `IntlMessages` tree by `src/i18n/request.ts`; type-safe `t()` is wired through `messages/en.d.ts` + `global.d.ts`. Server Components call `getTranslations()` / `getFormatter()`; Client Components call `useTranslations()` / `useFormatter()`. ICU plural messages replace every `${n} thing${n === 1 ? "" : "s"}` concatenation across the codebase. Every hardcoded `Intl.DateTimeFormat("es-AR")` / `relativeFromNow` helper is gone — date and relative-time formatting now route through `format.dateTime({ timeZone: "UTC" })` / `format.relativeTime(date)`. The request config returns `now: new Date()` so the server has a request-scoped reference time; the `[locale]/layout.tsx` forwards it to `<NextIntlClientProvider now={now}>` via `getNow()` so client `format.relativeTime` shares the same anchor — without this, SSR and CSR drifted and next-intl emitted `ENVIRONMENT_FALLBACK` warnings. Locale-aware navigation comes from `src/i18n/navigation.ts` (`Link`, `useRouter`, `usePathname`, `redirect`, `getPathname` from `createNavigation(routing)`); raw `next/link` and `next/navigation` are reserved for cases where locale prefixing is the wrong behaviour (today: search-params manipulation in `PresentationModeToggle`, where the path is locale-agnostic relative). A `LanguageSwitcher` component (HeroUI Dropdown trigger showing the current code uppercase, items in their native names) mounts in the `Topbar` and in the `NarrativeView` preview top action bar; the latter hides automatically in presentation mode via the parent's `group-data-[mode=presentation]/preview:hidden`. The narrative `formatActor` helper now takes a translator (`(key: "system") => string`) — `null` / `"system"` legacy rows render as `"Sistema"` (es) or `"System"` (en) without the helper hardcoding either. Server-thrown errors (Supabase mutation failures, etc.) are NOT translated in this iter — only UI-side fallback copy is; documented as TODO. The `/preview` view stays auth-walled in iter 5 — tokenized public share links remain a future iteration.
+
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript
@@ -46,6 +48,7 @@ After R4 the multi-round Prism rollout is complete: every internal surface (`/pr
 - Tailwind CSS v4 (CSS-first config, `@tailwindcss/postcss` plugin)
 - `geist` (Vercel-canonical Geist Sans / Mono) — installed iter 4h R1, replaces the Next.js Google Fonts Geist that was scaffolded
 - `@internationalized/date` — direct dep since iter 4h R2 (powers HeroUI's DatePicker / DateRangePicker)
+- `next-intl@4.11` — direct dep since iter 5; powers locale routing, message loading, type-safe `t()`, ICU plurals, locale-aware date / relative-time formatting
 - Supabase (cloud), `@supabase/supabase-js` direct — no ORM
 - `lucide-react` for icons
 - pnpm 10, ESLint 9
@@ -926,6 +929,89 @@ queries via the user session need authenticated.
   needed), migrate to `user_id UUID REFERENCES user_profiles(id)`
   and join for display. Comment in `formatActor.ts` flags this.
 
+### Internationalization (iter 5)
+
+Big-bang migration to `next-intl@4.11`. Every authenticated path is locale-prefixed (`/en/...`, `/es/...`); only route handlers (`/api/sync`, `/auth/callback`) and the legacy filesystem root stay unprefixed.
+
+#### Files & responsibilities
+
+- **`src/i18n/routing.ts`** — single source of truth: `defineRouting({ locales: ["en", "es"], defaultLocale: "en", localePrefix: "always", localeDetection: false })`. Exports the `Locale` type. Adding a third locale starts here.
+- **`src/i18n/request.ts`** — server-side `getRequestConfig`: resolves the active locale, `Promise.all`-loads the eight domain JSON trees (`common, auth, topbar, projects, projectDetail, narratives, preview, errors`), merges them under top-level namespaces matching the file names, and returns `{ locale, messages, now }`. The bundler splits per locale because the imports are dynamic — `/es/...` requests don't pull the English JSON tree. The `now: new Date()` is a request-scoped reference time; without it, `format.relativeTime` falls back to `new Date()` per render and SSR/CSR drift.
+- **`src/i18n/navigation.ts`** — re-exports `Link, redirect, usePathname, useRouter, getPathname` from `createNavigation(routing)`. Use these for any internal navigation that should respect the active locale prefix. Raw `next/link` / `next/navigation` is reserved for surfaces that are locale-agnostic (today: `PresentationModeToggle`, which only manipulates search params on the current path).
+- **`src/middleware.ts`** — combined intl + auth. Three steps in order: (1) bypass route handlers + cron paths (return early); (2) run `intlMiddleware(req)` and short-circuit if it returned a redirect (locale resolution + `NEXT_LOCALE` cookie write live there); (3) on locale-prefixed paths, run `supabase.auth.getUser()` against the auth server (NOT `getSession()`), gate `/login`-protected and `/login`-redirect cases, and **chain refreshed cookies** onto the intlResponse via `preserveCookies()` so the browser stores them immediately.
+- **`src/app/[locale]/layout.tsx`** — root locale layout. Calls `setRequestLocale(locale)` (required for Server Components under this segment), validates the locale against `routing.locales` (404 on unknown — defensive, the middleware should never let one through), reads `now` via `getNow()`, and wraps children in `<NextIntlClientProvider now={now}>` so Client Components share the same reference time as Server.
+- **`messages/{en,es}/*.json`** — eight domain files per locale. Multi-file split keeps each tree small enough to scan and diff. Adding a new domain: drop a JSON pair, add the import in `request.ts`, add the type-imports in `messages/en.d.ts`, add the key to the `Messages` type.
+- **`messages/en.d.ts` + `global.d.ts`** — type augmentation. `en.d.ts` re-imports the eight English JSONs and exposes a `Messages` type; `global.d.ts` declares `interface IntlMessages extends Messages {}` so `useTranslations` / `getTranslations` autocomplete every key path.
+
+#### Server vs Client message access
+
+| Context | Translation | Formatter | Notes |
+| ------- | ----------- | --------- | ----- |
+| Server Component | `await getTranslations("ns")` | `await getFormatter()` | Components must be `async`. Call sites await the JSX result naturally — no extra wiring. |
+| Client Component | `useTranslations("ns")` | `useFormatter()` | Both are React hooks, only valid inside Client Components. |
+| Components without `"use client"` consumed by a Client Component | `useTranslations` | `useFormatter` | They're bundled to the client by their consumer. Adding hooks turns them into proper client components — that's fine when every consumer is already client. Document the boundary in a top-of-file comment so a future server consumer doesn't get a runtime error. |
+
+`IssueChip`, `CommitmentStatusChip`, `DateGapIndicator` are the canonical examples of the third row — leaf components that always render inside a Client parent (`WorkstreamCard` / `DependencyCard`) and use hooks accordingly.
+
+`SeverityBadge` and `RiskCard` are the canonical examples of pure server: rendered only by `RisksSection` (server), so they stay `async` + `getTranslations`.
+
+#### Formatting helpers
+
+- **Dates**: every date formatting goes through `useFormatter().dateTime` / `getFormatter().dateTime` with `timeZone: "UTC"` to match how we store ISO date columns. `Intl.DateTimeFormat("es-AR")` is forbidden — the migration removed every call site in iter 5.
+- **Relative time**: `format.relativeTime(new Date(iso))` with the request-scoped `now` (forwarded via `getNow()` → `NextIntlClientProvider`). No more `relativeFromNow` helper — it was deleted.
+- **Plurals**: ICU MessageFormat for everything that was `${n} ${n === 1 ? "thing" : "things"}`. Pattern: `"{count, plural, one {# thing} other {# things}}"`. Even when the English copy doesn't change (`"{n} in critical state"` for both 1 and N), keep the plural form so other locales can split — Russian, Polish, etc. won't be one-off changes later.
+- **Actor**: `formatActor(value, t)` in `src/lib/format/actor.ts` takes a translator (`(key: "system") => string`) and returns `t("system")` for null / `"system"`. Legacy rows from before iter 4f stay readable as "Sistema" / "System" without the helper hardcoding either. Use `formatActorRaw(value)` (returns `null` for system) for non-i18n contexts.
+
+#### Translation workflow
+
+When adding new copy:
+
+1. Draft the English JSON proposal first. Present it for review BEFORE applying anywhere.
+2. After English is approved, draft the Spanish version together with the user. Voseo argentino where natural; preserve English terms that the team uses internally untranslated (`Workstream`, `Lead`, `Bug`, `Roadmap`, `Settings`, `issues`, `Markdown`, `Rationale`, `escalations`, `key`, `sync`, `PoD`, `Provider`, `cross-team`).
+3. Only AFTER both JSONs are reviewed: apply them and refactor the components.
+4. Run `npx tsc --noEmit` to catch any missing key (the typed `t()` will fail at compile time).
+5. Don't run `pnpm build` mid-iteration if the dev server is running (Turbopack persistent cache can compaction-warn). Use `npx tsc --noEmit` instead — it doesn't touch `.next`.
+
+This gate-on-English workflow is non-negotiable for this codebase. Don't skip it.
+
+#### Shared enums (`common.json`)
+
+Five enums are shared across multiple namespaces and live under `common`:
+- `common.phaseStatus.{upcoming, in_progress, completed, at_risk}` — used by editor `PhaseForm` Select AND public `PhaseSection` badge.
+- `common.commitmentStatus.{proposed, agreed, confirmed, at_risk, blocked}` — used by editor `DependencyForm` Select AND public `CommitmentStatusChip`.
+- `common.riskSeverity.{low, medium, high}` — used by editor `RiskForm` Select AND public `SeverityBadge`.
+- `common.issueType.{epic, story, task, bug, subtask, other}` — used by `narrative-public/issueTypeIcon` (and ready for the project-flavor helper to consume).
+- `common.actor.system` — used by `formatActor`.
+
+Sharing them prevents the editor's option labels and the public chip labels from drifting. **Don't duplicate enums into per-domain files** — promote to `common` if a second consumer appears.
+
+#### Language switcher
+
+`src/components/LanguageSwitcher.tsx`. HeroUI Dropdown with the current locale code uppercased (`EN` / `ES`) as the trigger and the native names (`English`, `Español`) as items. On select: `router.replace(pathname + queryString, { locale: next })` from `@/i18n/navigation` — the locale-aware router prepends the new prefix AND writes the `NEXT_LOCALE` cookie so the choice persists across sessions. Search params are preserved explicitly via `useSearchParams().toString()` so `?view=narratives`, `?from=…&to=…`, `?mode=presentation` survive the swap.
+
+Mounted in two places:
+- `Topbar` — between `TopbarNav` and `UserMenu`. Visible across every authenticated page.
+- `NarrativeView` preview top action bar — before `PresentationModeToggle`. Auto-hides in presentation mode via the parent's `group-data-[mode=presentation]/preview:hidden`.
+
+NOT mounted on `/login` — single-shot UX, the cookie/default handles it. If a stakeholder needs to switch on the login page itself, that's a small follow-up.
+
+#### What's NOT translated
+
+- **Server-thrown errors** (Supabase mutation failures, Jira API errors, validation messages thrown from `mutations.ts`). UI-level fallbacks ARE translated, but the underlying `Error.message` strings stay English. Translating server errors means routing every throw through a translator — a substantial refactor that's TODO.
+- **Jira-domain values**: `status_category` ("To Do" / "In Progress" / "Done"), `status_name`, `priority`, `issue_type` raw strings, project keys, environment variables. These are upstream identifiers, not UI copy.
+- **Brand**: "PRISM" / "Prism" / "Veevart" stay verbatim across locales.
+- **Internal-team English terms preserved in Spanish**: `Workstream`, `Lead`, `Bug`, `Roadmap`, `Settings`, `issues`, `Markdown`, `Rationale`, `escalations`, `key`, `sync`, `PoD`, `Provider`, `cross-team`. These are how the team speaks internally; translating them would make the UI feel foreign to the very users we're building for.
+- **Native date / time picker chrome**: HeroUI's `DatePicker` / `DateRangePicker` route through React Aria's locale-aware composition, so the UI auto-localizes via the `NextIntlClientProvider`. No per-field work needed.
+
+#### Adding a new locale
+
+1. Add the code to `routing.locales` in `src/i18n/routing.ts`.
+2. Create `messages/<code>/{common,auth,topbar,projects,projectDetail,narratives,preview,errors}.json`.
+3. Add a per-locale option in `topbar.languageSwitcher.options` (in EVERY existing locale's `topbar.json`).
+4. The middleware + layout + LanguageSwitcher pick it up automatically because they iterate `routing.locales`.
+
+Out of scope without product asking: any locale beyond en / es.
+
 ### Query waves (pattern)
 
 Reusable shape for any page that loads N round-trips with mixed
@@ -1246,6 +1332,7 @@ was UserMenu data).
 - The leaf cells `StatusChip` / `AssigneeCell` / `DueDateCell` are **plain components** (no `"use client"` directive) — they get bundled to the client when imported by `ProjectTable`, but they don't add new Server/Client boundaries. Don't add `"use client"` to them.
 - `src/lib/jira/*`, `src/lib/sync/*`, `src/lib/supabase/service.ts`, `src/lib/supabase/server.ts`, `src/lib/auth/*`, `src/lib/narratives/queries.ts`, `src/lib/narratives/mutations.ts` import `"server-only"`. Guards the Jira API token and the Supabase service-role key from accidental client bundling. **Exception:** `src/lib/narratives/seed.ts` does NOT import `server-only` and instantiates its own service-role client — `pnpm seed:narrative` runs under raw Node via `tsx`, where `server-only` throws by design. The seed's safety comes from the script entrypoint (only invoked manually) and the dev-only intent of the data it inserts.
 - `/api/sync` is the HTTP entry point (gated by `SYNC_SECRET`) for external callers (ops, future cron). The dashboard's "Resincronizar" button uses a Server Action (`triggerSync`) that calls `runSync()` directly — no `SYNC_SECRET` exposed to the browser.
+- **i18n hooks (post-iter 5)**: `useTranslations` / `useFormatter` are Client-only React hooks; `getTranslations` / `getFormatter` are Server-only async functions. A "leaf" component without `"use client"` that calls `useTranslations` becomes implicitly client when its consumer is client — fine when every consumer is client (`IssueChip`, `CommitmentStatusChip`, `DateGapIndicator`), broken if a Server Component tries to render it. Mark these "use client" explicitly so the boundary is loud, and document the consumer set in a top-of-file comment. Prefer `getTranslations` for components only ever rendered from Server (`SeverityBadge`, `RiskCard`, `DraftBanner`, etc.).
 
 ### Database
 
@@ -1340,6 +1427,7 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **Credentials only via env vars.** Document every new one in `.env.example`. Never log the Authorization header, the Jira API token, or the Supabase service-role key — even on error paths.
 - **Folders:** `src/app/` (routes), `src/lib/jira/`, `src/lib/supabase/`, `src/lib/sync/`, `src/lib/auth/`, `src/lib/narratives/`, `src/lib/format/`, `src/components/`, `src/types/`.
 - **`raw` jsonb columns are not for UI consumption.** If you find yourself reading a recurrent field from `raw`, promote it to a typed column in a new migration.
+- **i18n (post-iter 5)**: every UI string goes through `useTranslations` / `getTranslations`; never hardcode a Spanish or English literal in a component. Date / relative-time formatting routes through `useFormatter` / `getFormatter`; `Intl.DateTimeFormat("es-AR")` is forbidden. Internal navigation uses `Link` / `useRouter` from `@/i18n/navigation`, NOT `next/link` / `next/navigation` — the locale prefix MUST follow the user. New copy follows the gated workflow: English JSON proposal → user review → Spanish together → only THEN apply to components. See "Internationalization (iter 5)" for the full contract.
 
 ## Known tech debt
 
@@ -1351,6 +1439,9 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **Drawer link enrichment runs a second `in()` query** to fetch summary/status for linked targets. At ~10s of links per issue this is fine; consider a single SQL function with JOINs if drawers feel slow.
 - **No tests, no CI yet.**
 - **No realtime updates** — the page is a static-ish render until reload or a click on Resincronizar.
+- **Server-thrown errors are not translated (iter 5).** UI fallbacks ARE; the underlying `Error.message` strings thrown from `src/lib/narratives/mutations.ts`, `src/lib/sync/*`, the Supabase client, etc. are still English-only. Translating them means routing every throw through a translator (or shipping error codes the UI maps locally). Substantial refactor — TODO.
+- **`/preview` stays auth-walled (iter 5).** Tokenized public share links remain a future iteration; today the public preview is reachable only via the locale-prefixed authenticated URL. If a stakeholder needs the link, they need a Veevart account.
+- **No `/login` language switcher.** Pre-auth users default to `defaultLocale: "en"` (or whatever `NEXT_LOCALE` cookie carries from a prior session). If a stakeholder lands cold and wants Spanish before signing in, they can only get it by manually editing the URL prefix today. Acceptable trade-off; revisit if reported.
 
 ## Dev tools
 
@@ -1364,4 +1455,4 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 
 ## Out of scope (do NOT add without asking)
 
-Per-user roles or permissions (every authenticated user has the same rights today), email/password fallback, magic links, 2FA, custom recovery flows, multi-tenancy, public sharing without login, cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, **Gantt libraries** (gantt-task-react, frappe-gantt, etc. — the roadmap is intentionally hand-rolled SVG + HTML), alternative auth libraries (NextAuth, Clerk, Auth.js — Supabase Auth alcanza), new routes beyond the ones listed in Architecture, any library outside the locked stack.
+Per-user roles or permissions (every authenticated user has the same rights today), email/password fallback, magic links, 2FA, custom recovery flows, multi-tenancy, public sharing without login (tokenized share links for `/preview` are a future iteration — today every authenticated user can read every narrative, but reaching the URL still requires login), cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, **Gantt libraries** (gantt-task-react, frappe-gantt, etc. — the roadmap is intentionally hand-rolled SVG + HTML), alternative auth libraries (NextAuth, Clerk, Auth.js — Supabase Auth alcanza), **alternative i18n libraries** (the next-intl contract is locked — react-intl, lingui, FormatJS standalone are not on the table), **new locales beyond `en` / `es`** without product asking, new routes beyond the ones listed in Architecture, any library outside the locked stack.
