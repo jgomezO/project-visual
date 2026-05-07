@@ -15,35 +15,43 @@ interface Variant {
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
+// Prism palette mapping (R4):
+//   - proposed  → neutral (warm-100 + text-secondary; the dependency
+//                 hasn't been agreed yet)
+//   - agreed    → info (blue; verbal handshake exists)
+//   - confirmed → success (green; firm commitment)
+//   - at_risk   → warning + warm-700 chip text (warning at L=0.75 is
+//                 too light for chip text on warning-bg)
+//   - blocked   → error (red; the strongest negative signal)
 const VARIANTS: Record<CommitmentStatus, Variant> = {
   proposed: {
     label: "Propuesto",
-    bg: "bg-default-100",
-    text: "text-default-700",
+    bg: "bg-warm-100",
+    text: "text-text-secondary",
     Icon: CircleDashed,
   },
   agreed: {
     label: "Acordado",
-    bg: "bg-blue-100",
-    text: "text-blue-700",
+    bg: "bg-info-bg",
+    text: "text-info",
     Icon: Handshake,
   },
   confirmed: {
     label: "Confirmado",
-    bg: "bg-emerald-100",
-    text: "text-emerald-700",
+    bg: "bg-success-bg",
+    text: "text-success",
     Icon: CheckCircle2,
   },
   at_risk: {
     label: "En riesgo",
-    bg: "bg-orange-100",
-    text: "text-orange-800",
+    bg: "bg-warning-bg",
+    text: "text-warm-700",
     Icon: AlertTriangle,
   },
   blocked: {
     label: "Bloqueado",
-    bg: "bg-red-100",
-    text: "text-red-800",
+    bg: "bg-error-bg",
+    text: "text-error",
     Icon: Lock,
   },
 };

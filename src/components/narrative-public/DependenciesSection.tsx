@@ -29,11 +29,11 @@ export function DependenciesSection({ tree, derived, issuesByKey }: Props) {
       <header className="flex flex-col gap-1">
         <h2
           id="dependencies-heading"
-          className="text-2xl font-semibold tracking-tight text-foreground group-data-[mode=presentation]/preview:text-3xl"
+          className="text-2xl font-semibold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-3xl"
         >
           Dependencias del proyecto
         </h2>
-        <p className="max-w-[70ch] text-sm text-muted">
+        <p className="max-w-[70ch] text-sm text-text-muted">
           Compromisos cross-team que condicionan la entrega de este proyecto.
           Las fechas y el estado son curados por el PM, no derivados de Jira.
         </p>

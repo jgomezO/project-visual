@@ -72,9 +72,9 @@ export function DateGapIndicator({
 type ChipTone = "neutral" | "success" | "danger";
 
 const TONE_STYLES: Record<ChipTone, string> = {
-  neutral: "bg-default-100 text-foreground",
-  success: "bg-emerald-100 text-emerald-800",
-  danger: "bg-red-100 text-red-800",
+  neutral: "bg-warm-100 text-text-primary",
+  success: "bg-success-bg text-success",
+  danger: "bg-error-bg text-error",
 };
 
 function Chip({
