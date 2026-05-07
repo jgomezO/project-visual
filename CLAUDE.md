@@ -97,6 +97,7 @@ No test runner configured yet.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`   | client  | Safe to ship to browser; gated by RLS                         |
 | `SUPABASE_SERVICE_ROLE_KEY`       | server  | **SERVER-ONLY**, bypasses RLS, never log                      |
 | `SYNC_SECRET`                     | server  | Required by `POST /api/sync` via `x-sync-secret` header       |
+| `CRON_SECRET`                     | server  | Required by `GET /api/cron/sync-jira` via `Authorization: Bearer …` header. Vercel Cron attaches this header automatically on scheduled invocations (iter 6). Configure in Vercel dashboard, NOT in committed `.env`. Generate with `openssl rand -base64 32`. |
 | `ALLOWED_EMAIL_DOMAINS`           | server  | Comma-separated whitelist for Google OAuth login. Server-only. Domain check fails closed if unset/empty (refuses every login). |
 
 Document every new var in `.env.example` with inline notes on which side it lives.
