@@ -18,6 +18,7 @@ import {
   TextInput,
   Textarea,
 } from "./form-fields";
+import { AIRefineModal } from "./AIRefineModal";
 import { JiraIssueKeysInput } from "./JiraIssueKeysInput";
 import type { FormHandle } from "./NarrativeForm";
 import { useAutoSave, type SaveState } from "./useAutoSave";
@@ -103,6 +104,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
     // ---------- AI assist (iter 7) ----------
     const ai = useWorkstreamDescriptionAI();
     const isStreaming = ai.state === "streaming";
+    const [refineModalOpen, setRefineModalOpen] = useState(false);
     // Snapshot the operation at click time so the button label doesn't
     // flip mid-stream. Without this, "Generating…" would become
     // "Refining…" the moment the first chunk lands and `description`
@@ -123,9 +125,11 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
     function handleAIClick(): void {
       if (buttonState === "disabled" || isStreaming) return;
       if (buttonState === "refine") {
-        // TODO commit 6: open AIRefineModal with the current draft as
-        // the original. Streaming feeds into the modal's right column,
-        // not the description field directly.
+        // Refine flow opens AIRefineModal — streaming feeds the modal's
+        // right column, not the form's description field. The user
+        // accepts or discards via the modal footer; on accept we
+        // overwrite draft.description and the auto-save hook persists.
+        setRefineModalOpen(true);
         return;
       }
       // Generate flow: clear the field, stream chunks straight into draft.
@@ -158,6 +162,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
     }
 
     return (
+      <>
       <form
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
@@ -267,6 +272,20 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
           {pendingDelete ? t("delete.pending") : t("delete.idle")}
         </FormDeleteButton>
       </form>
+
+      <AIRefineModal
+        isOpen={refineModalOpen}
+        onOpenChange={setRefineModalOpen}
+        workstreamId={workstream.id}
+        narrativeId={workstream.narrative_id}
+        issueKeys={draft.jira_issue_keys}
+        originalText={draft.description}
+        onAccept={(refined) => {
+          // Overwrite the draft; auto-save picks it up on the next tick.
+          setDraft((d) => ({ ...d, description: refined }));
+        }}
+      />
+      </>
     );
   },
 );
