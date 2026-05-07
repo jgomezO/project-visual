@@ -5,6 +5,7 @@ import type {
   NarrativeDerived,
 } from "@/lib/narratives/derived";
 import type { NarrativeWithChildren } from "@/lib/narratives/types";
+import { NarrativePattern } from "@/components/ui/Decorative";
 import { DependenciesSection } from "./DependenciesSection";
 import { DraftBanner } from "./DraftBanner";
 import { NarrativeHeader } from "./NarrativeHeader";
@@ -37,8 +38,16 @@ export function NarrativeView({
     <div
       data-mode={mode}
       data-preview="true"
-      className="group/preview min-h-[100vh] bg-surface text-text-primary"
+      className="group/preview relative isolate min-h-[100vh] overflow-hidden bg-surface text-text-primary"
     >
+      <div
+        data-print="hide"
+        aria-hidden="true"
+        className="pointer-events-none absolute right-0 top-0 -z-10 h-[500px] w-1/2 sm:w-[55%]"
+      >
+        <NarrativePattern className="text-primary-500 opacity-[0.06] group-data-[mode=presentation]/preview:opacity-[0.04]" />
+      </div>
+
       {!narrative.published ? <DraftBanner /> : null}
 
       <div
