@@ -33,10 +33,17 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Step 1: bypass route handlers that are locale-agnostic.
+  // /api/ai/* (iter 7) does its own auth via getServerSupabase().getUser()
+  // inside each handler, but lives outside the locale prefix — without
+  // this bypass, intlMiddleware would redirect to /<locale>/api/ai/...
+  // and 404. Cookie refresh isn't done here either; getUser() validates
+  // against Supabase's auth server directly, so cold-start cookies still
+  // work as long as the user has a valid session.
   if (
     path === "/auth/callback" ||
     path.startsWith("/api/sync") ||
-    path.startsWith("/api/cron/")
+    path.startsWith("/api/cron/") ||
+    path.startsWith("/api/ai/")
   ) {
     return NextResponse.next();
   }
