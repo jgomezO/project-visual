@@ -10,10 +10,13 @@ const SEVERITY_LABEL_ES: Record<RiskSeverity, string> = {
   high: "Alta",
 };
 
+// Prism palette (R4): low → neutral warm wash, medium → warning-bg
+// with warm-700 chip text (warning at L=0.75 is too light for chip
+// text), high → error-bg + text-error.
 const SEVERITY_CLASSES: Record<RiskSeverity, string> = {
-  low: "bg-default-100 text-foreground",
-  medium: "bg-amber-100 text-amber-800",
-  high: "bg-red-100 text-red-800",
+  low: "bg-warm-100 text-text-secondary",
+  medium: "bg-warning-bg text-warm-700",
+  high: "bg-error-bg text-error",
 };
 
 export function SeverityBadge({ severity }: { severity: RiskSeverity }) {

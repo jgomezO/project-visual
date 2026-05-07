@@ -28,12 +28,12 @@ export function RisksSection({ tree }: Props) {
       <header className="flex flex-col gap-1">
         <h2
           id="risks-heading"
-          className="text-2xl font-semibold tracking-tight text-foreground group-data-[mode=presentation]/preview:text-3xl"
+          className="text-2xl font-semibold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-3xl"
         >
           Riesgos del proyecto
         </h2>
         {tree.risks_section_subtitle ? (
-          <p className="max-w-[70ch] text-sm text-muted">
+          <p className="max-w-[70ch] text-sm text-text-muted">
             {tree.risks_section_subtitle}
           </p>
         ) : null}

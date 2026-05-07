@@ -11,6 +11,7 @@ import { DraftBanner } from "./DraftBanner";
 import { NarrativeHeader } from "./NarrativeHeader";
 import { PhaseSection } from "./PhaseSection";
 import { PresentationModeToggle } from "./PresentationModeToggle";
+import { PreviewFooter } from "./PreviewFooter";
 import { RisksSection } from "./RisksSection";
 import { StatusSummaryCard } from "./StatusSummaryCard";
 import { WorkstreamCard } from "./WorkstreamCard";
@@ -113,10 +114,10 @@ export function NarrativeView({
         {narrative.orphan_workstreams.length > 0 ? (
           <section className="flex flex-col gap-3">
             <header className="flex flex-col gap-1">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Workstreams transversales
               </h2>
-              <p className="text-sm text-muted">
+              <p className="text-sm text-text-muted">
                 No pertenecen a ninguna fase específica.
               </p>
             </header>
@@ -145,6 +146,8 @@ export function NarrativeView({
 
         <RisksSection tree={narrative} />
       </main>
+
+      <PreviewFooter />
     </div>
   );
 }
