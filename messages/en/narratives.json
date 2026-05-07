@@ -285,5 +285,31 @@
       "linkedTitle": "Linked to Jira project {key}",
       "unlinkAria": "Unlink from project"
     }
+  },
+  "ai": {
+    "generateButton": "Generate with AI",
+    "refineButton": "Refine with AI",
+    "generating": "Generating…",
+    "refining": "Refining…",
+    "disabledTooltip": "Link issues to use AI assistance",
+    "modal": {
+      "title": "Refine description with AI",
+      "originalLabel": "Your original",
+      "refinedLabel": "AI refined",
+      "streamingPlaceholder": "AI is working…",
+      "keepOriginal": "Keep original",
+      "refineAgain": "Refine again",
+      "useRefined": "Use refined version"
+    },
+    "errors": {
+      "configMissing": "AI configuration not available. Contact administrator.",
+      "rateLimited": "Too many requests. Try again in a moment.",
+      "serviceUnavailable": "AI service temporarily unavailable.",
+      "timeout": "Generation took too long. Try with fewer linked issues.",
+      "spendLimitReached": "Monthly AI limit reached. Contact administrator.",
+      "issuesNotFound": "Could not load linked issues.",
+      "unauthorized": "Your session expired. Reload the page and try again.",
+      "generic": "AI generation failed. Please try again."
+    }
   }
 }

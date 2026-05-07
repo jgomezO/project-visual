@@ -285,5 +285,31 @@
       "linkedTitle": "Vinculado al proyecto Jira {key}",
       "unlinkAria": "Desvincular del proyecto"
     }
+  },
+  "ai": {
+    "generateButton": "Generar con AI",
+    "refineButton": "Refinar con AI",
+    "generating": "Generando…",
+    "refining": "Refinando…",
+    "disabledTooltip": "Vinculá issues para usar AI",
+    "modal": {
+      "title": "Refinar descripción con AI",
+      "originalLabel": "Tu original",
+      "refinedLabel": "Refinado por AI",
+      "streamingPlaceholder": "AI trabajando…",
+      "keepOriginal": "Mantener original",
+      "refineAgain": "Refinar de nuevo",
+      "useRefined": "Usar refinado"
+    },
+    "errors": {
+      "configMissing": "Configuración de AI no disponible. Contactá al administrador.",
+      "rateLimited": "Demasiadas solicitudes. Probá de nuevo en unos momentos.",
+      "serviceUnavailable": "Servicio AI temporalmente no disponible.",
+      "timeout": "La generación tardó demasiado. Probá con menos issues vinculadas.",
+      "spendLimitReached": "Límite mensual de AI alcanzado. Contactá al administrador.",
+      "issuesNotFound": "No se pudieron cargar las issues vinculadas.",
+      "unauthorized": "Tu sesión expiró. Recargá la página e intentá de nuevo.",
+      "generic": "Falló la generación con AI. Intentá de nuevo."
+    }
   }
 }
