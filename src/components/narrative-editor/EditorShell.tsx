@@ -3,9 +3,13 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink } from "lucide-react";
-import { publishNarrativeAction } from "@/app/actions/narratives";
-import { Button } from "@/components/ui";
+import { ExternalLink, Monitor } from "lucide-react";
+import {
+  createPhaseAction,
+  createWorkstreamAction,
+  publishNarrativeAction,
+} from "@/app/actions/narratives";
+import { Button, Card } from "@/components/ui";
 import type {
   NarrativeDependency,
   NarrativePhase,
@@ -46,6 +50,11 @@ export function EditorShell({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Bootstrapping pending state — covers the create-phase /
+  // create-orphan-workstream calls fired from the EmptyNarrativeState.
+  // Independent from StructureSidebar's internal pending state because
+  // those two surfaces don't share component scope.
+  const [bootstrapping, startBootstrap] = useTransition();
   const formRef = useRef<FormHandle | null>(null);
 
   // Wrap the form's onSaveStateChange so we also capture lastSavedAt /
@@ -125,6 +134,56 @@ export function EditorShell({
     }));
   }
 
+  // Bootstrapping CTAs for the empty-narrative state. Same Server
+  // Actions the StructureSidebar's bottom CTAs call, but lifted here
+  // so the empty state in the main panel can fire them too without
+  // duplicating logic.
+  function addPhase(): void {
+    startBootstrap(async () => {
+      try {
+        const created = await createPhaseAction({
+          narrative_id: tree.id,
+          order_index: tree.phases.length,
+          name: "Nueva fase",
+          status: "upcoming",
+        });
+        setTree((prev) => ({
+          ...prev,
+          phases: [...prev.phases, { ...created, workstreams: [] }],
+        }));
+        setSelected({ kind: "phase", id: created.id });
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "No se pudo crear la fase";
+        window.alert(msg);
+      }
+    });
+  }
+
+  function addOrphanWorkstream(): void {
+    startBootstrap(async () => {
+      try {
+        const created = await createWorkstreamAction({
+          narrative_id: tree.id,
+          phase_id: null,
+          order_index: tree.orphan_workstreams.length,
+          name: "Nuevo workstream",
+        });
+        setTree((prev) => ({
+          ...prev,
+          orphan_workstreams: [...prev.orphan_workstreams, created],
+        }));
+        setSelected({ kind: "workstream", id: created.id });
+      } catch (err) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "No se pudo crear el workstream";
+        window.alert(msg);
+      }
+    });
+  }
+
   // Selection guard: flush the active form before changing selection. If
   // the flush fails (validation error or server error), keep the current
   // selection so the user can fix the field. The indicator stays in
@@ -147,21 +206,28 @@ export function EditorShell({
 
   return (
     <>
-      <div className="md:hidden p-8 text-center">
-        <h1 className="text-lg font-semibold">
-          Editor disponible en pantallas más anchas
-        </h1>
-        <p className="mt-2 text-sm text-muted">
-          Volvé a abrir esta página desde una notebook o pantalla de
-          escritorio. El editor de narrativas necesita más espacio del
-          que tiene tu dispositivo actual.
-        </p>
-        <Link
-          href={`/projects/${projectKey}/narratives`}
-          className="mt-4 inline-block text-sm underline"
-        >
-          Volver al listado
-        </Link>
+      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6 py-12 md:hidden">
+        <Card variant="hero" className="max-w-md text-center">
+          <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-warm-100">
+            <Monitor className="size-8 text-text-muted" aria-hidden="true" />
+          </div>
+          <h1 className="mt-5 text-xl font-semibold text-text-primary">
+            Editor disponible en pantallas más anchas
+          </h1>
+          <p className="mx-auto mt-2 text-base text-text-secondary">
+            Volvé a abrir esta página desde una notebook o pantalla de
+            escritorio. El editor de narrativas necesita más espacio del
+            que tiene tu dispositivo actual.
+          </p>
+          <div className="mt-6">
+            <Link
+              href={`/projects/${projectKey}?view=narratives`}
+              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-warm-50"
+            >
+              Volver al listado
+            </Link>
+          </div>
+        </Card>
       </div>
 
       <main className="hidden md:flex md:flex-col h-[calc(100vh)] overflow-hidden">
@@ -219,6 +285,9 @@ export function EditorShell({
               onSelect={tryChangeSelection}
               onForceSelect={setSelected}
               onSaveStateChange={handleSaveStateChange}
+              onAddPhase={addPhase}
+              onAddOrphanWorkstream={addOrphanWorkstream}
+              bootstrapping={bootstrapping}
             />
           </section>
         </div>

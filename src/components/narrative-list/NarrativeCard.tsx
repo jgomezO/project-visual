@@ -10,7 +10,7 @@ import {
   Modal,
   Tooltip,
 } from "@heroui/react";
-import { ExternalLink, MoreHorizontal } from "lucide-react";
+import { AlertTriangle, ExternalLink, MoreHorizontal } from "lucide-react";
 import {
   deleteNarrativeAction,
   duplicateNarrativeAction,
@@ -210,12 +210,20 @@ function ConfirmDeleteModal({
         <Modal.Dialog className="sm:max-w-md">
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>¿Eliminar narrativa?</Modal.Heading>
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-error-bg"
+              >
+                <AlertTriangle className="size-5 text-error" />
+              </span>
+              <Modal.Heading>¿Eliminar narrativa?</Modal.Heading>
+            </div>
           </Modal.Header>
           <Modal.Body>
-            <p className="text-sm text-text-secondary">
+            <p className="text-base text-text-secondary">
               Esta acción no se puede deshacer. Se eliminarán también las
-              fases y workstreams asociados.
+              fases, workstreams, dependencias y riesgos asociados.
             </p>
           </Modal.Body>
           <Modal.Footer>

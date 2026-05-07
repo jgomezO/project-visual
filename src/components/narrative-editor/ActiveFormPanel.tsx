@@ -19,6 +19,7 @@ import type {
 import { DependenciesListPanel } from "./DependenciesListPanel";
 import { DependencyForm } from "./DependencyForm";
 import type { SelectedNode } from "./EditorShell";
+import { EmptyNarrativeState } from "./empty-states/EmptyNarrativeState";
 import { NarrativeForm, type FormHandle } from "./NarrativeForm";
 import { PhaseForm } from "./PhaseForm";
 import { RiskForm } from "./RiskForm";
@@ -44,6 +45,12 @@ interface Props {
   // no longer exists, so any pending save would fail with "row not found".
   onForceSelect: (next: SelectedNode) => void;
   onSaveStateChange?: (state: SaveState) => void;
+  // Bootstrap actions wired by the empty-narrative state when the user
+  // is on the narrative root and the tree has no phases / workstreams.
+  // Same Server Actions the StructureSidebar bottom CTAs call.
+  onAddPhase: () => void;
+  onAddOrphanWorkstream: () => void;
+  bootstrapping: boolean;
 }
 
 export const ActiveFormPanel = forwardRef<FormHandle, Props>(
@@ -63,6 +70,9 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
       onSelect,
       onForceSelect,
       onSaveStateChange,
+      onAddPhase,
+      onAddOrphanWorkstream,
+      bootstrapping,
     },
     ref,
   ) {
@@ -83,19 +93,20 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
       const isEmptyStructure =
         tree.phases.length === 0 && tree.orphan_workstreams.length === 0;
       return (
-        <div className="flex flex-col gap-5">
-          {isEmptyStructure ? (
-            <div className="rounded-xl border border-dashed border-default-300 bg-default-50 px-4 py-3 text-sm text-muted">
-              Esta narrativa todavía no tiene estructura. Agregá una fase
-              o un workstream desde el panel izquierdo para empezar.
-            </div>
-          ) : null}
+        <div className="flex flex-col gap-6">
           <NarrativeForm
             ref={innerRef}
             narrative={tree}
             onPatched={onNarrativePatched}
             onSaveStateChange={onSaveStateChange}
           />
+          {isEmptyStructure ? (
+            <EmptyNarrativeState
+              onAddPhase={onAddPhase}
+              onAddOrphanWorkstream={onAddOrphanWorkstream}
+              pending={bootstrapping}
+            />
+          ) : null}
         </div>
       );
     }
