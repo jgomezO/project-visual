@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { TopbarMobileMenu } from "./TopbarMobileMenu";
 import { TopbarNav } from "./TopbarNav";
 import { UserMenu } from "./UserMenu";
@@ -40,6 +41,7 @@ export async function Topbar({ user }: TopbarProps) {
           <TopbarNav />
         </div>
         <div className="flex items-center gap-2">
+          <LanguageSwitcher />
           {user ? (
             <UserMenu email={user.email} displayName={user.displayName} />
           ) : null}

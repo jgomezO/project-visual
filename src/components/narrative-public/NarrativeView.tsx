@@ -6,6 +6,7 @@ import type {
   NarrativeDerived,
 } from "@/lib/narratives/derived";
 import type { NarrativeWithChildren } from "@/lib/narratives/types";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { NarrativePattern } from "@/components/ui/Decorative";
 import { DependenciesSection } from "./DependenciesSection";
 import { DraftBanner } from "./DraftBanner";
@@ -75,6 +76,7 @@ export async function NarrativeView({
               {tTopbar("editorLink")}
             </Link>
           ) : null}
+          <LanguageSwitcher />
           <PresentationModeToggle mode={mode} />
         </div>
       </div>
