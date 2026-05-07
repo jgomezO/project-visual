@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import type { AIErrorCode } from "@/lib/ai/error-codes";
 import type { Locale } from "@/i18n/routing";
 
 export type AIStreamState = "idle" | "streaming" | "error";
@@ -58,12 +59,31 @@ export function useWorkstreamDescriptionAI() {
       setState("streaming");
       setErrorMessage(null);
 
+      // Two error mappers — chosen by which path the failure took:
+      //   - mapHttpStatus: pre-stream HTTP responses from our route
+      //     (auth gate 401, 404 issues missing, our own 429/5xx).
+      //   - mapErrorCode: in-stream SSE error frames (Anthropic SDK
+      //     errors classified by route handler's classifyAnthropicError).
       const mapHttpStatus = (status: number): string => {
         if (status === 401) return tErrors("unauthorized");
         if (status === 404) return tErrors("issuesNotFound");
         if (status === 429) return tErrors("rateLimited");
         if (status >= 500) return tErrors("serviceUnavailable");
         return tErrors("generic");
+      };
+      const mapErrorCode = (code: AIErrorCode): string => {
+        switch (code) {
+          case "config":
+            return tErrors("configMissing");
+          case "rate":
+            return tErrors("rateLimited");
+          case "service":
+            return tErrors("serviceUnavailable");
+          case "timeout":
+            return tErrors("timeout");
+          case "generic":
+            return tErrors("generic");
+        }
       };
 
       try {
@@ -105,9 +125,13 @@ export function useWorkstreamDescriptionAI() {
         // a network chunk; the inner while drains complete frames out
         // of the buffer (separator: \n\n). Partial frames stay in the
         // buffer for the next read.
+        let streamClosedEarly = false;
         while (!terminated) {
           const { value, done: streamDone } = await reader.read();
-          if (streamDone) break;
+          if (streamDone) {
+            streamClosedEarly = !terminated;
+            break;
+          }
           buffer += decoder.decode(value, { stream: true });
 
           let sepIdx: number;
@@ -121,7 +145,11 @@ export function useWorkstreamDescriptionAI() {
               const event = JSON.parse(json) as
                 | { type: "chunk"; delta: string }
                 | { type: "done"; usage: unknown }
-                | { type: "error"; message: string };
+                | {
+                    type: "error";
+                    message: string;
+                    errorCode?: AIErrorCode;
+                  };
 
               if (event.type === "chunk") {
                 args.onChunk(event.delta);
@@ -131,7 +159,13 @@ export function useWorkstreamDescriptionAI() {
                 terminated = true;
                 break;
               } else if (event.type === "error") {
-                const msg = event.message || tErrors("generic");
+                // Prefer the localized message for known error codes;
+                // fall back to the raw SDK message only when the
+                // server didn't classify (older deploys / unexpected
+                // exception path).
+                const msg = event.errorCode
+                  ? mapErrorCode(event.errorCode)
+                  : event.message || tErrors("generic");
                 setErrorMessage(msg);
                 setState("error");
                 args.onError?.(msg);
@@ -142,6 +176,17 @@ export function useWorkstreamDescriptionAI() {
               // Malformed JSON in a frame — skip and keep parsing.
             }
           }
+        }
+
+        // Stream closed without a terminal 'done' or 'error' frame.
+        // Most likely cause: Vercel function timeout (60s ceiling on
+        // Hobby) or an upstream connection drop. Surface as a timeout
+        // — the UI tells the user to try with fewer issues.
+        if (streamClosedEarly) {
+          const msg = tErrors("timeout");
+          setErrorMessage(msg);
+          setState("error");
+          args.onError?.(msg);
         }
       } catch (e) {
         // AbortError = caller cancelled (unmount, manual abort). Treat

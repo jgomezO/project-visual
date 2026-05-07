@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AI_MODEL, getAnthropicClient } from "@/lib/ai/client";
+import type { AIErrorCode } from "@/lib/ai/error-codes";
 import {
   buildGeneratePrompt,
   buildRefinePrompt,
@@ -10,6 +11,25 @@ import { logAIUsage, type AIOperation } from "@/lib/ai/usage/log";
 import { computeCostUsd } from "@/lib/ai/usage/pricing";
 import { getServerSupabase } from "@/lib/supabase/server";
 import { getServerSupabaseAdmin } from "@/lib/supabase/service";
+
+// Map Anthropic SDK errors to a small vocabulary of error codes the
+// client can render via narratives.ai.errors.*. We classify by status
+// when available; APIConnectionError / Timeout subclasses surface as
+// named errors without status. Anything else falls to 'generic'.
+function classifyAnthropicError(e: unknown): AIErrorCode {
+  if (!e || typeof e !== "object") return "generic";
+  const err = e as { status?: number; name?: string };
+
+  const status = typeof err.status === "number" ? err.status : null;
+  if (status === 401 || status === 403) return "config";
+  if (status === 429) return "rate";
+  if (status != null && status >= 500) return "service";
+
+  if (err.name === "APIConnectionTimeoutError") return "timeout";
+  if (err.name === "APIConnectionError") return "service";
+
+  return "generic";
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -283,8 +303,13 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         // On error (not abort): best-effort error frame so the client
         // can show an inline message before the connection closes.
+        // errorCode lets the client pick a localized message instead
+        // of dumping the raw SDK message (which leaks SDK internals).
         if (!isAbort) {
-          safeEnqueue(sseFrame({ type: "error", message }));
+          const errorCode = classifyAnthropicError(e);
+          safeEnqueue(
+            sseFrame({ type: "error", message, errorCode }),
+          );
         }
         safeClose();
       }
