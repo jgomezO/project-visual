@@ -69,11 +69,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const args: RunSyncArgs = {
     type: body.type,
     projectKey: body.projectKey ?? null,
+    // /api/sync HTTP is the manual entry point (curl / ops / future
+    // docs). The cron route handler calls runSync() directly with
+    // 'cron' instead of self-fetching this endpoint.
+    triggeredBy: "manual",
   };
 
   const result = await runSync(args);
-  // 200 on success, 500 on failure. The sync_run row carries the same status.
+  // iter 6 status mapping:
+  //   - 'success'  → 200 (every project synced cleanly)
+  //   - 'partial'  → 200 (some projects synced; some failed; net progress)
+  //   - 'failed'   → 500 (no project synced OR pre-loop abort)
   return NextResponse.json(result, {
-    status: result.status === "success" ? 200 : 500,
+    status: result.status === "failed" ? 500 : 200,
   });
 }

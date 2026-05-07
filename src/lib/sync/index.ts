@@ -2,22 +2,47 @@ import "server-only";
 import { JiraClient } from "@/lib/jira/client";
 import { syncProjects } from "./projects";
 import { syncIssuesForProject } from "./issues";
-import { failRun, openRun, succeedRun, type RunStats } from "./runs";
+import {
+  failRun,
+  openRun,
+  partialRun,
+  succeedRun,
+  type FailedProject,
+  type RunStats,
+} from "./runs";
 
 export interface RunSyncArgs {
   type?: "full" | "incremental";
   projectKey?: string | null;
+  // iter 6: distinguishes manual UI / curl invocations from automated
+  // Vercel Cron runs. Defaults to 'manual' so existing call sites that
+  // don't set it record the truth (manual). The cron route handler
+  // explicitly passes 'cron'.
+  triggeredBy?: "manual" | "cron";
 }
 
 export interface RunSyncResult {
   syncRunId: number;
-  status: "success" | "failed";
+  status: "success" | "partial" | "failed";
   syncType: "full" | "incremental";
+  triggeredBy: "manual" | "cron";
   projectKey: string | null;
   jqlUsed: string | null;
+  // Aggregated stats — reflect ONLY the projects that synced cleanly.
+  // Failed projects don't count their partial writes here even when
+  // they may have written some rows before throwing.
   issuesCreated: number;
   issuesUpdated: number;
   linksSkipped: number;
+  // iter 6: per-project resilience surface.
+  // success = count of projects that synced cleanly within this run.
+  // failed = per-project errors; empty array on clean success.
+  success: number;
+  failed: FailedProject[];
+  totalDurationMs: number;
+  // Top-level message — set when status === 'failed' (no project synced
+  // OR pre-loop abort). For 'partial', omitted (per-project detail
+  // already lives in `failed`).
   errorMessage?: string;
 }
 
@@ -49,12 +74,15 @@ function describeError(e: unknown): string {
 }
 
 export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
+  const startedAt = Date.now();
   const declaredType: "full" | "incremental" = args.type ?? "incremental";
   const projectKeyFilter = args.projectKey ?? null;
+  const triggeredBy: "manual" | "cron" = args.triggeredBy ?? "manual";
 
   const runId = await openRun({
     syncType: declaredType,
     projectKey: projectKeyFilter,
+    triggeredBy,
   });
 
   let lastJql: string | null = null;
@@ -64,6 +92,8 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
     issuesUpdated: 0,
     linksSkipped: 0,
   };
+  const failedProjects: FailedProject[] = [];
+  let successCount = 0;
 
   try {
     const jira = new JiraClient();
@@ -81,41 +111,140 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
       );
     }
 
+    console.log(
+      `[sync] runId=${runId} triggeredBy=${triggeredBy} type=${declaredType} ` +
+        `projects=${keysToSync.length}${projectKeyFilter ? ` filter=${projectKeyFilter}` : ""}`,
+    );
+
+    // iter 6: per-project resilience. Wrap each syncIssuesForProject
+    // in its own try/catch so one project's failure doesn't abort the
+    // entire run. Stats accumulate only on success; failures land in
+    // failedProjects with the project key + error message.
     for (const key of keysToSync) {
-      const result = await syncIssuesForProject(jira, key, {
-        full: declaredType === "full",
-      });
-      stats.issuesCreated += result.issuesCreated;
-      stats.issuesUpdated += result.issuesUpdated;
-      stats.linksSkipped += result.linksSkipped;
-      lastJql = result.jql;
-      resolvedSyncType = result.syncType;
+      console.log(`[sync] runId=${runId} project=${key} starting`);
+      try {
+        const result = await syncIssuesForProject(jira, key, {
+          full: declaredType === "full",
+        });
+        stats.issuesCreated += result.issuesCreated;
+        stats.issuesUpdated += result.issuesUpdated;
+        stats.linksSkipped += result.linksSkipped;
+        lastJql = result.jql;
+        resolvedSyncType = result.syncType;
+        successCount += 1;
+        console.log(
+          `[sync] runId=${runId} project=${key} ok ` +
+            `created=${result.issuesCreated} updated=${result.issuesUpdated}`,
+        );
+      } catch (e) {
+        const message = describeError(e);
+        failedProjects.push({ projectKey: key, error: message });
+        console.error(
+          `[sync] runId=${runId} project=${key} failed error="${message}"`,
+        );
+        // Continue with the next project.
+      }
     }
 
-    await succeedRun(runId, stats, lastJql);
+    const totalDurationMs = Date.now() - startedAt;
 
+    // Decide aggregate status from the per-project results.
+    if (failedProjects.length === 0) {
+      // Clean run — every project succeeded (or there were zero to do).
+      await succeedRun(runId, stats, lastJql);
+      console.log(
+        `[sync] runId=${runId} done status=success success=${successCount} ` +
+          `failed=0 durationMs=${totalDurationMs}`,
+      );
+      return {
+        syncRunId: runId,
+        status: "success",
+        syncType: resolvedSyncType,
+        triggeredBy,
+        projectKey: projectKeyFilter,
+        jqlUsed: lastJql,
+        issuesCreated: stats.issuesCreated,
+        issuesUpdated: stats.issuesUpdated,
+        linksSkipped: stats.linksSkipped,
+        success: successCount,
+        failed: failedProjects,
+        totalDurationMs,
+      };
+    }
+
+    if (successCount === 0) {
+      // Every attempted project failed. Pre-loop work (syncProjects)
+      // succeeded so we did make it INTO the loop — but no progress
+      // was made, so the run is 'failed'.
+      const summary =
+        `All ${failedProjects.length} project${failedProjects.length === 1 ? "" : "s"} failed: ` +
+        failedProjects.map((f) => f.projectKey).join(", ");
+      await failRun(runId, summary, lastJql, failedProjects);
+      console.log(
+        `[sync] runId=${runId} done status=failed success=0 ` +
+          `failed=${failedProjects.length} durationMs=${totalDurationMs}`,
+      );
+      return {
+        syncRunId: runId,
+        status: "failed",
+        syncType: resolvedSyncType,
+        triggeredBy,
+        projectKey: projectKeyFilter,
+        jqlUsed: lastJql,
+        issuesCreated: stats.issuesCreated,
+        issuesUpdated: stats.issuesUpdated,
+        linksSkipped: stats.linksSkipped,
+        success: 0,
+        failed: failedProjects,
+        totalDurationMs,
+        errorMessage: summary,
+      };
+    }
+
+    // Mixed: at least one success and at least one failure → partial.
+    await partialRun(runId, stats, lastJql, failedProjects);
+    console.log(
+      `[sync] runId=${runId} done status=partial success=${successCount} ` +
+        `failed=${failedProjects.length} durationMs=${totalDurationMs}`,
+    );
     return {
       syncRunId: runId,
-      status: "success",
+      status: "partial",
       syncType: resolvedSyncType,
+      triggeredBy,
       projectKey: projectKeyFilter,
       jqlUsed: lastJql,
       issuesCreated: stats.issuesCreated,
       issuesUpdated: stats.issuesUpdated,
       linksSkipped: stats.linksSkipped,
+      success: successCount,
+      failed: failedProjects,
+      totalDurationMs,
     };
   } catch (e) {
+    // Top-level abort: pre-loop failure (JiraClient ctor, syncProjects,
+    // listProjects, projectKeyFilter not found, etc.). The run never
+    // entered the per-project loop, so failedProjects is empty.
     const message = describeError(e);
-    await failRun(runId, message, lastJql);
+    await failRun(runId, message, lastJql, null);
+    const totalDurationMs = Date.now() - startedAt;
+    console.error(
+      `[sync] runId=${runId} top-level failure error="${message}" ` +
+        `durationMs=${totalDurationMs}`,
+    );
     return {
       syncRunId: runId,
       status: "failed",
       syncType: resolvedSyncType,
+      triggeredBy,
       projectKey: projectKeyFilter,
       jqlUsed: lastJql,
       issuesCreated: stats.issuesCreated,
       issuesUpdated: stats.issuesUpdated,
       linksSkipped: stats.linksSkipped,
+      success: successCount,
+      failed: failedProjects,
+      totalDurationMs,
       errorMessage: message,
     };
   }
