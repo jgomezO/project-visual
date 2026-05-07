@@ -30,7 +30,9 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 **Iteration 4h Round 1:** Product is now called **Prism** — login heading, root metadata, topbar logo, every internal surface. First commit of a multi-round design-system pass after stakeholder feedback ("se ve como un esqueleto"). Round 1 lands the foundation and applies it to one screen (`/projects`); other screens still render with raw HeroUI surfaces and inherit only the new global tokens — accepted visual cost during rollout. Six commits scoped to: (1) OKLCH palette + radius/shadow tokens in `globals.css` `@theme` + Geist Sans/Mono via the `geist` package; (2) UI primitives in `src/components/ui/` (`Card`, `Button`, `Chip`, `ActionButton`, `CurvedLines`) built on `tailwind-variants`; (3) decorative `CurvedLines` SVG (single family this round); (4) persistent topbar in a new `(app)/` route group — `Topbar` Server Component + `TopbarNav` (Client, usePathname active state) + `TopbarMobileMenu` (Client, HeroUI Drawer hamburger); UserMenu migrates from per-page headers into the topbar (one `getCurrentUser()` per request at the layout boundary). `/projects/[key]/narratives/[id]/preview` stays at `app/projects/...` outside `(app)/` so it inherits no topbar — preserves the chrome-free shareable read. (5) `/projects` redesigned: rounded warm-cream hero with `CurvedLines` + RefreshCw `SyncButton`; new `ProjectCard` (lead-initial avatar, mono key, divider, two big stats, narratives chip + decorative `ActionButton`); `Card variant="hero"` empty state with `FolderOpen`. The override of HeroUI v3's `--color-text-muted` / `--color-foreground` / `--color-surface` tokens by our `@theme` block is intentional: one product-wide palette across HeroUI components and our own primitives.
 
-**Iteration 4h Round 2 (current):** Prism applied end-to-end on `/projects/[key]`. Six commits + a couple of polish follow-ups: (1) `KpiHeader` rebuilt on the Card primitive — text-4xl page title, mono key, Clock-icon last-sync; KPI numbers bumped to text-4xl bold; functional colors switch to Prism tokens (`text-error/warning/success`); progress bar segments to `bg-cool-200/bg-info/bg-success`. (2) `ProjectViews` swaps HeroUI `Tabs` for a custom underline-style `<button role="tab">` strip — active tab gets a 2px `border-primary-500` underline, ARIA Tabs pattern with arrow / Home / End keyboard nav, conditional panel render (active only). (3) Lista view: `ProjectTable` wrapped in a Card primitive (`p-0 overflow-hidden`); type icon to the left of every key (Epic ⚡ primary-600 / Story BookmarkPlus success / Task CheckSquare info / Bug Bug error) via the new `components/project/issueTypeIcon.tsx` helper; rows hover `bg-warm-50`; `StatusChip` migrates onto the `Chip` primitive; `AssigneeCell` drops HeroUI Avatar for a hand-rolled lavender circle (matches ProjectCard); `DueDateCell` colors → Prism functional; HeroUI Switch → new `Toggle` primitive at `src/components/ui/Toggle.tsx` (lavender on / cool-grey off, role="switch"). (4) Roadmap view: bar palette → Prism functional (`bg-error` overdue, `bg-info-bg` + `bg-info` overlay in-progress, `bg-cool-200` future, `bg-success-bg` done); chart wrapped in Card primitive; "Hoy" line `bg-error`; `UnplannedCard` becomes a borderless rounded-2xl with hover-shadow lift; HeroUI `<input type="date">` pickers → HeroUI `DateRangePicker` compound (CalendarDate + `parseDate(iso)` + `value.toString()`); range presets and "Aplicar" use the Prism `Button` primitive; "Mostrar completadas" Switch → shared `Toggle`. (5) Narratives tab coherence: `NarrativeCard` migrates onto the Prism Card primitive (same shape as ProjectCard); Publicada / Borrador raw badges → `Chip` variants (status-done / status-todo); preview link repainted as pill matching `Button variant="secondary"`; `NewNarrativeButton` trigger → Prism `Button`. HeroUI `Modal` and `Dropdown` compounds keep HeroUI Buttons inside (short-lived modal-only chrome — re-aliased as `HeroButton`). `@internationalized/date` added as a direct dep so the `DateRangePicker` contract is stable across HeroUI bumps.
+**Iteration 4h Round 2:** Prism applied end-to-end on `/projects/[key]`. Six commits + a couple of polish follow-ups: (1) `KpiHeader` rebuilt on the Card primitive — text-4xl page title, mono key, Clock-icon last-sync; KPI numbers bumped to text-4xl bold; functional colors switch to Prism tokens (`text-error/warning/success`); progress bar segments to `bg-cool-200/bg-info/bg-success`. (2) `ProjectViews` swaps HeroUI `Tabs` for a custom underline-style `<button role="tab">` strip — active tab gets a 2px `border-primary-500` underline, ARIA Tabs pattern with arrow / Home / End keyboard nav, conditional panel render (active only). (3) Lista view: `ProjectTable` wrapped in a Card primitive (`p-0 overflow-hidden`); type icon to the left of every key (Epic ⚡ primary-600 / Story BookmarkPlus success / Task CheckSquare info / Bug Bug error) via the new `components/project/issueTypeIcon.tsx` helper; rows hover `bg-warm-50`; `StatusChip` migrates onto the `Chip` primitive; `AssigneeCell` drops HeroUI Avatar for a hand-rolled lavender circle (matches ProjectCard); `DueDateCell` colors → Prism functional; HeroUI Switch → new `Toggle` primitive at `src/components/ui/Toggle.tsx` (lavender on / cool-grey off, role="switch"). (4) Roadmap view: bar palette → Prism functional (`bg-error` overdue, `bg-info-bg` + `bg-info` overlay in-progress, `bg-cool-200` future, `bg-success-bg` done); chart wrapped in Card primitive; "Hoy" line `bg-error`; `UnplannedCard` becomes a borderless rounded-2xl with hover-shadow lift; HeroUI `<input type="date">` pickers → HeroUI `DateRangePicker` compound (CalendarDate + `parseDate(iso)` + `value.toString()`); range presets and "Aplicar" use the Prism `Button` primitive; "Mostrar completadas" Switch → shared `Toggle`. (5) Narratives tab coherence: `NarrativeCard` migrates onto the Prism Card primitive (same shape as ProjectCard); Publicada / Borrador raw badges → `Chip` variants (status-done / status-todo); preview link repainted as pill matching `Button variant="secondary"`; `NewNarrativeButton` trigger → Prism `Button`. HeroUI `Modal` and `Dropdown` compounds keep HeroUI Buttons inside (short-lived modal-only chrome — re-aliased as `HeroButton`). `@internationalized/date` added as a direct dep so the `DateRangePicker` contract is stable across HeroUI bumps.
+
+**Iteration 4h Round 3 (current):** Prism applied end-to-end on the narrative editor (`/projects/[key]/narratives/[id]/edit`). Seven commits, no functionality changes: (1) `EditorHeader` — Prism breadcrumb + Vista-previa pill secondary + Publicar Prism Button primary; `AutosaveIndicator` migrated to functional palette (`text-success` saved / `text-error` saved-with-error / `text-text-secondary` saving) and the retry trigger uses Prism Button variant=ghost. (2) `StructureSidebar` — type icons per node (`BookText` / `Layers` / `GitBranch` / `Link2` / `AlertTriangle`, all neutral text-text-secondary so they don't compete with Jira-issue-type icons elsewhere); floating-right status / severity dots on Phase and Risk rows (4 colors per status, 3 per severity); `selectableRowClasses` rewritten with `border-l-2 border-l-primary-500 bg-primary-100 text-primary-900 font-medium` for the active state and a transparent border-l in idle so geometry stays constant across selections; "+ Agregar X" bottom CTAs as ghost-primary. (3) Forms — new shared `form-fields.tsx` with `Field` / `TextInput` / `Textarea` / `SectionHeading` / `FormDeleteButton` / `DateInputField`; the 5 edit forms (Narrative / Phase / Workstream / Dependency / Risk) and the 2 list panels (Dependencies / Risks) all flow through these primitives. Textareas drop `font-mono` (Geist Sans default takes over) so prose reads as prose; identifiers (R1, D1, NOX-123) ride `GeistMono.className`. Native `<input type="date">` in PhaseForm and DependencyForm migrated to HeroUI `DatePicker` via `DateInputField` — closes the date-input gap left after R2. (4) `BulletListInput` — colored dots replace numeric bullets via a new `tone` prop (RiskForm passes `tone="danger"` for impacts and `tone="success"` for mitigations); shared `TextInput` chrome; ghost-primary "+ Agregar item". No reorder buttons added (the up/down spec mockup was a feature change, deferred). (5) Autocompletes — `JiraIssueKeysInput` and `PodAutocompleteInput` get rounded-xl shadow-lg dropdowns with `hover:bg-primary-50` / `focus-visible:bg-primary-100` rows; chips repainted (lavender for found, warm-100 hydrating, warning-bg + AlertTriangle for missing-from-sync). (6) New `empty-states/EmptyNarrativeState.tsx` — Card hero rendered BELOW NarrativeForm (not in place of it) when the narrative root is selected and the tree has zero structure; two CTAs powered by `addPhase` / `addOrphanWorkstream` lifted to EditorShell. Mobile fallback (`md:hidden`) repainted as a Card hero with Monitor icon. NarrativeCard's delete confirmation modal gains an AlertTriangle icon in an error-bg circle. The sidebar's `window.confirm` delete prompts stay native — replacing them would have been a new state machine, out of R3 polish scope.
 
 ## Stack
 
@@ -177,20 +179,23 @@ src/
 │   │   ├── NarrativeCard.tsx       Card + 3-dot menu (Duplicar / Eliminar) + draft / published badge
 │   │   └── NewNarrativeButton.tsx  "Nueva narrativa" CTA + creation modal
 │   ├── narrative-editor/
-│   │   ├── EditorShell.tsx         Tree state + selection + flush-on-navigate guard
-│   │   ├── StructureSidebar.tsx    Tree UI + create / delete / move / reorder actions
-│   │   ├── ActiveFormPanel.tsx     Routes the right form to the right entity by selection
-│   │   ├── NarrativeForm.tsx       useAutoSave for title / subtitle / overview / status_summary
-│   │   ├── PhaseForm.tsx           useAutoSave for name / objective / rationale / status / dates / progress
-│   │   ├── WorkstreamForm.tsx      useAutoSave for name / description / phase_id / jira_issue_keys
-│   │   ├── DependencyForm.tsx      useAutoSave for the full narrative_dependency record
-│   │   ├── DependenciesListPanel.tsx  Group panel: list of dependency cards + delete
-│   │   ├── RiskForm.tsx            useAutoSave for the full narrative_risk record (BulletListInput x2 + dep toggle chips)
-│   │   ├── RisksListPanel.tsx      Group panel: list of risk cards + delete
-│   │   ├── BulletListInput.tsx     Reusable TEXT[] editor (rows + Enter-to-add + max ceiling, default 10)
-│   │   ├── PodAutocompleteInput.tsx   Free-text PoD with autocomplete against `projects`
-│   │   ├── JiraIssueKeysInput.tsx  Anon-client autocomplete + module-level chip cache; optional `providerProjectKey` rescopes
-│   │   ├── AutosaveIndicator.tsx   Saving / Saved / Error pill + Reintentar
+│   │   ├── EditorShell.tsx         Tree state + selection + flush-on-navigate guard. Bootstrapping addPhase / addOrphanWorkstream (iter 4h R3) for the empty state.
+│   │   ├── StructureSidebar.tsx    Tree UI + create / delete / move / reorder. Iter 4h R3: type icons + floating status/severity dots + Prism row palette.
+│   │   ├── ActiveFormPanel.tsx     Routes the right form to the right entity by selection; mounts EmptyNarrativeState below NarrativeForm when the tree has zero structure (iter 4h R3).
+│   │   ├── form-fields.tsx         (iter 4h R3) Shared form primitives: Field, TextInput, Textarea, SectionHeading, FormDeleteButton, DateInputField (HeroUI DatePicker wrapper). All 5 edit forms flow through these so input chrome / labels / helper text / date pickers stay identical.
+│   │   ├── empty-states/
+│   │   │   └── EmptyNarrativeState.tsx  (iter 4h R3) Card-hero with Layers icon + 2 CTAs (Agregar primera fase / Workstream sin fase). Renders below NarrativeForm when tree.phases + orphan_workstreams are both empty.
+│   │   ├── NarrativeForm.tsx       useAutoSave for title / subtitle / overview / status_summary / risks_section_subtitle. Iter 4h R3: textareas drop font-mono.
+│   │   ├── PhaseForm.tsx           useAutoSave for name / objective / rationale / status / dates / progress. Iter 4h R3: HeroUI Select for status; HeroUI DatePicker (via DateInputField) for start/end.
+│   │   ├── WorkstreamForm.tsx      useAutoSave for name / description / phase_id / jira_issue_keys.
+│   │   ├── DependencyForm.tsx      useAutoSave for the full narrative_dependency record. Iter 4h R3: HeroUI DatePicker for needed_by / expected_delivery.
+│   │   ├── DependenciesListPanel.tsx  Group panel: list of dependency cards + delete. Iter 4h R3: rounded-2xl border-border cards with hover-shadow.
+│   │   ├── RiskForm.tsx            useAutoSave for the full narrative_risk record (BulletListInput x2 with tone="danger"/"success" + dep toggle chips). Iter 4h R3: identifier in GeistMono.
+│   │   ├── RisksListPanel.tsx      Group panel: list of risk cards + delete. Iter 4h R3: identifier badge in GeistMono.
+│   │   ├── BulletListInput.tsx     Reusable TEXT[] editor (rows + Enter-to-add + max ceiling, default 10). Iter 4h R3: tone prop drives the per-row dot color (danger / success / neutral).
+│   │   ├── PodAutocompleteInput.tsx   Free-text PoD with autocomplete against `projects`. Iter 4h R3: rounded-xl shadow-lg dropdown, "→ KEY" pill in GeistMono.
+│   │   ├── JiraIssueKeysInput.tsx  Anon-client autocomplete + module-level chip cache; optional `providerProjectKey` rescopes. Iter 4h R3: chips lavanda for found, warm-100 hydrating, warning-bg for missing-from-sync.
+│   │   ├── AutosaveIndicator.tsx   Saving / Saved / Error states + Reintentar. Iter 4h R3: functional palette (text-secondary / text-success / text-error) + AlertCircle (was AlertTriangle, reserved for destructive surfaces now).
 │   │   └── useAutoSave.ts          Debounced auto-save hook with imperative flush()
 │   ├── narrative-public/
 │   │   ├── NarrativeView.tsx           Top-level layout, data-mode wrapper, draft banner mount
@@ -401,7 +406,9 @@ swap into.
 - `/projects/[key]/narratives/[id]/edit` — Server Component loads the
   full narrative (`getNarrativeById`) and hands the tree to a Client
   shell. The route is desktop-first; a CSS-only `md:hidden` block
-  shows "Editor disponible en pantallas más anchas" on small screens.
+  renders a Card-hero fallback ("Editor disponible en pantallas más
+  anchas") on small screens — same Prism vocabulary as the rest of
+  the editor (iter 4h R3).
 - `/projects/[key]/narratives/[id]/preview` — public read-only view
   (see "Narrative public view" section below).
 - All mutations live in `src/app/actions/narratives.ts` ("use server").
@@ -437,6 +444,49 @@ save, navigation between sub-views" in this codebase.
     would 404 and trap the user on a phantom selection.
 - **Equality**: shallow on top-level keys, with array element-equality
   so `jira_issue_keys` (TEXT[]) doesn't trip false positives.
+
+#### Shared field primitives (iter 4h R3)
+
+`form-fields.tsx` is the single source of truth for input chrome
+across the 5 edit forms:
+
+- **`TextInput` / `Textarea`** — native `<input>` / `<textarea>` in
+  the Prism input shell (rounded-md + border-border + focus ring
+  primary-500). Skips HeroUI Input / TextField whose internal
+  classes fight back when overridden.
+- **`Field`** — implicit-association `<label>` + caption-style
+  heading (xs uppercase tracking-wide font-medium text-text-secondary)
+  + optional helper or error footers.
+- **`SectionHeading`** — form-level h2 ("Narrativa" / "Fase" / etc.)
+  in the same caption typography as Field labels.
+- **`FormDeleteButton`** — destructive ghost-error pill at the foot
+  of edit forms, sitting above a divider. Trash2 + label.
+- **`DateInputField`** — wraps the verbose HeroUI DatePicker compound
+  behind a one-line API (label + ISO string + onChange). The
+  boundary stays an ISO `yyyy-mm-dd` string (matching the DB column
+  type and the rest of the data layer); CalendarDate ↔ string
+  conversion happens here. **Memory rule**: never use native
+  `<input type="date">` anywhere in the product.
+
+Textareas in all 5 forms drop `font-mono` — Geist Sans is the body
+default and prose reads as prose. Identifiers (`R1`, `D1`,
+`NOX-123`) keep `GeistMono.className` per the iter 4h R2 typography
+rule.
+
+#### Empty state on bootstrap (iter 4h R3)
+
+`empty-states/EmptyNarrativeState.tsx` renders **below** the
+`NarrativeForm` (not in place of it) when the narrative root is
+selected and the tree has zero phases plus zero orphan workstreams.
+The PM keeps editing title / subtitle / overview while looking at
+two clear bootstrap CTAs: "Agregar primera fase" (primary) +
+"Workstream sin fase" (secondary).
+
+The `addPhase` and `addOrphanWorkstream` handlers live on
+`EditorShell` with their own `useTransition` (`bootstrapping`),
+distinct from `StructureSidebar`'s internal pending state. Both
+hit the same Server Actions the sidebar's bottom CTAs already
+invoke — same data-flow contract, two surfaces.
 
 #### Jira issue autocomplete
 
