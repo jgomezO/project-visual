@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Card } from "@heroui/react";
+import { useTranslations } from "next-intl";
 
 export default function ProjectsError({
   error,
@@ -9,6 +10,13 @@ export default function ProjectsError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useTranslations("projects.error");
+
+  // Heuristic preserved from before i18n: surface a credentials-specific
+  // hint when the error string smells like an auth failure. Regex stays
+  // English-only on purpose — the strings it matches come from
+  // libraries (PostgrestError, JiraClient, "missing env") that don't
+  // localize either.
   const looksLikeAuth =
     /credential|authentication|unauthori[sz]ed|forbidden|401|403|missing.*env/i.test(
       error.message ?? "",
@@ -18,26 +26,26 @@ export default function ProjectsError({
     <main className="mx-auto max-w-2xl p-8">
       <Card>
         <Card.Header>
-          <Card.Title>No se pudieron cargar los proyectos</Card.Title>
+          <Card.Title>{t("title")}</Card.Title>
           <Card.Description>
-            {looksLikeAuth
-              ? "Parece un problema de credenciales. Verificá JIRA_BASE_URL, JIRA_EMAIL y JIRA_API_TOKEN en tu .env.local."
-              : "Hubo un error al consultar Jira. Probá de nuevo en unos segundos."}
+            {looksLikeAuth ? t("description.auth") : t("description.generic")}
           </Card.Description>
         </Card.Header>
         <Card.Content>
           <p className="text-sm text-muted">
-            Detalle: <span className="font-mono">{error.message}</span>
+            {t("detailLabel")}{" "}
+            <span className="font-mono">{error.message}</span>
             {error.digest ? (
               <>
                 {" "}
-                · digest: <span className="font-mono">{error.digest}</span>
+                · {t("digestLabel")}{" "}
+                <span className="font-mono">{error.digest}</span>
               </>
             ) : null}
           </p>
         </Card.Content>
         <Card.Footer>
-          <Button onPress={reset}>Reintentar</Button>
+          <Button onPress={reset}>{t("retry")}</Button>
         </Card.Footer>
       </Card>
     </main>

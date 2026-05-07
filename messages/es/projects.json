@@ -1,1 +1,36 @@
-{}
+{
+  "title": "Proyectos de Jira",
+  "subtitle": "{count, plural, =0 {Sin proyectos} one {# proyecto} other {# proyectos}} · Última sync: {time}",
+  "lastSyncNever": "nunca",
+  "syncButton": {
+    "idle": "Resincronizar",
+    "initial": "Sincronizar ahora",
+    "pending": "Sincronizando…",
+    "error": "Falló la sincronización"
+  },
+  "emptyState": {
+    "title": "Aún no hay proyectos sincronizados",
+    "description": "Sincronizá con Jira para empezar a ver tus proyectos."
+  },
+  "card": {
+    "totalIssues": "Total issues",
+    "completed": "Completado",
+    "lead": "Lead: {name}",
+    "leadFallback": "Sin lead asignado",
+    "narrativesCount": "{count, plural, one {# narrativa} other {# narrativas}}",
+    "noNarratives": "Sin narrativas",
+    "openAria": "Abrir {name}",
+    "viewAria": "Ver {name}",
+    "narrativesAria": "Ver narrativas de {name}"
+  },
+  "error": {
+    "title": "No se pudieron cargar los proyectos",
+    "description": {
+      "auth": "Parece un problema de credenciales. Verificá JIRA_BASE_URL, JIRA_EMAIL y JIRA_API_TOKEN en tu .env.local.",
+      "generic": "Hubo un error al consultar Jira. Probá de nuevo en unos segundos."
+    },
+    "detailLabel": "Detalle:",
+    "digestLabel": "digest:",
+    "retry": "Reintentar"
+  }
+}

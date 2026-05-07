@@ -1,8 +1,8 @@
 import { Clock, FolderOpen } from "lucide-react";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { SyncButton } from "@/components/SyncButton";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { Card, CurvedLines } from "@/components/ui";
-import { relativeFromNow } from "@/lib/format/relativeTime";
 import { getServerSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -87,36 +87,47 @@ export default async function ProjectsPage() {
 // low opacity for personality without distracting from the title.
 // On small screens the curves hide (sm:block) — they're a wide-format
 // flourish, not load-bearing for understanding the page.
-function Hero({
+//
+// iter 5 (i18n): subtitle uses an ICU plural for project count and an
+// interpolated `{time}` placeholder. The time string is pre-formatted
+// via getFormatter().relativeTime() (locale-aware: "2 hours ago" /
+// "hace 2 horas") or falls back to the translated "never" / "nunca"
+// when no successful sync has run yet.
+async function Hero({
   projectCount,
   lastSyncFinishedAt,
 }: {
   projectCount: number;
   lastSyncFinishedAt: string | null;
 }) {
+  const t = await getTranslations("projects");
+  const format = await getFormatter();
+  const time = lastSyncFinishedAt
+    ? format.relativeTime(new Date(lastSyncFinishedAt))
+    : t("lastSyncNever");
+
   return (
     <section className="relative mb-8 overflow-hidden rounded-3xl bg-warm-50 px-6 py-12 sm:px-10">
       <CurvedLines className="absolute inset-0 hidden text-primary-500 sm:block" />
       <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-4xl font-bold tracking-tight text-text-primary">
-            Proyectos de Jira
+            {t("title")}
           </h1>
           <p className="mt-3 inline-flex items-center gap-2 text-base text-text-secondary">
             <Clock className="size-4" aria-hidden="true" />
-            <span>
-              {projectCount} proyecto{projectCount === 1 ? "" : "s"} · Última
-              sync: {relativeFromNow(lastSyncFinishedAt)}
-            </span>
+            <span>{t("subtitle", { count: projectCount, time })}</span>
           </p>
         </div>
-        <SyncButton variant="secondary">Resincronizar</SyncButton>
+        <SyncButton variant="secondary" mode="idle" />
       </div>
     </section>
   );
 }
 
-function EmptyState() {
+async function EmptyState() {
+  const t = await getTranslations("projects.emptyState");
+
   return (
     <Card variant="hero" className="mx-auto max-w-xl text-center">
       <FolderOpen
@@ -124,13 +135,13 @@ function EmptyState() {
         aria-hidden="true"
       />
       <h2 className="mt-4 text-2xl font-semibold text-text-primary">
-        Aún no hay proyectos sincronizados
+        {t("title")}
       </h2>
       <p className="mx-auto mt-2 max-w-sm text-base text-text-secondary">
-        Sincronizá con Jira para empezar a ver tus proyectos.
+        {t("description")}
       </p>
       <div className="mt-6 flex justify-center">
-        <SyncButton size="lg">Sincronizar ahora</SyncButton>
+        <SyncButton size="lg" mode="initial" />
       </div>
     </Card>
   );

@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { GeistMono } from "geist/font/mono";
 import { ArrowUpRight, BookText } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { ActionButton, Card, Chip } from "@/components/ui";
+import { Link } from "@/i18n/navigation";
 
 export interface ProjectCardData {
   id: string;
@@ -21,15 +22,20 @@ export interface ProjectCardData {
 //     shadow so the entire surface feels intentional under the cursor
 //     even though the link target is a sibling, not the wrapper.
 //   - Stretched link: absolute inset-0, sits last in DOM. aria-label
-//     gives screen readers a real destination ("Ver <project>").
+//     gives screen readers a real destination ("View <project>").
 //   - Narratives chip: rendered as a child Link with `relative z-10`,
 //     wins the hit-test against the stretched overlay so its own
 //     route (?view=narratives) is reachable.
 //   - ActionButton: purely decorative — pointer-events-none, tabIndex=-1,
 //     aria-hidden so the keyboard / SR audience experiences a single
-//     "Ver <project>" affordance instead of two redundant ones.
-export function ProjectCard({ project }: { project: ProjectCardData }) {
-  const leadName = project.lead_display_name ?? "Sin lead asignado";
+//     "View <project>" affordance instead of two redundant ones.
+//
+// iter 5 (i18n): Server Component (was already), now async with
+// `getTranslations`. Link comes from `@/i18n/navigation` so the active
+// locale prefixes both the stretched link and the narratives chip.
+export async function ProjectCard({ project }: { project: ProjectCardData }) {
+  const t = await getTranslations("projects.card");
+  const leadName = project.lead_display_name ?? t("leadFallback");
   const leadInitial = (
     project.lead_display_name?.trim()[0] ?? "?"
   ).toUpperCase();
@@ -57,8 +63,8 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
               <span className={`${GeistMono.className} text-xs`}>
                 {project.key}
               </span>
-              {" · Lead: "}
-              {leadName}
+              {" · "}
+              {t("lead", { name: leadName })}
             </p>
           </div>
         </div>
@@ -68,7 +74,7 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
         <dl className="grid grid-cols-2 gap-4">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
-              Total issues
+              {t("totalIssues")}
             </dt>
             <dd className="mt-1 text-3xl font-bold tabular-nums text-text-primary">
               {project.total_issues}
@@ -76,7 +82,7 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
-              Completado
+              {t("completed")}
             </dt>
             <dd className="mt-1 text-3xl font-bold tabular-nums text-text-primary">
               {donePct}%
@@ -89,22 +95,21 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
             <Link
               href={`/projects/${project.key}?view=narratives`}
               className="relative z-10 inline-flex"
-              aria-label={`Ver narrativas de ${project.name}`}
+              aria-label={t("narrativesAria", { name: project.name })}
             >
               <Chip variant="accent">
                 <BookText className="size-3.5" aria-hidden="true" />
-                {project.narratives_count} narrativa
-                {project.narratives_count === 1 ? "" : "s"}
+                {t("narrativesCount", { count: project.narratives_count })}
               </Chip>
             </Link>
           ) : (
             <Chip variant="muted">
               <BookText className="size-3.5" aria-hidden="true" />
-              Sin narrativas
+              {t("noNarratives")}
             </Chip>
           )}
           <ActionButton
-            aria-label={`Abrir ${project.name}`}
+            aria-label={t("openAria", { name: project.name })}
             tabIndex={-1}
             aria-hidden="true"
             className="pointer-events-none"
@@ -116,7 +121,7 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
 
       <Link
         href={`/projects/${project.key}`}
-        aria-label={`Ver ${project.name}`}
+        aria-label={t("viewAria", { name: project.name })}
         className="absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
       />
     </div>
