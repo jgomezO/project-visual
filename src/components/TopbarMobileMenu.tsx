@@ -1,17 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Drawer } from "@heroui/react";
 import { Menu } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/navigation";
 
 // Mobile (sub-md) collapse for the Topbar nav. Hamburger button on the
 // right edge of the topbar opens a left-side Drawer with the same items
 // the desktop TopbarNav surfaces. Reaches into HeroUI's Drawer compound
 // API; the controlled pattern (Drawer.Backdrop with isOpen +
 // onOpenChange) matches what IssueDrawer already uses elsewhere.
+//
+// iter 5 (i18n): same Link/usePathname migration as TopbarNav so the
+// active-state match works against locale-stripped paths and the menu
+// link auto-prefixes.
 export function TopbarMobileMenu() {
+  const t = useTranslations("topbar");
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const projectsActive =
@@ -22,7 +27,7 @@ export function TopbarMobileMenu() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        aria-label="Abrir menú de navegación"
+        aria-label={t("mobile.openMenu")}
         className="inline-flex size-9 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-warm-50 hover:text-text-primary md:hidden"
       >
         <Menu className="size-5" aria-hidden="true" />
@@ -43,7 +48,7 @@ export function TopbarMobileMenu() {
             <Drawer.Body>
               <nav
                 className="flex flex-col gap-1"
-                aria-label="Navegación principal"
+                aria-label={t("nav.aria")}
               >
                 <Link
                   href="/projects"
@@ -55,7 +60,7 @@ export function TopbarMobileMenu() {
                       : "rounded-md px-3 py-2 text-base font-medium text-text-secondary hover:bg-warm-50 hover:text-text-primary"
                   }
                 >
-                  Proyectos
+                  {t("nav.projects")}
                 </Link>
                 <button
                   type="button"
@@ -63,9 +68,9 @@ export function TopbarMobileMenu() {
                   aria-disabled="true"
                   className="flex cursor-not-allowed items-center gap-2 rounded-md px-3 py-2 text-left text-base font-medium text-text-muted opacity-60"
                 >
-                  Settings
+                  {t("nav.settings")}
                   <span className="rounded-full bg-warm-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warm-700">
-                    Próximamente
+                    {t("nav.settingsBadge")}
                   </span>
                 </button>
               </nav>

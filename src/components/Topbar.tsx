@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { TopbarMobileMenu } from "./TopbarMobileMenu";
 import { TopbarNav } from "./TopbarNav";
 import { UserMenu } from "./UserMenu";
@@ -19,7 +20,12 @@ interface TopbarProps {
 // align horizontally with the page content column underneath, while
 // the outer <header> spans full viewport width for the border-bottom
 // to read as a continuous rule.
-export function Topbar({ user }: TopbarProps) {
+//
+// iter 5 (i18n): Link comes from `@/i18n/navigation` so the brand
+// anchor automatically resolves with the active locale prefix.
+export async function Topbar({ user }: TopbarProps) {
+  const t = await getTranslations("topbar");
+
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-border bg-surface">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-6">
@@ -27,7 +33,7 @@ export function Topbar({ user }: TopbarProps) {
           <Link
             href="/projects"
             className="text-xl font-bold tracking-tight text-text-primary"
-            aria-label="Prism — ir a Proyectos"
+            aria-label={t("brand.aria")}
           >
             PRISM
           </Link>

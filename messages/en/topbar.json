@@ -1,1 +1,28 @@
-{}
+{
+  "brand": {
+    "aria": "Prism — go to Projects"
+  },
+  "nav": {
+    "aria": "Main navigation",
+    "projects": "Projects",
+    "settings": "Settings",
+    "settingsBadge": "Coming soon"
+  },
+  "mobile": {
+    "openMenu": "Open navigation menu"
+  },
+  "userMenu": {
+    "aria": "User menu ({email})",
+    "logout": {
+      "idle": "Sign out",
+      "pending": "Signing out…"
+    }
+  },
+  "languageSwitcher": {
+    "aria": "Change language",
+    "options": {
+      "en": "English",
+      "es": "Español"
+    }
+  }
+}

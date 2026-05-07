@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { Button, Dropdown, Label } from "@heroui/react";
 import { LogOut } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { logoutAction } from "@/app/actions/auth";
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 // Same pattern used elsewhere in the app for menu-driven actions
 // (StructureSidebar, ActiveFormPanel).
 export function UserMenu({ email, displayName }: Props) {
+  const t = useTranslations("topbar.userMenu");
   const [isPending, startTransition] = useTransition();
   const initial = (displayName || email).slice(0, 1).toUpperCase();
 
@@ -28,7 +30,7 @@ export function UserMenu({ email, displayName }: Props) {
       <Button
         isIconOnly
         size="sm"
-        aria-label={`Menú de usuario (${email})`}
+        aria-label={t("aria", { email })}
         isDisabled={isPending}
         className="size-9 rounded-full bg-default-200 text-sm font-semibold text-foreground hover:bg-default-300"
       >
@@ -52,9 +54,15 @@ export function UserMenu({ email, displayName }: Props) {
               <span className="text-xs text-muted">{email}</span>
             </div>
           </Dropdown.Item>
-          <Dropdown.Item id="logout" textValue="Cerrar sesión" variant="danger">
+          <Dropdown.Item
+            id="logout"
+            textValue={t("logout.idle")}
+            variant="danger"
+          >
             <LogOut className="size-4" aria-hidden="true" />
-            <Label>{isPending ? "Cerrando sesión…" : "Cerrar sesión"}</Label>
+            <Label>
+              {isPending ? t("logout.pending") : t("logout.idle")}
+            </Label>
           </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>

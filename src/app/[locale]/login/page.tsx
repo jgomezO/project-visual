@@ -1,13 +1,10 @@
+import { getTranslations } from "next-intl/server";
 import { LoginButton } from "./LoginButton";
 
 export const dynamic = "force-dynamic";
 
-const ERROR_MESSAGES: Record<string, string> = {
-  domain:
-    "Solo cuentas @veevart.com pueden acceder. Si tu email es de Veevart pero ves este mensaje, contactá al administrador.",
-  jira: "Tu cuenta @veevart.com no tiene acceso a Jira. Contactá al administrador para que te de acceso.",
-  unknown: "Hubo un problema al iniciar sesión. Intentá de nuevo.",
-};
+const VALID_ERROR_CODES = ["domain", "jira", "unknown"] as const;
+type ValidErrorCode = (typeof VALID_ERROR_CODES)[number];
 
 interface PageProps {
   searchParams: Promise<{ error?: string }>;
@@ -15,18 +12,26 @@ interface PageProps {
 
 export default async function LoginPage({ searchParams }: PageProps) {
   const { error } = await searchParams;
-  const errorMessage = error
-    ? (ERROR_MESSAGES[error] ?? ERROR_MESSAGES.unknown)
+  const t = await getTranslations("auth.login");
+
+  // Map ?error=<code> to a translated message. Unknown codes fall back
+  // to the generic "unknown" message so a tampered query param can't
+  // crash the page.
+  const errorCode: ValidErrorCode | null = error
+    ? (VALID_ERROR_CODES as readonly string[]).includes(error)
+      ? (error as ValidErrorCode)
+      : "unknown"
     : null;
+  const errorMessage = errorCode ? t(`errors.${errorCode}`) : null;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-default-50 p-6">
       <div className="flex w-full max-w-sm flex-col gap-6 rounded-2xl border border-default-200 bg-surface p-8 shadow-sm">
         <header className="flex flex-col gap-1.5">
-          <h1 className="text-2xl font-bold tracking-tight">Prism</h1>
-          <p className="text-sm text-muted">
-            Iniciá sesión para acceder al dashboard.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {t("heading")}
+          </h1>
+          <p className="text-sm text-muted">{t("subheading")}</p>
         </header>
 
         {errorMessage ? (
@@ -40,7 +45,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
 
         <LoginButton />
 
-        <p className="text-xs text-muted">Solo cuentas @veevart.com.</p>
+        <p className="text-xs text-muted">{t("helper")}</p>
       </div>
     </main>
   );
