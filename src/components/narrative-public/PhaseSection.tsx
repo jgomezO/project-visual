@@ -20,9 +20,22 @@ const STATUS_LABEL: Record<PhaseStatus, string> = {
   at_risk: "En riesgo",
 };
 
-// One palette per status. Border lateral (color-coded) + badge bg/text +
-// progress fill share a hue so a quick scan reads the phase status from
-// any of the three signals.
+// One palette per status, expressed in Prism functional tokens. Border
+// lateral (color-coded) + badge bg/text + progress fill share a hue so
+// a quick scan reads the phase status from any of the three signals.
+//
+// Intentional asymmetry: `in_progress` here uses LAVENDER (primary-*),
+// while the operational roadmap at /projects/[key]?view=roadmap renders
+// in-progress epics in BLUE (bg-info). Different audiences, different
+// metaphors:
+//   - Roadmap = operational. PMs scanning execution; lavender would
+//     blur with brand identity and stop reading as a status signal.
+//   - Preview = presentational. Stakeholders / C-level reading a live
+//     narrative; lavender communicates vitality and ties the active
+//     phase visually to the brand.
+// If a future refactor tries to consolidate the two for "consistency",
+// the asymmetry is the design intent — not a bug. See CLAUDE.md
+// "Iteration 4h Round 4" for the full rationale.
 const STATUS_PALETTE: Record<
   PhaseStatus,
   {
@@ -34,32 +47,34 @@ const STATUS_PALETTE: Record<
   }
 > = {
   completed: {
-    border: "border-l-emerald-500",
-    badgeBg: "bg-emerald-100",
-    badgeText: "text-emerald-700",
-    progressFill: "bg-emerald-500",
-    progressTrack: "bg-emerald-100",
+    border: "border-l-success",
+    badgeBg: "bg-success-bg",
+    badgeText: "text-success",
+    progressFill: "bg-success",
+    progressTrack: "bg-success-bg",
   },
   in_progress: {
-    border: "border-l-blue-500",
-    badgeBg: "bg-blue-100",
-    badgeText: "text-blue-700",
-    progressFill: "bg-blue-500",
-    progressTrack: "bg-blue-100",
+    border: "border-l-primary-500",
+    badgeBg: "bg-primary-100",
+    badgeText: "text-primary-700",
+    progressFill: "bg-primary-500",
+    progressTrack: "bg-primary-100",
   },
   upcoming: {
-    border: "border-l-zinc-400",
-    badgeBg: "bg-zinc-200",
-    badgeText: "text-zinc-700",
-    progressFill: "bg-zinc-400",
-    progressTrack: "bg-zinc-200",
+    border: "border-l-text-muted",
+    badgeBg: "bg-warm-100",
+    badgeText: "text-text-secondary",
+    progressFill: "bg-text-muted",
+    progressTrack: "bg-warm-100",
   },
   at_risk: {
-    border: "border-l-orange-500",
-    badgeBg: "bg-orange-100",
-    badgeText: "text-orange-700",
-    progressFill: "bg-orange-500",
-    progressTrack: "bg-orange-100",
+    border: "border-l-warning",
+    badgeBg: "bg-warning-bg",
+    // text-warning at L=0.75 is too light for chip text on warning-bg;
+    // warm-700 (L=0.55, same hue family) gives readable contrast.
+    badgeText: "text-warm-700",
+    progressFill: "bg-warning",
+    progressTrack: "bg-warning-bg",
   },
 };
 
@@ -85,7 +100,7 @@ export function PhaseSection({
 
   return (
     <section
-      className={`flex flex-col gap-4 rounded-xl border border-default-200 border-l-4 bg-surface p-6 shadow-sm ${palette.border}`}
+      className={`flex flex-col gap-4 rounded-xl border border-border border-l-4 bg-surface p-6 shadow-sm ${palette.border}`}
     >
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
@@ -94,18 +109,18 @@ export function PhaseSection({
           >
             {STATUS_LABEL[status]}
           </span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+          <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
             Fase {index + 1}
           </span>
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground group-data-[mode=presentation]/preview:text-3xl">
+        <h2 className="text-2xl font-semibold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-3xl">
           {phase.name}
         </h2>
       </header>
 
       {phase.objective ? (
-        <p className="max-w-[70ch] text-base leading-relaxed text-foreground group-data-[mode=presentation]/preview:text-lg">
-          <span className="font-semibold text-muted">Objetivo: </span>
+        <p className="max-w-[70ch] text-base leading-relaxed text-text-primary group-data-[mode=presentation]/preview:text-lg">
+          <span className="font-semibold text-text-secondary">Objetivo: </span>
           {phase.objective}
         </p>
       ) : null}
@@ -117,7 +132,7 @@ export function PhaseSection({
             data-print="hide"
             onClick={() => setShowRationale((v) => !v)}
             aria-expanded={showRationale}
-            className="inline-flex w-fit items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
+            className="inline-flex w-fit items-center gap-1 text-sm font-medium text-primary-700 transition-colors hover:text-primary-800 hover:underline"
           >
             <ChevronDown
               className={`size-4 transition-transform motion-reduce:transition-none ${showRationale ? "rotate-180" : ""}`}
@@ -131,7 +146,7 @@ export function PhaseSection({
             className="grid overflow-hidden transition-all duration-200 motion-reduce:transition-none data-[expanded=false]:grid-rows-[0fr] data-[expanded=true]:grid-rows-[1fr]"
           >
             <div className="min-h-0">
-              <p className="max-w-[70ch] rounded-md bg-default-50 p-3 text-sm leading-relaxed text-foreground group-data-[mode=presentation]/preview:text-base">
+              <p className="max-w-[70ch] rounded-md bg-warm-50 p-3 text-sm leading-relaxed text-text-primary group-data-[mode=presentation]/preview:text-base">
                 {phase.rationale}
               </p>
             </div>
@@ -148,15 +163,15 @@ export function PhaseSection({
       />
 
       {dateRange ? (
-        <div className="flex items-center gap-2 text-sm text-muted">
+        <div className="flex items-center gap-2 text-sm text-text-muted">
           <Calendar className="size-4" aria-hidden="true" />
           <span>{dateRange}</span>
         </div>
       ) : null}
 
       {phase.workstreams.length > 0 ? (
-        <div className="flex flex-col gap-3 border-t border-default-200 pt-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
             Workstreams ({phase.workstreams.length})
           </h3>
           <div className="flex flex-col gap-3">
@@ -195,8 +210,10 @@ function ProgressRow({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-foreground">{progress}% completado</span>
-        <span className="text-muted">
+        <span className="font-medium text-text-primary">
+          {progress}% completado
+        </span>
+        <span className="text-text-muted">
           {workstreamCount} workstream{workstreamCount === 1 ? "" : "s"}
           {totalIssues > 0
             ? ` · ${totalIssues} issue${totalIssues === 1 ? "" : "s"}`
