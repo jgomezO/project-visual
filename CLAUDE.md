@@ -38,6 +38,8 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 After R4 the multi-round Prism rollout is complete: every internal surface (`/projects`, `/projects/[key]`, narrative editor, public preview) consumes Prism primitives directly. Subsequent visual work should be feature-driven, not round-driven.
 
+**Iteration 6 (cron sync):** Daily automated Jira sync via Vercel Cron on Hobby plan. `vercel.json` declares one cron entry hitting `GET /api/cron/sync-jira` at `0 6 * * *` (06:00 UTC = 01:00 Colombia / 03:00 Argentina — pre-workday everywhere we operate, Vercel valley hours). The cron route handler verifies `Authorization: Bearer ${CRON_SECRET}` (Vercel attaches this automatically) and calls `runSync({ triggeredBy: 'cron' })` directly — NOT a self-fetch to `/api/sync`. Direct call avoids stacking two serverless functions against the 60s Hobby budget and keeps `SYNC_SECRET` out of the cron path. `runSync` rewritten with per-project resilience: each `syncIssuesForProject(key)` runs inside its own try/catch, so one project's Jira hiccup no longer aborts the whole run. Aggregate status decision: `'success'` (every project clean), `'partial'` (some OK, some failed), `'failed'` (none OK or pre-loop abort). HTTP status: success/partial → 200, failed → 500. New `sync_runs` columns: `triggered_by` ('manual' | 'cron') and `failed_projects` JSONB array of `{projectKey, error}` entries. The status CHECK extended to allow `'partial'`. Migration `20260507165439_extend_sync_runs_for_cron.sql`. UI: `/projects` Hero shows a `SyncStatusBadge` (warning chip for partial, error chip for failed) with a HeroUI Popover detailing run id, trigger source, and per-project errors. Returns null on success / no-run-yet so the happy-path layout is unchanged. Loader queries TWO sync_runs rows in parallel: last-success (drives Hero subtitle "Last sync: 1 day ago") + last-finished-any-status (drives the badge — surfaces a partial today even when yesterday's success is still the most recent OK). Manual sync via the Hero `SyncButton` keeps working unchanged; the Server Action now stamps `triggered_by: 'manual'` so a future operations split between scheduled-health and PM-clicks is one query away. `maxDuration = 60` on the cron route. `CRON_SECRET` configured in Vercel dashboard, never in committed `.env`.
+
 **Iteration 5 (i18n):** Big-bang internationalization via `next-intl@4.11`. English is the new `defaultLocale` (no Accept-Language detection — `localeDetection: false`); Spanish (Argentinian voseo where it lands naturally) ships beside it. URL contract is `localePrefix: "always"`, so every authenticated path now lives under `/<locale>/...` (e.g. `/en/projects`, `/es/projects/[key]/narratives/[id]/edit`). Filesystem restructure: every page route moved under `src/app/[locale]/`, route handlers (`/api/sync`, `/auth/callback`) stay at the root unprefixed. The middleware combines `intlMiddleware` (locale resolution + cookie write) with the existing Supabase auth gate in three steps: bypass route handlers + cron, run intlMiddleware first and short-circuit on its redirect, then run `getUser()` on locale-prefixed paths and chain the refreshed cookies onto the intl response. Messages live as one JSON per domain per locale (`messages/{en,es}/{common,auth,topbar,projects,projectDetail,narratives,preview,errors}.json`) and are merged into a single `IntlMessages` tree by `src/i18n/request.ts`; type-safe `t()` is wired through `messages/en.d.ts` + `global.d.ts`. Server Components call `getTranslations()` / `getFormatter()`; Client Components call `useTranslations()` / `useFormatter()`. ICU plural messages replace every `${n} thing${n === 1 ? "" : "s"}` concatenation across the codebase. Every hardcoded `Intl.DateTimeFormat("es-AR")` / `relativeFromNow` helper is gone — date and relative-time formatting now route through `format.dateTime({ timeZone: "UTC" })` / `format.relativeTime(date)`. The request config returns `now: new Date()` so the server has a request-scoped reference time; the `[locale]/layout.tsx` forwards it to `<NextIntlClientProvider now={now}>` via `getNow()` so client `format.relativeTime` shares the same anchor — without this, SSR and CSR drifted and next-intl emitted `ENVIRONMENT_FALLBACK` warnings. Locale-aware navigation comes from `src/i18n/navigation.ts` (`Link`, `useRouter`, `usePathname`, `redirect`, `getPathname` from `createNavigation(routing)`); raw `next/link` and `next/navigation` are reserved for cases where locale prefixing is the wrong behaviour (today: search-params manipulation in `PresentationModeToggle`, where the path is locale-agnostic relative). A `LanguageSwitcher` component (HeroUI Dropdown trigger showing the current code uppercase, items in their native names) mounts in the `Topbar` and in the `NarrativeView` preview top action bar; the latter hides automatically in presentation mode via the parent's `group-data-[mode=presentation]/preview:hidden`. The narrative `formatActor` helper now takes a translator (`(key: "system") => string`) — `null` / `"system"` legacy rows render as `"Sistema"` (es) or `"System"` (en) without the helper hardcoding either. Server-thrown errors (Supabase mutation failures, etc.) are NOT translated in this iter — only UI-side fallback copy is; documented as TODO. The `/preview` view stays auth-walled in iter 5 — tokenized public share links remain a future iteration.
 
 ## Stack
@@ -281,8 +283,15 @@ supabase/
     ├── 20260505145650_add_user_profiles_and_grant_rpc_to_authenticated.sql   (iter 4f Migration A)
     ├── 20260505192722_add_authenticated_read_to_jira_tables.sql              (iter 4f hotfix)
     ├── 20260505195313_tighten_narratives_rls_to_authenticated.sql            (iter 4f Migration B)
-    └── 20260505213418_add_narratives_count_to_project_stats.sql              (iter 4g Migration C)
+    ├── 20260505213418_add_narratives_count_to_project_stats.sql              (iter 4g Migration C)
+    └── 20260507165439_extend_sync_runs_for_cron.sql                          (iter 6 — triggered_by + 'partial' status + failed_projects JSONB)
+
+vercel.json                                  (iter 6 — declares the daily cron entry; root of repo, alongside next.config.ts)
 ```
+
+Plus inside `src/`:
+- `src/app/api/cron/sync-jira/route.ts` (iter 6) — GET handler invoked by Vercel Cron once per day. Verifies `Authorization: Bearer ${CRON_SECRET}`, calls `runSync({ triggeredBy: 'cron' })` directly. `maxDuration = 60`.
+- `src/components/projects/SyncStatusBadge.tsx` (iter 6) — Client. Chip + HeroUI Popover surfacing a partial/failed last run on the `/projects` Hero.
 
 ### Roadmap view (`?view=roadmap`)
 
@@ -1214,15 +1223,92 @@ was UserMenu data).
 
 ### Sync flow
 
-1. `runSync()` opens a `sync_runs` row with `status='running'`.
-2. `syncProjects(jira)` upserts every project from `listProjects()` into `projects`.
-3. For each project: `syncIssuesForProject(jira, key)`:
-   - Watermark = `projects.last_synced_at - 1 day` (date-only). The 1-day buffer absorbs Jira's TZ ambiguity in JQL date strings (Jira interprets them in the token user's timezone).
-   - Streams pages via `searchIssuesPaginated` (cursor: `nextPageToken`). The legacy `/rest/api/3/search` was removed by Atlassian in May 2025.
-   - Upserts issues by PK with `parent_id=null`, then **backfills `parent_id` in a second pass** to avoid self-FK violations when an issue and its parent (epic→story or task→subtask) are in the same upsert batch.
-   - Upserts `issue_links` by `(source_issue_id, target_issue_key, link_type)`. `target_issue_id` may be NULL when the target is in a project we haven't synced; `target_issue_key` is always set so the FK can be backfilled later.
-   - Updates `projects.last_synced_at` on success.
-4. Aggregated stats (`issuesCreated`, `issuesUpdated`, `linksSkipped`) plus `jql_used` are written by `succeedRun` / `failRun`. On any thrown exception, the run is marked `failed` with `error_message` — never left in `running`.
+1. `runSync({ triggeredBy })` opens a `sync_runs` row with `status='running'` + `triggered_by` ('manual' | 'cron').
+2. `syncProjects(jira)` upserts every project from `listProjects()` into `projects`. **A failure here aborts the run pre-loop** (status='failed', no per-project detail).
+3. For each project: `syncIssuesForProject(jira, key)` **wrapped in its own try/catch** (iter 6):
+   - On success: stats accumulate, `successCount++`.
+   - On failure: `{ projectKey, error }` lands in `failedProjects[]` and the loop **continues** with the next key. One project's Jira hiccup no longer aborts the whole run.
+   - Per-project work itself: watermark = `projects.last_synced_at - 1 day` (date-only, JQL TZ buffer), stream pages via `searchIssuesPaginated` (cursor: `nextPageToken`; legacy `/rest/api/3/search` was removed by Atlassian May 2025), upsert issues with `parent_id=null` then backfill `parent_id` in a second pass (avoids self-FK violations when parent+child arrive in the same upsert batch), upsert `issue_links` by `(source_issue_id, target_issue_key, link_type)` with nullable `target_issue_id` for cross-project links, update `projects.last_synced_at`.
+4. **Aggregate status decision** (iter 6):
+   - `failedProjects.length === 0` → `'success'` → `succeedRun()` → HTTP 200.
+   - `successCount === 0 && failedProjects.length > 0` → `'failed'` → `failRun()` with summary message + per-project detail → HTTP 500.
+   - Otherwise (mixed) → `'partial'` → `partialRun()` writes summary + `failed_projects` JSONB → HTTP 200.
+   - Top-level catch (`syncProjects` failed, `JiraClient` ctor failed, etc.) → `'failed'` with `failed_projects = NULL` (the loop never ran).
+5. Aggregated stats (`issuesCreated`, `issuesUpdated`, `linksSkipped`) reflect ONLY successful projects. A partial run's stats are the truthful subset, not the wished-for total.
+6. Structured logs throughout: `[sync] runId=N triggeredBy=cron type=incremental projects=5`, `[sync] runId=N project=NOXSCRUM ok created=12 updated=3`, `[sync] runId=N project=REN failed error="..."`, `[sync] runId=N done status=partial success=4 failed=1 durationMs=23456`. Greppable in Vercel logs.
+
+### Cron sync (iter 6)
+
+Daily automated Jira sync via Vercel Cron on the Hobby plan. Manual sync via the `/projects` Hero `SyncButton` keeps working unchanged.
+
+#### Architecture
+
+- **`vercel.json`** at repo root declares one cron entry hitting `GET /api/cron/sync-jira` at `0 6 * * *` (06:00 UTC). Hobby plan caps cron entries at 2; we use 1, leaving room for one future scheduled job.
+- **`/api/cron/sync-jira/route.ts`** — GET handler invoked by Vercel Cron. Verifies `Authorization: Bearer ${CRON_SECRET}` (Vercel attaches the bearer header automatically on cron-driven calls) using `timingSafeEqual` from `node:crypto`. Calls `runSync({ triggeredBy: 'cron' })` directly — NOT a self-fetch to `/api/sync`. Reasons: one serverless function counts against budgets (not two stacked); the 60s Hobby budget is one budget, not two; no network round-trip / DNS / TLS for a same-process call; no need for `SYNC_SECRET` in the cron path. `maxDuration = 60` (Hobby cap; sync currently lands ~25-40s for ~5 projects, leaving 20s+ headroom).
+- **Status code mapping** (cron route + `/api/sync`): `'success'` or `'partial'` → 200, `'failed'` → 500. Vercel logs reflect HTTP status, so a partial run shows green in the dashboard but the `SyncStatusBadge` still surfaces it on `/projects`.
+- **Middleware allow-list**: `src/middleware.ts` step 1 already bypasses `/api/cron/*` from auth gating, so the cron route doesn't need a Supabase session.
+
+#### Schedule rationale
+
+`0 6 * * *` = 06:00 UTC = 01:00 Colombia (UTC-5) / 03:00 Argentina (UTC-3). Both are well past midnight in any LATAM timezone — a 60s lock-in won't pinch anyone working. Worst case the run finishes ~07:00 UTC = 02:00 CO / 04:00 AR, still pre-workday everywhere we operate. Vercel valley hours (lower latency on shared compute) is a bonus.
+
+If product asks for fresher data closer to the LATAM workday, change one line in `vercel.json` (e.g. `0 11 * * *` = 06:00 CO).
+
+#### Per-project resilience contract
+
+A run with 5 projects where REN fails mid-loop:
+- The other 4 still upsert their issues and links.
+- REN's row in `failed_projects` JSONB carries `{ projectKey: "REN", error: "<describeError output>" }`.
+- `sync_runs.status = 'partial'`, `sync_runs.error_message = "1 project failed: REN"`.
+- HTTP 200 (some progress made).
+- `SyncStatusBadge` on `/projects` Hero surfaces "Sync parcial · 1 proyecto falló" with a Popover detailing REN's error.
+
+If ALL 5 projects fail in the loop:
+- `failed_projects` carries all 5 entries.
+- `sync_runs.status = 'failed'`, `sync_runs.error_message = "All 5 projects failed: A, B, C, D, E"`.
+- HTTP 500.
+- Badge surfaces "Sync falló · Todos los proyectos fallaron" with Popover detailing each error.
+
+If `syncProjects()` itself fails (Jira auth, network):
+- The loop never runs. `failed_projects = NULL`, `error_message` carries the top-level error.
+- `sync_runs.status = 'failed'`, HTTP 500.
+- Badge surfaces "Sync falló" with Popover showing only the `error_message` (no per-project list).
+
+#### Manual vs cron distinction
+
+- Hero `SyncButton` → Server Action `triggerSync()` → `runSync({ triggeredBy: 'manual' })`. Stays working exactly as before from the user's perspective.
+- `POST /api/sync` (curl / ops) → hardcodes `triggeredBy: 'manual'`. The body now accepts only `{ type, projectKey }`; `triggeredBy` is not user-overridable from HTTP.
+- `GET /api/cron/sync-jira` → `runSync({ triggeredBy: 'cron' })`.
+
+`sync_runs.triggered_by` defaults to `'manual'` so all historical rows from before iter 6 keep the right truth (manual was the only path).
+
+#### `SyncStatusBadge` on `/projects`
+
+Rendered inline below the Hero subtitle when the most recent finished run was partial or failed. Returns null on clean success or no-run-yet, so the happy-path layout is unchanged.
+
+The page loader runs **two `sync_runs` queries in parallel**:
+- `lastSuccessfulSync` (`status='success'`, ORDER BY finished_at DESC LIMIT 1) — drives the Hero subtitle "Last sync: 1 day ago". Stable; only moves on clean runs.
+- `lastRun` (`status IN ('success', 'partial', 'failed')`, ORDER BY finished_at DESC NULLS LAST LIMIT 1) — drives the badge. Excludes `'running'` to dodge stuck rows.
+
+Two separate queries (vs. one fetched-and-massaged) because each composes its own `ORDER BY finished_at DESC LIMIT 1` on the same indexed column; PostgREST can't express "give me the latest of each status" in a single round-trip without an SQL function. Cheap.
+
+The badge component is a HeroUI Popover wrapping a chip-styled `<button>`. Click opens the Popover with: summary line ("N projects failed" or "All projects failed"), run id, trigger source ("Triggered by cron" / "Triggered manually"), and per-project error rows. i18n keys live under `projects.syncBadge.*` with separate `ariaTrigger.*` strings so screen-readers narrate context + action in one phrase.
+
+#### Post-deploy verification
+
+After merging:
+1. **Manual probe**: `curl -H "Authorization: Bearer $CRON_SECRET" https://<deploy>/api/cron/sync-jira` should return 200 with the run result. Without the header → 401.
+2. **Wait 24h**: first scheduled run lands at the next 06:00 UTC.
+3. **Vercel dashboard → Cron Jobs → Logs**: confirm the cron triggered at the expected time, status 200, duration <60s. Structured log lines (`[cron] sync-jira completed status=… runId=…`) make the run easy to locate.
+4. **`/projects`**: the Hero subtitle updates ("hace pocas horas"), the badge stays hidden if the run was clean, surfaces partial/failed otherwise.
+5. **Manual sync via the Hero button** keeps writing rows with `triggered_by='manual'` for split-by-source observability.
+
+#### Limitations / TODOs
+
+- **No queue / no parallel project fetches**. The loop is sequential; ~5 projects fit comfortably in the 60s budget. If Jira slows down or project count grows past ~10, switch to bounded `Promise.all` parallelism (3-5 concurrent `syncIssuesForProject`) before considering a queue.
+- **No notifications**. Partial / failed runs surface only on the dashboard badge + Vercel logs. Email / Slack alerts deliberately deferred — too noisy at the current Hobby cadence (1/day) and the badge already gives the next visitor immediate context.
+- **No retry**. A failed project fails for the whole day. The next 06:00 UTC run gets a fresh attempt. If the failure is sticky, the badge persists across days until someone manually triggers a sync after fixing the upstream issue.
+- **`maxDuration = 60` is the Hobby ceiling**. If sync ever blows past it we'll see Vercel terminate the function; the next run on the next day attempts again. Long-term fix: parallelise Jira fetches first, queue (Inngest / Trigger.dev) only if parallelism isn't enough.
 
 ### `/projects` list view
 
@@ -1344,7 +1430,7 @@ Schemas spread across the `supabase/migrations/` timeline. Tables:
 - `projects` — PK = Jira project id (TEXT), unique `key`, lead, `raw` jsonb, `last_synced_at`.
 - `issues` — PK = Jira issue id (TEXT), unique `key`, `project_id` FK CASCADE, `status_category` CHECK ('To Do' | 'In Progress' | 'Done'), `parent_id` self-FK SET NULL, `due_date`, `start_date`, jira+local timestamps, `raw` jsonb.
 - `issue_links` — BIGINT identity PK, `source_issue_id` FK, `target_issue_id` nullable FK, `target_issue_key` NOT NULL, unique on `(source, target_key, link_type)`.
-- `sync_runs` — `status` running/success/failed, `sync_type` full/incremental, `project_key` (NULL = all), stats counters, `jql_used`, `error_message`.
+- `sync_runs` — `status` running/success/failed/**partial** (extended iter 6), `sync_type` full/incremental, `project_key` (NULL = all), `triggered_by` ('manual' | 'cron') (iter 6), `failed_projects` JSONB (iter 6: array of `{projectKey, error}`, NULL on clean success), stats counters, `jql_used`, `error_message`.
 
 **Narratives (migration `20260504184656_add_narratives_schema.sql`, extended by 4d / 4e)**
 
@@ -1443,6 +1529,8 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **Server-thrown errors are not translated (iter 5).** UI fallbacks ARE; the underlying `Error.message` strings thrown from `src/lib/narratives/mutations.ts`, `src/lib/sync/*`, the Supabase client, etc. are still English-only. Translating them means routing every throw through a translator (or shipping error codes the UI maps locally). Substantial refactor — TODO.
 - **`/preview` stays auth-walled (iter 5).** Tokenized public share links remain a future iteration; today the public preview is reachable only via the locale-prefixed authenticated URL. If a stakeholder needs the link, they need a Veevart account.
 - **No `/login` language switcher.** Pre-auth users default to `defaultLocale: "en"` (or whatever `NEXT_LOCALE` cookie carries from a prior session). If a stakeholder lands cold and wants Spanish before signing in, they can only get it by manually editing the URL prefix today. Acceptable trade-off; revisit if reported.
+- **No cron retry on per-project failure (iter 6).** A partial run today stays partial until either (a) the next 06:00 UTC run succeeds for that project, or (b) someone manually clicks "Resincronizar". No backoff, no second attempt within the day. Acceptable while sync is daily and the failure surface is small (badge + logs). Revisit if a sticky upstream failure pattern emerges.
+- **Cron sync is sequential (iter 6).** ~5 projects fit in the 60s Hobby budget today. At ~10+ projects switch to bounded `Promise.all` parallelism (3-5 concurrent `syncIssuesForProject` calls) before reaching for a queue.
 
 ## Dev tools
 
@@ -1456,4 +1544,4 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 
 ## Out of scope (do NOT add without asking)
 
-Per-user roles or permissions (every authenticated user has the same rights today), email/password fallback, magic links, 2FA, custom recovery flows, multi-tenancy, public sharing without login (tokenized share links for `/preview` are a future iteration — today every authenticated user can read every narrative, but reaching the URL still requires login), cron jobs, Inngest / Trigger.dev, Recharts, React Flow, TanStack Table, **Gantt libraries** (gantt-task-react, frappe-gantt, etc. — the roadmap is intentionally hand-rolled SVG + HTML), alternative auth libraries (NextAuth, Clerk, Auth.js — Supabase Auth alcanza), **alternative i18n libraries** (the next-intl contract is locked — react-intl, lingui, FormatJS standalone are not on the table), **new locales beyond `en` / `es`** without product asking, new routes beyond the ones listed in Architecture, any library outside the locked stack.
+Per-user roles or permissions (every authenticated user has the same rights today), email/password fallback, magic links, 2FA, custom recovery flows, multi-tenancy, public sharing without login (tokenized share links for `/preview` are a future iteration — today every authenticated user can read every narrative, but reaching the URL still requires login), **a second cron entry beyond the daily Jira sync** (Hobby plan caps at 2; the slot is reserved for genuine emergencies, not nice-to-haves), **upgrading to Vercel Pro** (the daily-sync cadence + 60s function budget fits Hobby; only revisit if sync timing forces a parallelism / queue refactor first), **email / Slack notifications for sync failures** (badge + Vercel logs are sufficient at iter 6 cadence — too noisy otherwise), Inngest / Trigger.dev / background queue libraries (no need until Hobby budget breaks; deferred per iter 6 spec), Recharts, React Flow, TanStack Table, **Gantt libraries** (gantt-task-react, frappe-gantt, etc. — the roadmap is intentionally hand-rolled SVG + HTML), alternative auth libraries (NextAuth, Clerk, Auth.js — Supabase Auth alcanza), **alternative i18n libraries** (the next-intl contract is locked — react-intl, lingui, FormatJS standalone are not on the table), **new locales beyond `en` / `es`** without product asking, new routes beyond the ones listed in Architecture, any library outside the locked stack.
