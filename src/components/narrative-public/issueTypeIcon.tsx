@@ -17,7 +17,10 @@ type NormalisedIssueType = "epic" | "story" | "task" | "bug" | "subtask" | "othe
 interface IssueTypeMeta {
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   iconClass: string;
-  label: string;
+  // Translation key under `common.issueType.*`. Resolved by the consumer
+  // (it may be an async Server Component or a sync Client Component, so
+  // we don't pin the translator at this layer).
+  key: NormalisedIssueType;
 }
 
 // Prism palette mapping (iter 4h R4 — fulfills the R2 TODO):
@@ -30,16 +33,16 @@ interface IssueTypeMeta {
 //   - other    → text-muted/60 (more recessive — visually distinct from
 //                subtask without introducing a second neutral)
 const META: Record<NormalisedIssueType, IssueTypeMeta> = {
-  epic: { Icon: Zap, iconClass: "text-primary-700", label: "Épica" },
-  story: { Icon: BookmarkPlus, iconClass: "text-success", label: "Historia" },
-  task: { Icon: CheckSquare, iconClass: "text-info", label: "Tarea" },
-  bug: { Icon: Bug, iconClass: "text-error", label: "Bug" },
+  epic: { Icon: Zap, iconClass: "text-primary-700", key: "epic" },
+  story: { Icon: BookmarkPlus, iconClass: "text-success", key: "story" },
+  task: { Icon: CheckSquare, iconClass: "text-info", key: "task" },
+  bug: { Icon: Bug, iconClass: "text-error", key: "bug" },
   subtask: {
     Icon: CornerDownRight,
     iconClass: "text-text-muted",
-    label: "Subtarea",
+    key: "subtask",
   },
-  other: { Icon: Circle, iconClass: "text-text-muted/60", label: "Otro" },
+  other: { Icon: Circle, iconClass: "text-text-muted/60", key: "other" },
 };
 
 function normalise(raw: string): NormalisedIssueType {
@@ -58,10 +61,19 @@ export function getIssueTypeMeta(rawType: string): IssueTypeMeta {
   return META[normalise(rawType)];
 }
 
-// Server-renderable: just an inline span with the icon + a `title`
-// attribute for tooltip-on-hover. Pure presentation, no client JS.
-export function IssueTypeIcon({ rawType }: { rawType: string }) {
-  const { Icon, iconClass, label } = getIssueTypeMeta(rawType);
+// Pure-prop, locale-agnostic. The caller resolves `label` from
+// `common.issueType.{key}` and passes it in as both the tooltip and the
+// aria-label. Keeping the component prop-driven means it stays
+// renderable in either Server or Client contexts without dragging
+// next-intl into this layer.
+export function IssueTypeIcon({
+  rawType,
+  label,
+}: {
+  rawType: string;
+  label: string;
+}) {
+  const { Icon, iconClass } = getIssueTypeMeta(rawType);
   return (
     <span
       title={label}

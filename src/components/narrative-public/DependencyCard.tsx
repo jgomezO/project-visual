@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import type {
   DependencyDerived,
   IssuePublicData,
@@ -42,13 +43,6 @@ const RISK_DOT: Record<RiskLevel, string> = {
   critical: "bg-error",
 };
 
-const RISK_LABEL_ES: Record<RiskLevel, string> = {
-  low: "Riesgo bajo",
-  medium: "Riesgo medio",
-  high: "Riesgo alto",
-  critical: "Riesgo crítico",
-};
-
 interface Props {
   dependency: NarrativeDependency;
   derived: DependencyDerived;
@@ -62,6 +56,8 @@ export function DependencyCard({
   tree,
   issuesByKey,
 }: Props) {
+  const t = useTranslations("preview.dependency");
+  const tRiskLevel = useTranslations("preview.dependency.riskLevel");
   const jiraBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, "");
   const projectHref =
     dependency.provider_pod_project_key && jiraBase
@@ -88,16 +84,16 @@ export function DependencyCard({
         {derived.riskLevel === "critical" ? (
           <span
             className="mt-1 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-error-bg text-error"
-            aria-label={RISK_LABEL_ES.critical}
-            title={RISK_LABEL_ES.critical}
+            aria-label={tRiskLevel("critical")}
+            title={tRiskLevel("critical")}
           >
             <AlertTriangle className="size-3.5" aria-hidden="true" />
           </span>
         ) : (
           <span
             className={`mt-1.5 inline-block size-2.5 shrink-0 rounded-full ${RISK_DOT[derived.riskLevel]}`}
-            aria-label={RISK_LABEL_ES[derived.riskLevel]}
-            title={RISK_LABEL_ES[derived.riskLevel]}
+            aria-label={tRiskLevel(derived.riskLevel)}
+            title={tRiskLevel(derived.riskLevel)}
           />
         )}
         <span className="rounded-full bg-warm-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-text-muted">
@@ -125,7 +121,7 @@ export function DependencyCard({
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-          Estado del compromiso
+          {t("commitmentLabel")}
         </span>
         <CommitmentStatusChip
           status={dependency.commitment_status as CommitmentStatus}
@@ -141,7 +137,7 @@ export function DependencyCard({
       ) : null}
 
       <footer className="border-t border-border pt-3 text-xs text-text-muted">
-        Impacta a:{" "}
+        {t("impacts.label")}{" "}
         {impactedWorkstream ? (
           <a
             href={`#workstream-${impactedWorkstream.id}`}
@@ -151,7 +147,7 @@ export function DependencyCard({
           </a>
         ) : (
           <span className="font-medium text-text-primary">
-            Toda la narrativa
+            {t("impacts.entireNarrative")}
           </span>
         )}
       </footer>
@@ -160,10 +156,11 @@ export function DependencyCard({
 }
 
 function MentionedByRisks({ risks }: { risks: NarrativeRisk[] }) {
+  const t = useTranslations("preview.dependency");
   return (
     <section className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-text-muted">
       <span className="font-semibold uppercase tracking-wide">
-        Mencionada por
+        {t("mentionedBy")}
       </span>
       {risks.map((risk) => (
         <a
@@ -192,11 +189,12 @@ function ProviderBlock({
   issuesByKey: Map<string, IssuePublicData>;
   projectHref: string | null;
 }) {
+  const t = useTranslations("preview.dependency.provider");
   return (
     <section className="flex flex-col gap-3 rounded-lg bg-warm-50/60 p-3">
       <header className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-          Provider
+          {t("label")}
         </span>
         {dependency.provider_pod ? (
           projectHref ? (
@@ -226,7 +224,7 @@ function ProviderBlock({
           )
         ) : (
           <span className="text-xs italic text-text-muted">
-            Sin provider definido
+            {t("notDefined")}
           </span>
         )}
       </header>
@@ -245,7 +243,7 @@ function ProviderBlock({
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         <span>
-          Progreso del lado provider:{" "}
+          {t("progress")}{" "}
           <strong className="font-semibold text-text-primary">
             {derived.providerIssuesData.aggregateProgress}%
           </strong>
@@ -253,7 +251,7 @@ function ProviderBlock({
         {derived.providerIssuesData.missing.length > 0 ? (
           <span className="inline-flex items-center gap-1 text-warm-700">
             <AlertTriangle className="size-3" aria-hidden="true" />
-            {derived.providerIssuesData.missing.length} sin sincronizar
+            {t("missing", { count: derived.providerIssuesData.missing.length })}
           </span>
         ) : null}
       </div>
@@ -268,6 +266,8 @@ function DatesBlock({
   derived: DependencyDerived;
   dependency: NarrativeDependency;
 }) {
+  const t = useTranslations("preview.dependency.dates");
+  const format = useFormatter();
   const needed = dependency.needed_by_date;
   const expected = derived.resolvedExpectedDeliveryDate;
   if (!needed && !expected) return null;
@@ -275,29 +275,37 @@ function DatesBlock({
   const expectedIsDerived =
     !dependency.expected_delivery_date && expected !== null;
 
+  const fmt = (iso: string): string => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return format.dateTime(new Date(Date.UTC(y, m - 1, d)), {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  };
+
   return (
     <section className="flex flex-col gap-2 rounded-lg bg-warm-50/60 p-3 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1.5">
         {needed ? (
           <span>
             <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-              Necesitamos:
+              {t("neededLabel")}
             </span>{" "}
-            <span className="font-medium text-text-primary">
-              {formatDate(needed)}
-            </span>
+            <span className="font-medium text-text-primary">{fmt(needed)}</span>
           </span>
         ) : null}
         {expected ? (
           <span>
             <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-              Entrega:
+              {t("expectedLabel")}
             </span>{" "}
             <span className="font-medium text-text-primary">
-              {formatDate(expected)}
+              {fmt(expected)}
               {expectedIsDerived ? (
                 <span className="ml-1 text-xs font-normal text-text-muted">
-                  (estimado por issues)
+                  {t("estimatedSuffix")}
                 </span>
               ) : null}
             </span>
@@ -314,6 +322,7 @@ function DatesBlock({
 }
 
 function CoordinationNotes({ notes }: { notes: string }) {
+  const t = useTranslations("preview.dependency.coordination");
   const [expanded, setExpanded] = useState(false);
   const isLong = notes.length > COORDINATION_TRUNCATE_AT;
   const display =
@@ -324,7 +333,7 @@ function CoordinationNotes({ notes }: { notes: string }) {
   return (
     <section className="flex flex-col gap-2">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-        Esfuerzo de coordinación
+        {t("heading")}
       </h4>
       <p className="max-w-[70ch] whitespace-pre-line text-sm leading-relaxed text-text-primary group-data-[mode=presentation]/preview:text-base">
         {display}
@@ -341,7 +350,7 @@ function CoordinationNotes({ notes }: { notes: string }) {
             className={`size-3.5 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
             aria-hidden="true"
           />
-          {expanded ? "Ver menos" : "Leer más"}
+          {expanded ? t("collapse") : t("expand")}
         </button>
       ) : null}
     </section>
@@ -361,14 +370,4 @@ function findWorkstream(
     if (ws.id === id) return ws;
   }
   return null;
-}
-
-function formatDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("es-AR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }

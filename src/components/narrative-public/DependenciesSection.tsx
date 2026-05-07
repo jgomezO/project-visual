@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type {
   IssuePublicData,
   NarrativeDerived,
@@ -17,8 +18,14 @@ interface Props {
  * scroll-link directly. Omitted entirely when there are zero
  * dependencies — absence is the information.
  */
-export function DependenciesSection({ tree, derived, issuesByKey }: Props) {
+export async function DependenciesSection({
+  tree,
+  derived,
+  issuesByKey,
+}: Props) {
   if (tree.dependencies.length === 0) return null;
+
+  const t = await getTranslations("preview.dependencies");
 
   return (
     <section
@@ -31,11 +38,10 @@ export function DependenciesSection({ tree, derived, issuesByKey }: Props) {
           id="dependencies-heading"
           className="text-2xl font-semibold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-3xl"
         >
-          Dependencias del proyecto
+          {t("heading")}
         </h2>
         <p className="max-w-[70ch] text-sm text-text-muted">
-          Compromisos cross-team que condicionan la entrega de este proyecto.
-          Las fechas y el estado son curados por el PM, no derivados de Jira.
+          {t("description")}
         </p>
       </header>
 

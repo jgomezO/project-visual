@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type {
   NarrativeDependency,
   NarrativeRisk,
@@ -23,7 +24,8 @@ interface Props {
   dependenciesById: Map<string, NarrativeDependency>;
 }
 
-export function RiskCard({ risk, dependenciesById }: Props) {
+export async function RiskCard({ risk, dependenciesById }: Props) {
+  const t = await getTranslations("preview.risk");
   const severity = risk.severity as RiskSeverity;
   // Filter out dangling refs: if a related dep was deleted after the
   // risk was saved, the array still carries its UUID. Drop those at
@@ -59,9 +61,13 @@ export function RiskCard({ risk, dependenciesById }: Props) {
           column gracefully. */}
       {(risk.impacts.length > 0 || risk.mitigations.length > 0) ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <BulletSection title="Impactos" items={risk.impacts} tone="impact" />
           <BulletSection
-            title="Mitigaciones"
+            title={t("impactsHeading")}
+            items={risk.impacts}
+            tone="impact"
+          />
+          <BulletSection
+            title={t("mitigationsHeading")}
             items={risk.mitigations}
             tone="mitigation"
           />
@@ -71,7 +77,7 @@ export function RiskCard({ risk, dependenciesById }: Props) {
       {relatedDeps.length > 0 ? (
         <footer className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-text-muted">
           <span className="font-semibold uppercase tracking-wide">
-            Dependencias relacionadas
+            {t("relatedDepsHeading")}
           </span>
           {relatedDeps.map((dep) => (
             <a

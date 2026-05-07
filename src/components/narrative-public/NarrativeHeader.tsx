@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { AlertTriangle, ExternalLink } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import type { ProjectNarrative } from "@/lib/narratives/types";
-import { relativeFromNow } from "@/lib/format/relativeTime";
 
 const OVERVIEW_TRUNCATE_AT = 300;
 
@@ -33,6 +33,8 @@ export function NarrativeHeader({
   totalRisks,
   highSeverityRiskCount,
 }: Props) {
+  const t = useTranslations("preview.header");
+  const format = useFormatter();
   return (
     <header className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -55,6 +57,7 @@ export function NarrativeHeader({
           href={`/projects/${projectKey}`}
           target="_blank"
           rel="noreferrer"
+          aria-label={t("openProjectAria")}
           className="inline-flex items-center gap-1 transition-colors hover:text-text-primary hover:underline"
         >
           <span className="font-mono">{projectKey}</span>
@@ -65,14 +68,20 @@ export function NarrativeHeader({
         <span aria-hidden="true" className="text-text-muted/60">
           •
         </span>
-        <span>Actualizada {relativeFromNow(narrative.updated_at)}</span>
+        <span>
+          {t("updated", {
+            time: format.relativeTime(new Date(narrative.updated_at)),
+          })}
+        </span>
         <span aria-hidden="true" className="text-text-muted/60">
           •
         </span>
         <span>
-          {totalWorkstreams} workstream{totalWorkstreams === 1 ? "" : "s"} ·{" "}
-          {totalIssues} issue{totalIssues === 1 ? "" : "s"} · {globalProgress}%
-          completado
+          {t("totals", {
+            workstreams: totalWorkstreams,
+            issues: totalIssues,
+            progress: globalProgress,
+          })}
         </span>
         {totalDependencies > 0 ? (
           <>
@@ -83,8 +92,7 @@ export function NarrativeHeader({
               href="#dependencias"
               className="font-medium transition-colors hover:text-text-primary hover:underline"
             >
-              {totalDependencies} dependencia
-              {totalDependencies === 1 ? "" : "s"}
+              {t("dependenciesLink", { count: totalDependencies })}
             </a>
             {criticalDependencyCount > 0 ? (
               <a
@@ -92,7 +100,7 @@ export function NarrativeHeader({
                 className="inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-xs font-semibold text-error transition-colors hover:bg-error-bg/80"
               >
                 <AlertTriangle className="size-3" aria-hidden="true" />
-                {criticalDependencyCount} en estado crítico
+                {t("criticalDependencies", { count: criticalDependencyCount })}
               </a>
             ) : null}
           </>
@@ -106,7 +114,7 @@ export function NarrativeHeader({
               href="#riesgos"
               className="font-medium transition-colors hover:text-text-primary hover:underline"
             >
-              {totalRisks} riesgo{totalRisks === 1 ? "" : "s"}
+              {t("risksLink", { count: totalRisks })}
             </a>
             {highSeverityRiskCount > 0 ? (
               <a
@@ -114,7 +122,7 @@ export function NarrativeHeader({
                 className="inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-xs font-semibold text-error transition-colors hover:bg-error-bg/80"
               >
                 <AlertTriangle className="size-3" aria-hidden="true" />
-                {highSeverityRiskCount} de severidad alta
+                {t("highSeverityRisks", { count: highSeverityRiskCount })}
               </a>
             ) : null}
           </>
@@ -127,6 +135,7 @@ export function NarrativeHeader({
 }
 
 function OverviewBlock({ text }: { text: string }) {
+  const t = useTranslations("preview.header.overview");
   const [expanded, setExpanded] = useState(false);
   const isLong = text.length > OVERVIEW_TRUNCATE_AT;
   const display =
@@ -144,7 +153,7 @@ function OverviewBlock({ text }: { text: string }) {
           onClick={() => setExpanded((v) => !v)}
           className="self-start text-sm font-medium text-primary-700 transition-colors hover:text-primary-800 hover:underline"
         >
-          {expanded ? "Leer menos" : "Leer más"}
+          {expanded ? t("collapse") : t("expand")}
         </button>
       ) : null}
     </div>

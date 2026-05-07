@@ -1,1 +1,129 @@
-{}
+{
+  "topbar": {
+    "brand": "PRISM",
+    "editorLink": "Editor"
+  },
+  "draftBanner": {
+    "label": "Vista previa",
+    "body": "Esta narrativa aún no está publicada. Sólo personas con el link la pueden ver."
+  },
+  "header": {
+    "updated": "Actualizada {time}",
+    "openProjectAria": "Abrir proyecto en Jira",
+    "totals": "{workstreams, plural, one {# workstream} other {# workstreams}} · {issues, plural, one {# issue} other {# issues}} · {progress}% completado",
+    "dependenciesLink": "{count, plural, one {# dependencia} other {# dependencias}}",
+    "criticalDependencies": "{count, plural, one {# en estado crítico} other {# en estado crítico}}",
+    "risksLink": "{count, plural, one {# riesgo} other {# riesgos}}",
+    "highSeverityRisks": "{count, plural, one {# de severidad alta} other {# de severidad alta}}",
+    "overview": {
+      "expand": "Leer más",
+      "collapse": "Leer menos"
+    }
+  },
+  "statusSummary": {
+    "heading": "Estado actual"
+  },
+  "phase": {
+    "label": "Fase {index}",
+    "objectiveLabel": "Objetivo: ",
+    "rationale": {
+      "show": "Ver el por qué",
+      "hide": "Ocultar el por qué"
+    },
+    "progress": {
+      "completed": "{progress}% completado",
+      "workstreams": "{count, plural, one {# workstream} other {# workstreams}}",
+      "issuesSuffix": " · {count, plural, one {# issue} other {# issues}}",
+      "manualSuffix": " · ajustado manualmente"
+    },
+    "workstreamsHeading": "Workstreams ({count})",
+    "dateRange": {
+      "both": "{start} → {end}",
+      "fromOnly": "Desde {start}",
+      "untilOnly": "Hasta {end}"
+    }
+  },
+  "orphanWorkstreams": {
+    "heading": "Workstreams transversales",
+    "description": "No pertenecen a ninguna fase específica."
+  },
+  "workstream": {
+    "linkedIssuesHeading": "Issues vinculadas ({count})",
+    "counts": {
+      "issues": "{count, plural, one {# issue} other {# issues}}",
+      "missing": "{count} sin sincronizar",
+      "overdue": "{count, plural, one {# atrasada} other {# atrasadas}}",
+      "noLinked": "Sin issues vinculadas"
+    },
+    "helper": {
+      "noIssues": "Sin issues vinculadas.",
+      "showingDetail": "Mostrando detalle completo.",
+      "clickForDetail": "Click para ver detalle."
+    },
+    "toggle": {
+      "expand": "Ver detalles",
+      "collapse": "Ver menos"
+    }
+  },
+  "issueChip": {
+    "notInSync": "Issue no encontrada en sync.",
+    "assignedTo": "Asignado a {name}"
+  },
+  "dependencies": {
+    "heading": "Dependencias del proyecto",
+    "description": "Compromisos cross-team que condicionan la entrega de este proyecto. Las fechas y el estado son curados por el PM, no derivados de Jira."
+  },
+  "dependency": {
+    "riskLevel": {
+      "low": "Riesgo bajo",
+      "medium": "Riesgo medio",
+      "high": "Riesgo alto",
+      "critical": "Riesgo crítico"
+    },
+    "provider": {
+      "label": "Provider",
+      "notDefined": "Sin provider definido",
+      "progress": "Progreso del lado provider:",
+      "missing": "{count} sin sincronizar"
+    },
+    "dates": {
+      "neededLabel": "Necesitamos:",
+      "expectedLabel": "Entrega:",
+      "estimatedSuffix": "(estimado por issues)"
+    },
+    "commitmentLabel": "Estado del compromiso",
+    "coordination": {
+      "heading": "Esfuerzo de coordinación",
+      "expand": "Leer más",
+      "collapse": "Ver menos"
+    },
+    "mentionedBy": "Mencionada por",
+    "impacts": {
+      "label": "Impacta a:",
+      "entireNarrative": "Toda la narrativa"
+    }
+  },
+  "dateGap": {
+    "neededBy": "Necesario antes del {date}",
+    "expectedOn": "Entrega esperada el {date}",
+    "delay": "{count, plural, one {# día de retraso esperado} other {# días de retraso esperado}}",
+    "onTime": "Justo a tiempo",
+    "margin": "{count, plural, one {# día de margen} other {# días de margen}}"
+  },
+  "risks": {
+    "heading": "Riesgos del proyecto"
+  },
+  "risk": {
+    "impactsHeading": "Impactos",
+    "mitigationsHeading": "Mitigaciones",
+    "relatedDepsHeading": "Dependencias relacionadas"
+  },
+  "presentation": {
+    "enterLabel": "Modo presentación",
+    "exitLabel": "Salir",
+    "exitTooltip": "Salir (ESC)"
+  },
+  "footer": {
+    "text": "Creado con Prism · Veevart"
+  }
+}

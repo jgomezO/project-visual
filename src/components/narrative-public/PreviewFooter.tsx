@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 // Plain-text footer for the public preview. Deliberately NOT a link:
 // the public preview is the only surface served to external audiences
 // (board, customer, C-level), and every internal route is auth-gated
@@ -7,13 +9,14 @@
 //
 // Hidden in print (data-print="hide") because it carries no operational
 // information and would just consume page-bottom margin.
-export function PreviewFooter() {
+export async function PreviewFooter() {
+  const t = await getTranslations("preview.footer");
   return (
     <footer
       data-print="hide"
       className="mx-auto mt-4 max-w-5xl px-4 pb-8 text-center text-xs text-text-muted sm:px-6 group-data-[mode=presentation]/preview:hidden"
     >
-      <span>Creado con Prism · Veevart</span>
+      <span>{t("text")}</span>
     </footer>
   );
 }

@@ -1,7 +1,10 @@
+"use client";
+
 import { AlertTriangle, ExternalLink, User } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { StatusChip } from "@/components/project/StatusChip";
 import type { IssuePublicData } from "@/lib/narratives/derived";
-import { IssueTypeIcon } from "./issueTypeIcon";
+import { getIssueTypeMeta, IssueTypeIcon } from "./issueTypeIcon";
 
 interface Props {
   issueKey: string;
@@ -13,7 +16,14 @@ interface Props {
 // presentation. Two states: known issue (full row with summary, status,
 // assignee tooltip-style hint, Jira link) and missing-from-sync
 // (warning row with key only — does not break the rest of the card).
+//
+// Marked "use client" because the issue-type label is resolved via
+// useTranslations (common.issueType.*) and both consumers (WorkstreamCard
+// + DependencyCard) are already client components, so this doesn't add
+// a new server/client boundary.
 export function IssueChip({ issueKey, issue }: Props) {
+  const t = useTranslations("preview.issueChip");
+  const tType = useTranslations("common.issueType");
   const jiraBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, "");
   const jiraHref = jiraBase ? `${jiraBase}/browse/${issueKey}` : null;
 
@@ -25,12 +35,13 @@ export function IssueChip({ issueKey, issue }: Props) {
           aria-hidden="true"
         />
         <span className="font-mono text-xs text-warm-700">{issueKey}</span>
-        <span className="text-xs text-warm-700">
-          Issue no encontrada en sync.
-        </span>
+        <span className="text-xs text-warm-700">{t("notInSync")}</span>
       </li>
     );
   }
+
+  const typeKey = getIssueTypeMeta(issue.issue_type).key;
+  const typeLabel = tType(typeKey);
 
   return (
     <li className="flex items-start gap-2.5 rounded-md border border-border bg-warm-50/60 px-3 py-2 text-sm">
@@ -41,12 +52,12 @@ export function IssueChip({ issueKey, issue }: Props) {
         aria-disabled={!jiraHref}
         title={
           issue.assignee_display_name
-            ? `Asignado a ${issue.assignee_display_name}`
+            ? t("assignedTo", { name: issue.assignee_display_name })
             : undefined
         }
         className="group/issue flex flex-1 flex-wrap items-center gap-2 hover:underline"
       >
-        <IssueTypeIcon rawType={issue.issue_type} />
+        <IssueTypeIcon rawType={issue.issue_type} label={typeLabel} />
         <span className="font-mono text-xs text-text-muted">{issueKey}</span>
         <span className="min-w-0 flex-1 truncate text-text-primary">
           {issue.summary}

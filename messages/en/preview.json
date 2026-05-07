@@ -1,1 +1,129 @@
-{}
+{
+  "topbar": {
+    "brand": "PRISM",
+    "editorLink": "Editor"
+  },
+  "draftBanner": {
+    "label": "Preview",
+    "body": "This narrative isn't published yet. Only people with the link can see it."
+  },
+  "header": {
+    "updated": "Updated {time}",
+    "openProjectAria": "Open project in Jira",
+    "totals": "{workstreams, plural, one {# workstream} other {# workstreams}} · {issues, plural, one {# issue} other {# issues}} · {progress}% complete",
+    "dependenciesLink": "{count, plural, one {# dependency} other {# dependencies}}",
+    "criticalDependencies": "{count, plural, one {# in critical state} other {# in critical state}}",
+    "risksLink": "{count, plural, one {# risk} other {# risks}}",
+    "highSeverityRisks": "{count, plural, one {# high severity} other {# high severity}}",
+    "overview": {
+      "expand": "Read more",
+      "collapse": "Read less"
+    }
+  },
+  "statusSummary": {
+    "heading": "Current status"
+  },
+  "phase": {
+    "label": "Phase {index}",
+    "objectiveLabel": "Objective: ",
+    "rationale": {
+      "show": "See the rationale",
+      "hide": "Hide the rationale"
+    },
+    "progress": {
+      "completed": "{progress}% complete",
+      "workstreams": "{count, plural, one {# workstream} other {# workstreams}}",
+      "issuesSuffix": " · {count, plural, one {# issue} other {# issues}}",
+      "manualSuffix": " · manually adjusted"
+    },
+    "workstreamsHeading": "Workstreams ({count})",
+    "dateRange": {
+      "both": "{start} → {end}",
+      "fromOnly": "From {start}",
+      "untilOnly": "Until {end}"
+    }
+  },
+  "orphanWorkstreams": {
+    "heading": "Cross-cutting workstreams",
+    "description": "These don't belong to any specific phase."
+  },
+  "workstream": {
+    "linkedIssuesHeading": "Linked issues ({count})",
+    "counts": {
+      "issues": "{count, plural, one {# issue} other {# issues}}",
+      "missing": "{count} not synced",
+      "overdue": "{count, plural, one {# overdue} other {# overdue}}",
+      "noLinked": "No linked issues"
+    },
+    "helper": {
+      "noIssues": "No linked issues.",
+      "showingDetail": "Showing full detail.",
+      "clickForDetail": "Click to see detail."
+    },
+    "toggle": {
+      "expand": "See details",
+      "collapse": "See less"
+    }
+  },
+  "issueChip": {
+    "notInSync": "Issue not found in sync.",
+    "assignedTo": "Assigned to {name}"
+  },
+  "dependencies": {
+    "heading": "Project dependencies",
+    "description": "Cross-team commitments that condition the delivery of this project. Dates and status are curated by the PM, not derived from Jira."
+  },
+  "dependency": {
+    "riskLevel": {
+      "low": "Low risk",
+      "medium": "Medium risk",
+      "high": "High risk",
+      "critical": "Critical risk"
+    },
+    "provider": {
+      "label": "Provider",
+      "notDefined": "No provider defined",
+      "progress": "Progress on provider side:",
+      "missing": "{count} not synced"
+    },
+    "dates": {
+      "neededLabel": "We need it by:",
+      "expectedLabel": "Expected delivery:",
+      "estimatedSuffix": "(estimated from issues)"
+    },
+    "commitmentLabel": "Commitment status",
+    "coordination": {
+      "heading": "Coordination effort",
+      "expand": "Read more",
+      "collapse": "See less"
+    },
+    "mentionedBy": "Mentioned by",
+    "impacts": {
+      "label": "Impacts:",
+      "entireNarrative": "The entire narrative"
+    }
+  },
+  "dateGap": {
+    "neededBy": "Needed by {date}",
+    "expectedOn": "Expected delivery on {date}",
+    "delay": "{count, plural, one {# day of expected delay} other {# days of expected delay}}",
+    "onTime": "Right on time",
+    "margin": "{count, plural, one {# day of margin} other {# days of margin}}"
+  },
+  "risks": {
+    "heading": "Project risks"
+  },
+  "risk": {
+    "impactsHeading": "Impacts",
+    "mitigationsHeading": "Mitigations",
+    "relatedDepsHeading": "Related dependencies"
+  },
+  "presentation": {
+    "enterLabel": "Presentation mode",
+    "exitLabel": "Exit",
+    "exitTooltip": "Exit (ESC)"
+  },
+  "footer": {
+    "text": "Made with Prism · Veevart"
+  }
+}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { getNow, setRequestLocale } from "next-intl/server";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { routing } from "@/i18n/routing";
@@ -46,6 +46,13 @@ export default async function LocaleLayout({
   // this segment.
   setRequestLocale(locale);
 
+  // Forward the request-scoped `now` (configured in i18n/request.ts) to
+  // Client Components. Without this, useFormatter().relativeTime() in
+  // the browser would fall back to a fresh new Date() per render —
+  // drifting from the SSR reference and triggering next-intl's
+  // ENVIRONMENT_FALLBACK warning.
+  const now = await getNow();
+
   // GeistSans.className sets the font-family directly (so prose inherits
   // Geist by default, no opt-in needed). GeistMono.variable exposes a
   // CSS variable (`--font-geist-mono`) for spots that need monospace —
@@ -56,7 +63,7 @@ export default async function LocaleLayout({
       className={`${GeistSans.className} ${GeistMono.variable}`}
     >
       <body className="bg-bg text-text-primary antialiased">
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider now={now}>{children}</NextIntlClientProvider>
       </body>
     </html>
   );

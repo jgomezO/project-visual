@@ -1,11 +1,13 @@
 import { Activity } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 // Prism Card-shaped surface (rounded-2xl + shadow-md + p-6) with a
 // lavender lateral border. We don't use the <Card> primitive directly
 // because we need a <section> for the aria-labelledby relationship —
 // Card renders a <div> and isn't polymorphic. Tokens match the Card
 // `default` variant so the visual stays in lockstep.
-export function StatusSummaryCard({ text }: { text: string }) {
+export async function StatusSummaryCard({ text }: { text: string }) {
+  const t = await getTranslations("preview.statusSummary");
   return (
     <section
       aria-labelledby="status-summary-heading"
@@ -23,7 +25,7 @@ export function StatusSummaryCard({ text }: { text: string }) {
             id="status-summary-heading"
             className="text-xs font-semibold uppercase tracking-wide text-primary-700"
           >
-            Estado actual
+            {t("heading")}
           </h2>
           <p className="whitespace-pre-line text-base leading-relaxed text-text-primary group-data-[mode=presentation]/preview:text-lg">
             {text}

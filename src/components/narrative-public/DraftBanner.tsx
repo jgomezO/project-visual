@@ -1,6 +1,8 @@
 import { AlertCircle } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
-export function DraftBanner() {
+export async function DraftBanner() {
+  const t = await getTranslations("preview.draftBanner");
   return (
     <div
       data-print="hide"
@@ -12,9 +14,7 @@ export function DraftBanner() {
           aria-hidden="true"
         />
         <span>
-          <strong className="font-semibold">Vista previa</strong> — Esta
-          narrativa aún no está publicada. Sólo personas con el link la pueden
-          ver.
+          <strong className="font-semibold">{t("label")}</strong> — {t("body")}
         </span>
       </div>
     </div>

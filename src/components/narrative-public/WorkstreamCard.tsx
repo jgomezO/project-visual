@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type {
   IssuePublicData,
   WorkstreamDerived,
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function WorkstreamCard({ workstream, derived, issuesByKey }: Props) {
+  const t = useTranslations("preview.workstream");
   const [expanded, setExpanded] = useState(false);
 
   const desc = workstream.description ?? "";
@@ -54,7 +56,9 @@ export function WorkstreamCard({ workstream, derived, issuesByKey }: Props) {
           className="flex flex-col gap-2"
         >
           <h4 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-            Issues vinculadas ({workstream.jira_issue_keys.length})
+            {t("linkedIssuesHeading", {
+              count: workstream.jira_issue_keys.length,
+            })}
           </h4>
           <ul className="flex flex-col gap-1.5">
             {workstream.jira_issue_keys.map((key) => (
@@ -72,10 +76,10 @@ export function WorkstreamCard({ workstream, derived, issuesByKey }: Props) {
         <div className="flex items-center justify-between border-t border-border pt-2.5">
           <span className="text-xs text-text-muted">
             {derived.totalKeys === 0
-              ? "Sin issues vinculadas."
+              ? t("helper.noIssues")
               : expanded
-                ? "Mostrando detalle completo."
-                : "Click para ver detalle."}
+                ? t("helper.showingDetail")
+                : t("helper.clickForDetail")}
           </span>
           <button
             type="button"
@@ -88,7 +92,7 @@ export function WorkstreamCard({ workstream, derived, issuesByKey }: Props) {
               className={`size-3.5 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
               aria-hidden="true"
             />
-            {expanded ? "Ver menos" : "Ver detalles"}
+            {expanded ? t("toggle.collapse") : t("toggle.expand")}
           </button>
         </div>
       ) : null}
@@ -97,16 +101,13 @@ export function WorkstreamCard({ workstream, derived, issuesByKey }: Props) {
 }
 
 function CountsRow({ derived }: { derived: WorkstreamDerived }) {
+  const t = useTranslations("preview.workstream.counts");
   const parts: string[] = [];
   if (derived.foundIssues > 0) {
-    parts.push(
-      `${derived.foundIssues} issue${derived.foundIssues === 1 ? "" : "s"}`,
-    );
+    parts.push(t("issues", { count: derived.foundIssues }));
   }
   if (derived.missingKeys.length > 0) {
-    parts.push(
-      `${derived.missingKeys.length} sin sincronizar`,
-    );
+    parts.push(t("missing", { count: derived.missingKeys.length }));
   }
 
   return (
@@ -114,13 +115,12 @@ function CountsRow({ derived }: { derived: WorkstreamDerived }) {
       {parts.length > 0 ? (
         <span>{parts.join(" • ")}</span>
       ) : (
-        <span className="italic">Sin issues vinculadas</span>
+        <span className="italic">{t("noLinked")}</span>
       )}
       {derived.overdueCount > 0 ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-[10px] font-semibold text-error">
           <AlertTriangle className="size-3" aria-hidden="true" />
-          {derived.overdueCount} atrasada
-          {derived.overdueCount === 1 ? "" : "s"}
+          {t("overdue", { count: derived.overdueCount })}
         </span>
       ) : null}
     </div>

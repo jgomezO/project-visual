@@ -1,4 +1,7 @@
+"use client";
+
 import { AlertTriangle, Calendar, CheckCircle2 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 
 interface Props {
   delayRiskDays: number | null;
@@ -11,25 +14,43 @@ interface Props {
 
 /**
  * The card-level "is this on time?" chip. Three modes:
- * - delay > 0      → red, "⚠ X días de retraso esperado"
- * - delay === 0    → green, "✓ Justo a tiempo"
- * - delay < 0      → green, "✓ X días de margen"
+ * - delay > 0      → red, "{N} days of expected delay"
+ * - delay === 0    → green, "Right on time"
+ * - delay < 0      → green, "{N} days of margin"
  *
  * When delayRiskDays is null we fall back to a single neutral chip if
  * one of the dates is present (so the reader still sees what's known),
  * otherwise we render nothing.
+ *
+ * "use client" because both numeric chips use ICU plural messages and
+ * the date fallback chips route through useFormatter — both APIs are
+ * client-only. The only consumer (DependencyCard) is already a client
+ * component, so this doesn't add a server/client boundary.
  */
 export function DateGapIndicator({
   delayRiskDays,
   neededDate,
   expectedDate,
 }: Props) {
+  const t = useTranslations("preview.dateGap");
+  const format = useFormatter();
+
+  const formatIsoDate = (iso: string): string => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return format.dateTime(new Date(Date.UTC(y, m - 1, d)), {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  };
+
   if (delayRiskDays === null) {
     if (neededDate) {
       return (
         <Chip tone="neutral">
           <Calendar className="size-3.5" aria-hidden="true" />
-          Necesario antes del {formatDate(neededDate)}
+          {t("neededBy", { date: formatIsoDate(neededDate) })}
         </Chip>
       );
     }
@@ -37,7 +58,7 @@ export function DateGapIndicator({
       return (
         <Chip tone="neutral">
           <Calendar className="size-3.5" aria-hidden="true" />
-          Entrega esperada el {formatDate(expectedDate)}
+          {t("expectedOn", { date: formatIsoDate(expectedDate) })}
         </Chip>
       );
     }
@@ -48,7 +69,7 @@ export function DateGapIndicator({
     return (
       <Chip tone="danger">
         <AlertTriangle className="size-3.5" aria-hidden="true" />
-        {delayRiskDays} día{delayRiskDays === 1 ? "" : "s"} de retraso esperado
+        {t("delay", { count: delayRiskDays })}
       </Chip>
     );
   }
@@ -56,7 +77,7 @@ export function DateGapIndicator({
     return (
       <Chip tone="success">
         <CheckCircle2 className="size-3.5" aria-hidden="true" />
-        Justo a tiempo
+        {t("onTime")}
       </Chip>
     );
   }
@@ -64,7 +85,7 @@ export function DateGapIndicator({
   return (
     <Chip tone="success">
       <CheckCircle2 className="size-3.5" aria-hidden="true" />
-      {margin} día{margin === 1 ? "" : "s"} de margen
+      {t("margin", { count: margin })}
     </Chip>
   );
 }
@@ -91,14 +112,4 @@ function Chip({
       {children}
     </span>
   );
-}
-
-function formatDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("es-AR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
 }

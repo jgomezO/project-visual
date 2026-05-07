@@ -51,5 +51,12 @@ export default getRequestConfig(async ({ requestLocale }) => {
       preview: preview.default,
       errors: errors.default,
     },
+    // Single reference time per request, shared by Server Components
+    // (via getFormatter / useFormatter) and Client Components (via
+    // NextIntlClientProvider's `now` prop, which the layout forwards
+    // by calling getNow()). Without this, format.relativeTime falls
+    // back to `new Date()` at every render, drifting between SSR and
+    // CSR and triggering next-intl's ENVIRONMENT_FALLBACK warning.
+    now: new Date(),
   };
 });

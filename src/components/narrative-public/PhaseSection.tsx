@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Calendar, ChevronDown } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import type {
   IssuePublicData,
   PhaseDerived,
@@ -12,13 +13,6 @@ import type {
   PhaseStatus,
 } from "@/lib/narratives/types";
 import { WorkstreamCard } from "./WorkstreamCard";
-
-const STATUS_LABEL: Record<PhaseStatus, string> = {
-  upcoming: "Próxima",
-  in_progress: "En curso",
-  completed: "Completada",
-  at_risk: "En riesgo",
-};
 
 // One palette per status, expressed in Prism functional tokens. Border
 // lateral (color-coded) + badge bg/text + progress fill share a hue so
@@ -93,10 +87,31 @@ export function PhaseSection({
   issuesByKey,
   index,
 }: Props) {
+  const t = useTranslations("preview.phase");
+  const tStatus = useTranslations("common.phaseStatus");
+  const format = useFormatter();
   const [showRationale, setShowRationale] = useState(false);
   const status = (phase.status as PhaseStatus) ?? "upcoming";
   const palette = STATUS_PALETTE[status];
-  const dateRange = formatDateRange(phase.start_date, phase.end_date);
+
+  const fmtDate = (iso: string): string => {
+    // ISO date YYYY-MM-DD interpreted as UTC to match how we store it.
+    const [y, m, d] = iso.split("-").map(Number);
+    return format.dateTime(new Date(Date.UTC(y, m - 1, d)), {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  };
+  const dateRange = (() => {
+    const s = phase.start_date;
+    const e = phase.end_date;
+    if (!s && !e) return null;
+    if (s && e) return t("dateRange.both", { start: fmtDate(s), end: fmtDate(e) });
+    if (s) return t("dateRange.fromOnly", { start: fmtDate(s) });
+    return t("dateRange.untilOnly", { end: fmtDate(e as string) });
+  })();
 
   return (
     <section
@@ -107,10 +122,10 @@ export function PhaseSection({
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${palette.badgeBg} ${palette.badgeText}`}
           >
-            {STATUS_LABEL[status]}
+            {tStatus(status)}
           </span>
           <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-            Fase {index + 1}
+            {t("label", { index: index + 1 })}
           </span>
         </div>
         <h2 className="text-2xl font-semibold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-3xl">
@@ -120,7 +135,9 @@ export function PhaseSection({
 
       {phase.objective ? (
         <p className="max-w-[70ch] text-base leading-relaxed text-text-primary group-data-[mode=presentation]/preview:text-lg">
-          <span className="font-semibold text-text-secondary">Objetivo: </span>
+          <span className="font-semibold text-text-secondary">
+            {t("objectiveLabel")}
+          </span>
           {phase.objective}
         </p>
       ) : null}
@@ -138,7 +155,7 @@ export function PhaseSection({
               className={`size-4 transition-transform motion-reduce:transition-none ${showRationale ? "rotate-180" : ""}`}
               aria-hidden="true"
             />
-            {showRationale ? "Ocultar el por qué" : "Ver el por qué"}
+            {showRationale ? t("rationale.hide") : t("rationale.show")}
           </button>
           <div
             data-collapsible
@@ -172,7 +189,7 @@ export function PhaseSection({
       {phase.workstreams.length > 0 ? (
         <div className="flex flex-col gap-3 border-t border-border pt-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-            Workstreams ({phase.workstreams.length})
+            {t("workstreamsHeading", { count: phase.workstreams.length })}
           </h3>
           <div className="flex flex-col gap-3">
             {phase.workstreams.map((ws) => {
@@ -207,18 +224,17 @@ function ProgressRow({
   workstreamCount: number;
   totalIssues: number;
 }) {
+  const t = useTranslations("preview.phase.progress");
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium text-text-primary">
-          {progress}% completado
+          {t("completed", { progress })}
         </span>
         <span className="text-text-muted">
-          {workstreamCount} workstream{workstreamCount === 1 ? "" : "s"}
-          {totalIssues > 0
-            ? ` · ${totalIssues} issue${totalIssues === 1 ? "" : "s"}`
-            : ""}
-          {hasManual ? " · ajustado manualmente" : ""}
+          {t("workstreams", { count: workstreamCount })}
+          {totalIssues > 0 ? t("issuesSuffix", { count: totalIssues }) : ""}
+          {hasManual ? t("manualSuffix") : ""}
         </span>
       </div>
       <div
@@ -237,22 +253,3 @@ function ProgressRow({
   );
 }
 
-function formatDateRange(
-  start: string | null,
-  end: string | null,
-): string | null {
-  if (!start && !end) return null;
-  const fmt = (iso: string): string => {
-    // ISO date YYYY-MM-DD interpreted as UTC to match how we store it.
-    const [y, m, d] = iso.split("-").map((s) => Number(s));
-    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("es-AR", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  };
-  if (start && end) return `${fmt(start)} → ${fmt(end)}`;
-  if (start) return `Desde ${fmt(start)}`;
-  return `Hasta ${fmt(end as string)}`;
-}

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Maximize2, Minimize2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { usePathname } from "@/i18n/navigation";
 
 type ViewMode = "normal" | "presentation";
 
@@ -11,6 +13,7 @@ interface Props {
 }
 
 export function PresentationModeToggle({ mode }: Props) {
+  const t = useTranslations("preview.presentation");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -49,10 +52,10 @@ export function PresentationModeToggle({ mode }: Props) {
       onClick={() => setMode(isPresentation ? "normal" : "presentation")}
       aria-pressed={isPresentation}
       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-text-primary transition-colors hover:bg-warm-50"
-      title={isPresentation ? "Salir (ESC)" : "Modo presentación"}
+      title={isPresentation ? t("exitTooltip") : t("enterLabel")}
     >
       <Icon className="size-4" aria-hidden="true" />
-      {isPresentation ? "Salir" : "Modo presentación"}
+      {isPresentation ? t("exitLabel") : t("enterLabel")}
     </button>
   );
 }

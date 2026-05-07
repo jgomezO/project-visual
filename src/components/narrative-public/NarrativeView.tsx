@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import type {
   IssuePublicData,
   NarrativeDerived,
@@ -27,7 +28,7 @@ interface Props {
   mode: ViewMode;
 }
 
-export function NarrativeView({
+export async function NarrativeView({
   narrative,
   projectKey,
   projectName,
@@ -35,6 +36,8 @@ export function NarrativeView({
   issuesByKey,
   mode,
 }: Props) {
+  const tTopbar = await getTranslations("preview.topbar");
+  const tOrphan = await getTranslations("preview.orphanWorkstreams");
   return (
     <div
       data-mode={mode}
@@ -60,7 +63,7 @@ export function NarrativeView({
         className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-6 group-data-[mode=presentation]/preview:hidden"
       >
         <span className="text-sm font-medium tracking-wide text-text-muted">
-          PRISM
+          {tTopbar("brand")}
         </span>
         <div className="flex items-center gap-4">
           {mode === "normal" ? (
@@ -69,7 +72,7 @@ export function NarrativeView({
               className="inline-flex items-center gap-1 text-sm text-text-muted transition-colors hover:text-text-primary"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Editor
+              {tTopbar("editorLink")}
             </Link>
           ) : null}
           <PresentationModeToggle mode={mode} />
@@ -119,11 +122,9 @@ export function NarrativeView({
           <section className="flex flex-col gap-3">
             <header className="flex flex-col gap-1">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Workstreams transversales
+                {tOrphan("heading")}
               </h2>
-              <p className="text-sm text-text-muted">
-                No pertenecen a ninguna fase específica.
-              </p>
+              <p className="text-sm text-text-muted">{tOrphan("description")}</p>
             </header>
             <div className="flex flex-col gap-3">
               {narrative.orphan_workstreams.map((ws) => {

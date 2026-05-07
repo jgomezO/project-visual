@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { NarrativeWithChildren } from "@/lib/narratives/types";
 import { RiskCard } from "./RiskCard";
 
@@ -11,8 +12,10 @@ interface Props {
  * Omitted entirely when there are zero risks — same pattern as
  * DependenciesSection.
  */
-export function RisksSection({ tree }: Props) {
+export async function RisksSection({ tree }: Props) {
   if (tree.risks.length === 0) return null;
+
+  const t = await getTranslations("preview.risks");
 
   // Build the dep id → entity map once instead of per-card.
   const dependenciesById = new Map(
@@ -30,7 +33,7 @@ export function RisksSection({ tree }: Props) {
           id="risks-heading"
           className="text-2xl font-semibold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-3xl"
         >
-          Riesgos del proyecto
+          {t("heading")}
         </h2>
         {tree.risks_section_subtitle ? (
           <p className="max-w-[70ch] text-sm text-text-muted">
