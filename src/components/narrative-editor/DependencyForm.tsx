@@ -3,6 +3,7 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
+import { useTranslations } from "next-intl";
 import { updateDependencyAction } from "@/app/actions/narratives";
 import type {
   CommitmentStatus,
@@ -26,12 +27,12 @@ import { useAutoSave, type SaveState } from "./useAutoSave";
 const TITLE_MAX = 200;
 const NARRATIVE_KEY = "__narrative__";
 
-const STATUS_OPTIONS: { id: CommitmentStatus; label: string }[] = [
-  { id: "proposed", label: "Propuesto" },
-  { id: "agreed", label: "Acordado" },
-  { id: "confirmed", label: "Confirmado" },
-  { id: "at_risk", label: "En riesgo" },
-  { id: "blocked", label: "Bloqueado" },
+const STATUS_KEYS: CommitmentStatus[] = [
+  "proposed",
+  "agreed",
+  "confirmed",
+  "at_risk",
+  "blocked",
 ];
 
 interface DependencyFormProps {
@@ -59,6 +60,8 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
     },
     ref,
   ) {
+    const t = useTranslations("narratives.editor.dependency");
+    const tCommitment = useTranslations("common.commitmentStatus");
     const [draft, setDraft] = useState({
       title: dependency.title,
       description: dependency.description ?? "",
@@ -78,7 +81,7 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
       draft,
       async (snapshot) => {
         if (titleInvalid) {
-          throw new Error("El título es obligatorio.");
+          throw new Error(t("fields.title.required"));
         }
         const updated = await updateDependencyAction(dependency.id, {
           title: snapshot.title,
@@ -119,17 +122,18 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
       ...phases.flatMap((p) => p.workstreams),
       ...orphanWorkstreams,
     ];
+    const narrativeOption = t("fields.workstream.narrativeOption");
 
     return (
       <form
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <SectionHeading>Dependencia</SectionHeading>
+        <SectionHeading>{t("section")}</SectionHeading>
 
         <Field
-          label="Título"
-          error={titleInvalid ? "El título es obligatorio." : undefined}
+          label={t("fields.title.label")}
+          error={titleInvalid ? t("fields.title.required") : undefined}
         >
           <TextInput
             value={draft.title}
@@ -141,14 +145,14 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
           />
         </Field>
 
-        <Field label="Descripción">
+        <Field label={t("fields.description.label")}>
           <Textarea
             value={draft.description}
             onChange={(e) =>
               setDraft({ ...draft, description: e.currentTarget.value })
             }
             rows={3}
-            placeholder="¿Qué se necesita del provider?"
+            placeholder={t("fields.description.placeholder")}
           />
         </Field>
 
@@ -158,7 +162,7 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
           onChange={handleWorkstreamChange}
         >
           <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-            Workstream impactado
+            {t("fields.workstream.label")}
           </Label>
           <Select.Trigger>
             <Select.Value />
@@ -166,8 +170,8 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              <ListBox.Item id={NARRATIVE_KEY} textValue="Toda la narrativa">
-                Toda la narrativa
+              <ListBox.Item id={NARRATIVE_KEY} textValue={narrativeOption}>
+                {narrativeOption}
                 <ListBox.ItemIndicator />
               </ListBox.Item>
               {allWorkstreams.map((w) => (
@@ -208,17 +212,17 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <DateInputField
-            label="Cuándo lo necesitamos"
+            label={t("fields.neededBy.label")}
             value={draft.needed_by_date}
             onChange={(v) => setDraft({ ...draft, needed_by_date: v })}
           />
           <DateInputField
-            label="Cuándo se entregaría"
+            label={t("fields.expectedDelivery.label")}
             value={draft.expected_delivery_date}
             onChange={(v) =>
               setDraft({ ...draft, expected_delivery_date: v })
             }
-            helper="Si lo dejás vacío y vinculaste issues, se calcula automáticamente desde la fecha de entrega más tardía de esos issues."
+            helper={t("fields.expectedDelivery.helper")}
           />
         </div>
 
@@ -228,7 +232,7 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
           onChange={handleStatusChange}
         >
           <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-            Estado del compromiso
+            {t("fields.commitmentStatus.label")}
           </Label>
           <Select.Trigger>
             <Select.Value />
@@ -236,17 +240,20 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              {STATUS_OPTIONS.map((opt) => (
-                <ListBox.Item key={opt.id} id={opt.id} textValue={opt.label}>
-                  {opt.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
+              {STATUS_KEYS.map((key) => {
+                const label = tCommitment(key);
+                return (
+                  <ListBox.Item key={key} id={key} textValue={label}>
+                    {label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                );
+              })}
             </ListBox>
           </Select.Popover>
         </Select>
 
-        <Field label="Esfuerzo de coordinación">
+        <Field label={t("fields.coordinationNotes.label")}>
           <Textarea
             value={draft.coordination_notes}
             onChange={(e) =>
@@ -256,12 +263,12 @@ export const DependencyForm = forwardRef<FormHandle, DependencyFormProps>(
               })
             }
             rows={5}
-            placeholder="¿Qué hay que sincronizar entre equipos? Reuniones, dependencias técnicas, escalations…"
+            placeholder={t("fields.coordinationNotes.placeholder")}
           />
         </Field>
 
         <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
-          {pendingDelete ? "Eliminando…" : "Eliminar dependencia"}
+          {pendingDelete ? t("delete.pending") : t("delete.idle")}
         </FormDeleteButton>
       </form>
     );

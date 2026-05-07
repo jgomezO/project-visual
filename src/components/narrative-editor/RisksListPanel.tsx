@@ -3,17 +3,12 @@
 import { GeistMono } from "geist/font/mono";
 import { Button } from "@heroui/react";
 import { ChevronRight, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type {
   NarrativeRisk,
   NarrativeWithChildren,
 } from "@/lib/narratives/types";
 import { SectionHeading } from "./form-fields";
-
-const SEVERITY_LABEL: Record<string, string> = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-};
 
 interface Props {
   tree: NarrativeWithChildren;
@@ -28,21 +23,18 @@ export function RisksListPanel({
   onSelectRisk,
   onDeleteRisk,
 }: Props) {
+  const t = useTranslations("narratives.editor.risksList");
+
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
-        <SectionHeading>Riesgos del proyecto</SectionHeading>
-        <p className="text-sm text-text-secondary">
-          Riesgos declarados a nivel narrativa, con sus impactos y
-          mitigaciones. Para agregar, usá el botón “Agregar riesgo” en la
-          barra lateral.
-        </p>
+        <SectionHeading>{t("heading")}</SectionHeading>
+        <p className="text-sm text-text-secondary">{t("description")}</p>
       </header>
 
       {tree.risks.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-text-secondary">
-          Esta narrativa todavía no tiene riesgos. Agregá el primero desde
-          el panel izquierdo.
+          {t("empty")}
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -73,7 +65,12 @@ function RiskListItem({
   onSelect: () => void;
   onDelete: () => void;
 }) {
-  const severityLabel = SEVERITY_LABEL[risk.severity] ?? risk.severity;
+  const tSeverity = useTranslations("common.riskSeverity");
+  const tCard = useTranslations("narratives.editor.risksList.card");
+  const validKeys = ["low", "medium", "high"] as const;
+  const severityLabel = (validKeys as readonly string[]).includes(risk.severity)
+    ? tSeverity(risk.severity as "low" | "medium" | "high")
+    : risk.severity;
   return (
     <div className="group flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 transition-colors hover:bg-warm-50">
       <button
@@ -92,19 +89,16 @@ function RiskListItem({
           </span>
         </span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-text-secondary">
-          <span>Severidad: {severityLabel}</span>
+          <span>{tCard("severityLabel", { label: severityLabel })}</span>
+          <span aria-hidden="true" className="text-text-muted">
+            ·
+          </span>
+          <span>{tCard("impactsCount", { count: risk.impacts.length })}</span>
           <span aria-hidden="true" className="text-text-muted">
             ·
           </span>
           <span>
-            {risk.impacts.length} impacto{risk.impacts.length === 1 ? "" : "s"}
-          </span>
-          <span aria-hidden="true" className="text-text-muted">
-            ·
-          </span>
-          <span>
-            {risk.mitigations.length} mitigaci
-            {risk.mitigations.length === 1 ? "ón" : "ones"}
+            {tCard("mitigationsCount", { count: risk.mitigations.length })}
           </span>
         </span>
       </button>
@@ -114,7 +108,7 @@ function RiskListItem({
         variant="tertiary"
         isDisabled={pending}
         onPress={onDelete}
-        aria-label={`Eliminar ${risk.title}`}
+        aria-label={tCard("deleteAria", { title: risk.title })}
         className="text-error opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
       >
         <Trash2 className="size-4" aria-hidden="true" />

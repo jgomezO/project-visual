@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useRef, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import {
   deleteDependencyAction,
   deletePhaseAction,
@@ -78,6 +79,9 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
   ) {
     const innerRef = useRef<FormHandle | null>(null);
     const [pending, startTransition] = useTransition();
+    const tNotFound = useTranslations("narratives.editor.panel.notFound");
+    const tConfirm = useTranslations("narratives.confirm");
+    const tErr = useTranslations("narratives.editor.errors");
 
     useImperativeHandle(
       ref,
@@ -114,7 +118,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
     if (selected.kind === "phase") {
       const phase = tree.phases.find((p) => p.id === selected.id);
       if (!phase) {
-        return <FormNotFound message="Fase no encontrada." />;
+        return <FormNotFound message={tNotFound("phase")} />;
       }
       return (
         <PhaseForm
@@ -124,11 +128,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
           onSaveStateChange={onSaveStateChange}
           pendingDelete={pending}
           onDelete={() => {
-            if (
-              !window.confirm(
-                `¿Eliminar la fase "${phase.name}"? Sus workstreams también se eliminarán.`,
-              )
-            ) {
+            if (!window.confirm(tConfirm("deletePhase", { name: phase.name }))) {
               return;
             }
             startTransition(async () => {
@@ -140,7 +140,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
                 onForceSelect({ kind: "narrative" });
               } catch (err) {
                 window.alert(
-                  err instanceof Error ? err.message : "Error al eliminar",
+                  err instanceof Error ? err.message : tErr("deleteFallback"),
                 );
               }
             });
@@ -158,7 +158,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
           onDeleteDependency={(dep) => {
             if (
               !window.confirm(
-                `¿Eliminar la dependencia "${dep.title}"?`,
+                tConfirm("deleteDependency", { title: dep.title }),
               )
             ) {
               return;
@@ -171,7 +171,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
                 );
               } catch (err) {
                 window.alert(
-                  err instanceof Error ? err.message : "Error al eliminar",
+                  err instanceof Error ? err.message : tErr("deleteFallback"),
                 );
               }
             });
@@ -183,7 +183,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
     if (selected.kind === "dependency") {
       const dep = tree.dependencies.find((d) => d.id === selected.id);
       if (!dep) {
-        return <FormNotFound message="Dependencia no encontrada." />;
+        return <FormNotFound message={tNotFound("dependency")} />;
       }
       return (
         <DependencyForm
@@ -197,7 +197,9 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
           pendingDelete={pending}
           onDelete={() => {
             if (
-              !window.confirm(`¿Eliminar la dependencia "${dep.title}"?`)
+              !window.confirm(
+                tConfirm("deleteDependency", { title: dep.title }),
+              )
             ) {
               return;
             }
@@ -210,7 +212,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
                 onForceSelect({ kind: "dependencies" });
               } catch (err) {
                 window.alert(
-                  err instanceof Error ? err.message : "Error al eliminar",
+                  err instanceof Error ? err.message : tErr("deleteFallback"),
                 );
               }
             });
@@ -226,7 +228,9 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
           pending={pending}
           onSelectRisk={(id) => onSelect({ kind: "risk", id })}
           onDeleteRisk={(risk) => {
-            if (!window.confirm(`¿Eliminar el riesgo "${risk.title}"?`)) {
+            if (
+              !window.confirm(tConfirm("deleteRisk", { title: risk.title }))
+            ) {
               return;
             }
             startTransition(async () => {
@@ -237,7 +241,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
                 );
               } catch (err) {
                 window.alert(
-                  err instanceof Error ? err.message : "Error al eliminar",
+                  err instanceof Error ? err.message : tErr("deleteFallback"),
                 );
               }
             });
@@ -249,7 +253,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
     if (selected.kind === "risk") {
       const risk = tree.risks.find((r) => r.id === selected.id);
       if (!risk) {
-        return <FormNotFound message="Riesgo no encontrado." />;
+        return <FormNotFound message={tNotFound("risk")} />;
       }
       return (
         <RiskForm
@@ -260,7 +264,9 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
           onSaveStateChange={onSaveStateChange}
           pendingDelete={pending}
           onDelete={() => {
-            if (!window.confirm(`¿Eliminar el riesgo "${risk.title}"?`)) {
+            if (
+              !window.confirm(tConfirm("deleteRisk", { title: risk.title }))
+            ) {
               return;
             }
             startTransition(async () => {
@@ -272,7 +278,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
                 onForceSelect({ kind: "risks" });
               } catch (err) {
                 window.alert(
-                  err instanceof Error ? err.message : "Error al eliminar",
+                  err instanceof Error ? err.message : tErr("deleteFallback"),
                 );
               }
             });
@@ -287,7 +293,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
     ];
     const workstream = flat.find((w) => w.id === selected.id);
     if (!workstream) {
-      return <FormNotFound message="Workstream no encontrado." />;
+      return <FormNotFound message={tNotFound("workstream")} />;
     }
     return (
       <WorkstreamForm
@@ -311,7 +317,9 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
         pendingDelete={pending}
         onDelete={() => {
           if (
-            !window.confirm(`¿Eliminar el workstream "${workstream.name}"?`)
+            !window.confirm(
+              tConfirm("deleteWorkstream", { name: workstream.name }),
+            )
           ) {
             return;
           }
@@ -341,7 +349,7 @@ export const ActiveFormPanel = forwardRef<FormHandle, Props>(
               onSelect({ kind: "narrative" });
             } catch (err) {
               window.alert(
-                err instanceof Error ? err.message : "Error al eliminar",
+                err instanceof Error ? err.message : tErr("deleteFallback"),
               );
             }
           });

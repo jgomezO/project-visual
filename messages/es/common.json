@@ -9,5 +9,26 @@
   },
   "assignee": {
     "unassigned": "Sin asignar"
+  },
+  "phaseStatus": {
+    "upcoming": "Próxima",
+    "in_progress": "En curso",
+    "completed": "Completada",
+    "at_risk": "En riesgo"
+  },
+  "commitmentStatus": {
+    "proposed": "Propuesto",
+    "agreed": "Acordado",
+    "confirmed": "Confirmado",
+    "at_risk": "En riesgo",
+    "blocked": "Bloqueado"
+  },
+  "riskSeverity": {
+    "low": "Baja",
+    "medium": "Media",
+    "high": "Alta"
+  },
+  "actor": {
+    "system": "Sistema"
   }
 }

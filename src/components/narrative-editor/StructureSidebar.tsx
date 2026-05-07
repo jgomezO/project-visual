@@ -18,6 +18,7 @@ import {
   Plus,
 } from "lucide-react";
 import { GeistMono } from "geist/font/mono";
+import { useTranslations } from "next-intl";
 import {
   createDependencyAction,
   createPhaseAction,
@@ -61,6 +62,9 @@ export function StructureSidebar({
   onDependencyListChanged: (next: NarrativeDependency[]) => void;
   onRiskListChanged: (next: NarrativeRisk[]) => void;
 }) {
+  const t = useTranslations("narratives.editor.sidebar");
+  const tErr = useTranslations("narratives.editor.errors");
+  const tConfirm = useTranslations("narratives.confirm");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(
@@ -83,7 +87,7 @@ export function StructureSidebar({
         const created = await createPhaseAction({
           narrative_id: tree.id,
           order_index: tree.phases.length,
-          name: "Nueva fase",
+          name: t("defaults.newPhase"),
           status: "upcoming",
         });
         onPhaseListChanged([
@@ -93,7 +97,7 @@ export function StructureSidebar({
         setExpanded((prev) => new Set(prev).add(created.id));
         onSelect({ kind: "phase", id: created.id });
       } catch (err) {
-        setError(messageOf(err, "No se pudo crear la fase"));
+        setError(messageOf(err, tErr("createPhase")));
       }
     });
   }
@@ -111,7 +115,7 @@ export function StructureSidebar({
           narrative_id: tree.id,
           phase_id: phaseId,
           order_index: orderIndex,
-          name: "Nuevo workstream",
+          name: t("defaults.newWorkstream"),
           jira_issue_keys: [],
         });
         if (phaseId === null) {
@@ -128,17 +132,13 @@ export function StructureSidebar({
         }
         onSelect({ kind: "workstream", id: created.id });
       } catch (err) {
-        setError(messageOf(err, "No se pudo crear el workstream"));
+        setError(messageOf(err, tErr("createWorkstream")));
       }
     });
   }
 
   function handleDeletePhase(phase: NarrativePhaseWithWorkstreams): void {
-    if (
-      !window.confirm(
-        `¿Eliminar la fase "${phase.name}"? Sus workstreams también se eliminarán.`,
-      )
-    ) {
+    if (!window.confirm(tConfirm("deletePhase", { name: phase.name }))) {
       return;
     }
     setError(null);
@@ -155,7 +155,7 @@ export function StructureSidebar({
           onForceSelect({ kind: "narrative" });
         }
       } catch (err) {
-        setError(messageOf(err, "No se pudo eliminar la fase"));
+        setError(messageOf(err, tErr("deletePhase")));
       }
     });
   }
@@ -163,7 +163,7 @@ export function StructureSidebar({
   function handleDeleteWorkstream(workstream: NarrativeWorkstream): void {
     if (
       !window.confirm(
-        `¿Eliminar el workstream "${workstream.name}"?`,
+        tConfirm("deleteWorkstream", { name: workstream.name }),
       )
     ) {
       return;
@@ -194,7 +194,7 @@ export function StructureSidebar({
           onForceSelect({ kind: "narrative" });
         }
       } catch (err) {
-        setError(messageOf(err, "No se pudo eliminar el workstream"));
+        setError(messageOf(err, tErr("deleteWorkstream")));
       }
     });
   }
@@ -224,7 +224,7 @@ export function StructureSidebar({
         );
       } catch (err) {
         onPhaseListChanged(previous);
-        setError(messageOf(err, "No se pudo mover la fase"));
+        setError(messageOf(err, tErr("movePhase")));
       }
     });
   }
@@ -236,7 +236,7 @@ export function StructureSidebar({
         const created = await createDependencyAction({
           narrative_id: tree.id,
           order_index: tree.dependencies.length,
-          title: "Nueva dependencia",
+          title: t("defaults.newDependency"),
           commitment_status: "proposed",
           provider_jira_issue_keys: [],
         });
@@ -245,13 +245,14 @@ export function StructureSidebar({
         // start filling it in.
         onSelect({ kind: "dependency", id: created.id });
       } catch (err) {
-        setError(messageOf(err, "No se pudo crear la dependencia"));
+        setError(messageOf(err, tErr("createDependency")));
       }
     });
   }
 
   function handleDeleteDependency(dep: NarrativeDependency): void {
-    if (!window.confirm(`¿Eliminar la dependencia "${dep.title}"?`)) return;
+    if (!window.confirm(tConfirm("deleteDependency", { title: dep.title })))
+      return;
     setError(null);
     startTransition(async () => {
       try {
@@ -263,7 +264,7 @@ export function StructureSidebar({
           onForceSelect({ kind: "dependencies" });
         }
       } catch (err) {
-        setError(messageOf(err, "No se pudo eliminar la dependencia"));
+        setError(messageOf(err, tErr("deleteDependency")));
       }
     });
   }
@@ -298,7 +299,7 @@ export function StructureSidebar({
         );
       } catch (err) {
         onDependencyListChanged(previous);
-        setError(messageOf(err, "No se pudo mover la dependencia"));
+        setError(messageOf(err, tErr("moveDependency")));
       }
     });
   }
@@ -310,25 +311,26 @@ export function StructureSidebar({
         const created = await createRiskAction({
           narrative_id: tree.id,
           order_index: tree.risks.length,
-          title: "Nuevo riesgo",
+          title: t("defaults.newRisk"),
           severity: "medium",
           // Seed both arrays with one placeholder bullet so the SQL
           // CHECK (cardinality >= 1) is satisfied at insert time. The PM
           // edits these in the form before the first auto-save.
-          impacts: ["Describir el impacto…"],
-          mitigations: ["Describir la mitigación…"],
+          impacts: [t("defaults.riskImpact")],
+          mitigations: [t("defaults.riskMitigation")],
           related_dependency_ids: [],
         });
         onRiskListChanged([...tree.risks, created]);
         onSelect({ kind: "risk", id: created.id });
       } catch (err) {
-        setError(messageOf(err, "No se pudo crear el riesgo"));
+        setError(messageOf(err, tErr("createRisk")));
       }
     });
   }
 
   function handleDeleteRisk(risk: NarrativeRisk): void {
-    if (!window.confirm(`¿Eliminar el riesgo "${risk.title}"?`)) return;
+    if (!window.confirm(tConfirm("deleteRisk", { title: risk.title })))
+      return;
     setError(null);
     startTransition(async () => {
       try {
@@ -338,7 +340,7 @@ export function StructureSidebar({
           onForceSelect({ kind: "risks" });
         }
       } catch (err) {
-        setError(messageOf(err, "No se pudo eliminar el riesgo"));
+        setError(messageOf(err, tErr("deleteRisk")));
       }
     });
   }
@@ -370,7 +372,7 @@ export function StructureSidebar({
         );
       } catch (err) {
         onRiskListChanged(previous);
-        setError(messageOf(err, "No se pudo mover el riesgo"));
+        setError(messageOf(err, tErr("moveRisk")));
       }
     });
   }
@@ -424,7 +426,7 @@ export function StructureSidebar({
         onPhaseListChanged(nextPhases);
         onOrphansChanged(nextOrphans);
       } catch (err) {
-        setError(messageOf(err, "No se pudo mover el workstream"));
+        setError(messageOf(err, tErr("moveWorkstream")));
       }
     });
   }
@@ -441,8 +443,7 @@ export function StructureSidebar({
         </li>
         {tree.phases.length === 0 && tree.orphan_workstreams.length === 0 ? (
           <li className="mt-3 px-3 text-xs italic text-text-muted">
-            Esta narrativa no tiene fases ni workstreams todavía. Empezá
-            agregando una fase o un workstream sin fase.
+            {t("emptyState")}
           </li>
         ) : null}
         {tree.phases.map((phase, idx) => (
@@ -470,7 +471,7 @@ export function StructureSidebar({
               <ul className="ml-4 mt-0.5 border-l border-border pl-3">
                 {phase.workstreams.length === 0 ? (
                   <li className="px-3 py-1 text-xs italic text-text-muted">
-                    Sin workstreams
+                    {t("noWorkstreams")}
                   </li>
                 ) : (
                   phase.workstreams.map((w) => (
@@ -501,7 +502,7 @@ export function StructureSidebar({
         {tree.orphan_workstreams.length > 0 ? (
           <li className="mt-3">
             <p className="px-3 text-[10px] font-medium uppercase tracking-wide text-text-muted">
-              Sin fase
+              {t("orphanGroup")}
             </p>
             <ul>
               {tree.orphan_workstreams.map((w) => (
@@ -619,7 +620,7 @@ export function StructureSidebar({
           className={ADD_BUTTON_CLASS}
         >
           <Plus className="size-4" aria-hidden="true" />
-          Agregar fase
+          {t("buttons.addPhase")}
         </Button>
         <AddWorkstreamButton
           phases={tree.phases}
@@ -634,7 +635,7 @@ export function StructureSidebar({
           className={ADD_BUTTON_CLASS}
         >
           <Plus className="size-4" aria-hidden="true" />
-          Agregar dependencia
+          {t("buttons.addDependency")}
         </Button>
         <Button
           size="sm"
@@ -644,7 +645,7 @@ export function StructureSidebar({
           className={ADD_BUTTON_CLASS}
         >
           <Plus className="size-4" aria-hidden="true" />
-          Agregar riesgo
+          {t("buttons.addRisk")}
         </Button>
       </div>
     </div>
@@ -668,6 +669,7 @@ function DependenciesGroupRow({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const t = useTranslations("narratives.editor.sidebar.groups");
   return (
     <button
       type="button"
@@ -678,7 +680,7 @@ function DependenciesGroupRow({
         className="size-4 shrink-0 text-text-secondary"
         aria-hidden="true"
       />
-      <span className="truncate font-medium">Dependencias</span>
+      <span className="truncate font-medium">{t("dependencies")}</span>
       <span className="ml-auto whitespace-nowrap rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-semibold text-text-secondary">
         {count}
       </span>
@@ -703,6 +705,7 @@ function DependencyRow({
   onDelete: () => void;
   pending: boolean;
 }) {
+  const t = useTranslations("narratives.editor.sidebar");
   return (
     <div className="group relative flex items-center gap-1">
       <button
@@ -721,7 +724,7 @@ function DependencyRow({
           isIconOnly
           size="sm"
           variant="tertiary"
-          aria-label={`Acciones para ${dependency.title}`}
+          aria-label={t("aria.actionsFor", { name: dependency.title })}
           isDisabled={pending}
           className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
@@ -737,24 +740,24 @@ function DependencyRow({
           >
             <Dropdown.Item
               id="up"
-              textValue="Mover arriba"
+              textValue={t("menu.moveUp")}
               isDisabled={onMoveUp === null}
             >
-              <Label>Mover arriba</Label>
+              <Label>{t("menu.moveUp")}</Label>
             </Dropdown.Item>
             <Dropdown.Item
               id="down"
-              textValue="Mover abajo"
+              textValue={t("menu.moveDown")}
               isDisabled={onMoveDown === null}
             >
-              <Label>Mover abajo</Label>
+              <Label>{t("menu.moveDown")}</Label>
             </Dropdown.Item>
             <Dropdown.Item
               id="delete"
-              textValue="Eliminar"
+              textValue={t("menu.delete")}
               variant="danger"
             >
-              <Label>Eliminar</Label>
+              <Label>{t("menu.delete")}</Label>
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown.Popover>
@@ -772,6 +775,7 @@ function RisksGroupRow({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const t = useTranslations("narratives.editor.sidebar.groups");
   return (
     <button
       type="button"
@@ -782,7 +786,7 @@ function RisksGroupRow({
         className="size-4 shrink-0 text-text-secondary"
         aria-hidden="true"
       />
-      <span className="truncate font-medium">Riesgos</span>
+      <span className="truncate font-medium">{t("risks")}</span>
       <span className="ml-auto whitespace-nowrap rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-semibold text-text-secondary">
         {count}
       </span>
@@ -807,6 +811,7 @@ function RiskRow({
   onDelete: () => void;
   pending: boolean;
 }) {
+  const t = useTranslations("narratives.editor.sidebar");
   return (
     <div className="group relative flex items-center gap-1">
       <button
@@ -829,7 +834,7 @@ function RiskRow({
           isIconOnly
           size="sm"
           variant="tertiary"
-          aria-label={`Acciones para ${risk.title}`}
+          aria-label={t("aria.actionsFor", { name: risk.title })}
           isDisabled={pending}
           className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
@@ -845,20 +850,24 @@ function RiskRow({
           >
             <Dropdown.Item
               id="up"
-              textValue="Mover arriba"
+              textValue={t("menu.moveUp")}
               isDisabled={onMoveUp === null}
             >
-              <Label>Mover arriba</Label>
+              <Label>{t("menu.moveUp")}</Label>
             </Dropdown.Item>
             <Dropdown.Item
               id="down"
-              textValue="Mover abajo"
+              textValue={t("menu.moveDown")}
               isDisabled={onMoveDown === null}
             >
-              <Label>Mover abajo</Label>
+              <Label>{t("menu.moveDown")}</Label>
             </Dropdown.Item>
-            <Dropdown.Item id="delete" textValue="Eliminar" variant="danger">
-              <Label>Eliminar</Label>
+            <Dropdown.Item
+              id="delete"
+              textValue={t("menu.delete")}
+              variant="danger"
+            >
+              <Label>{t("menu.delete")}</Label>
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown.Popover>
@@ -912,6 +921,7 @@ function PhaseRow({
   onDelete: () => void;
   pending: boolean;
 }) {
+  const t = useTranslations("narratives.editor.sidebar");
   const Chevron = isExpanded ? ChevronDown : ChevronRight;
   return (
     <div className="group relative flex items-center gap-1">
@@ -919,7 +929,9 @@ function PhaseRow({
         type="button"
         onClick={onToggleExpanded}
         className="rounded p-0.5 text-text-secondary transition-colors hover:bg-warm-100 hover:text-text-primary"
-        aria-label={isExpanded ? "Colapsar fase" : "Expandir fase"}
+        aria-label={
+          isExpanded ? t("aria.collapsePhase") : t("aria.expandPhase")
+        }
       >
         <Chevron className="size-4" />
       </button>
@@ -940,7 +952,7 @@ function PhaseRow({
           isIconOnly
           size="sm"
           variant="tertiary"
-          aria-label={`Acciones para ${phase.name}`}
+          aria-label={t("aria.actionsFor", { name: phase.name })}
           isDisabled={pending}
           className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
@@ -956,24 +968,24 @@ function PhaseRow({
           >
             <Dropdown.Item
               id="up"
-              textValue="Mover arriba"
+              textValue={t("menu.moveUp")}
               isDisabled={onMoveUp === null}
             >
-              <Label>Mover arriba</Label>
+              <Label>{t("menu.moveUp")}</Label>
             </Dropdown.Item>
             <Dropdown.Item
               id="down"
-              textValue="Mover abajo"
+              textValue={t("menu.moveDown")}
               isDisabled={onMoveDown === null}
             >
-              <Label>Mover abajo</Label>
+              <Label>{t("menu.moveDown")}</Label>
             </Dropdown.Item>
             <Dropdown.Item
               id="delete"
-              textValue="Eliminar"
+              textValue={t("menu.delete")}
               variant="danger"
             >
-              <Label>Eliminar</Label>
+              <Label>{t("menu.delete")}</Label>
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown.Popover>
@@ -999,6 +1011,8 @@ function WorkstreamRow({
   onDelete: () => void;
   pending: boolean;
 }) {
+  const t = useTranslations("narratives.editor.sidebar");
+  const orphanLabel = t("menu.moveToOrphan");
   const moveTargets = useMemo(() => {
     const items: { id: string; label: string; phaseId: string | null }[] = [];
     for (const p of phases) {
@@ -1007,10 +1021,10 @@ function WorkstreamRow({
       }
     }
     if (workstream.phase_id !== null) {
-      items.push({ id: "orphan", label: "Sin fase", phaseId: null });
+      items.push({ id: "orphan", label: orphanLabel, phaseId: null });
     }
     return items;
-  }, [phases, workstream.phase_id]);
+  }, [phases, workstream.phase_id, orphanLabel]);
 
   return (
     <div className="group relative flex items-center gap-1">
@@ -1030,7 +1044,7 @@ function WorkstreamRow({
           isIconOnly
           size="sm"
           variant="tertiary"
-          aria-label={`Acciones para ${workstream.name}`}
+          aria-label={t("aria.actionsFor", { name: workstream.name })}
           isDisabled={pending}
           className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
         >
@@ -1052,21 +1066,26 @@ function WorkstreamRow({
             }}
           >
             <>
-              {moveTargets.map((t) => (
-                <Dropdown.Item
-                  key={t.id}
-                  id={t.id}
-                  textValue={`Mover a ${t.label}`}
-                >
-                  <Label>Mover a {t.label}</Label>
-                </Dropdown.Item>
-              ))}
+              {moveTargets.map((target) => {
+                const itemLabel = t("menu.moveToPhase", {
+                  target: target.label,
+                });
+                return (
+                  <Dropdown.Item
+                    key={target.id}
+                    id={target.id}
+                    textValue={itemLabel}
+                  >
+                    <Label>{itemLabel}</Label>
+                  </Dropdown.Item>
+                );
+              })}
               <Dropdown.Item
                 id="delete"
-                textValue="Eliminar"
+                textValue={t("menu.delete")}
                 variant="danger"
               >
-                <Label>Eliminar</Label>
+                <Label>{t("menu.delete")}</Label>
               </Dropdown.Item>
             </>
           </Dropdown.Menu>
@@ -1085,6 +1104,7 @@ function AddWorkstreamButton({
   onPick: (phaseId: string | null) => void;
   pending: boolean;
 }) {
+  const t = useTranslations("narratives.editor.sidebar");
   // Single-button shortcut when there are no phases yet — no menu needed.
   if (phases.length === 0) {
     return (
@@ -1096,7 +1116,7 @@ function AddWorkstreamButton({
         className={ADD_BUTTON_CLASS}
       >
         <Plus className="size-4" aria-hidden="true" />
-        Agregar workstream
+        {t("buttons.addWorkstream")}
       </Button>
     );
   }
@@ -1109,7 +1129,7 @@ function AddWorkstreamButton({
         className={ADD_BUTTON_CLASS}
       >
         <Plus className="size-4" aria-hidden="true" />
-        Agregar workstream
+        {t("buttons.addWorkstream")}
       </Button>
       <Dropdown.Popover>
         <Dropdown.Menu
@@ -1121,17 +1141,20 @@ function AddWorkstreamButton({
           }}
         >
           <>
-            {phases.map((p) => (
-              <Dropdown.Item
-                key={`phase:${p.id}`}
-                id={`phase:${p.id}`}
-                textValue={`Al final de ${p.name}`}
-              >
-                <Label>Al final de {p.name}</Label>
-              </Dropdown.Item>
-            ))}
-            <Dropdown.Item id="orphan" textValue="Sin fase">
-              <Label>Sin fase</Label>
+            {phases.map((p) => {
+              const itemLabel = t("menu.endOfPhase", { phase: p.name });
+              return (
+                <Dropdown.Item
+                  key={`phase:${p.id}`}
+                  id={`phase:${p.id}`}
+                  textValue={itemLabel}
+                >
+                  <Label>{itemLabel}</Label>
+                </Dropdown.Item>
+              );
+            })}
+            <Dropdown.Item id="orphan" textValue={t("menu.moveToOrphan")}>
+              <Label>{t("menu.moveToOrphan")}</Label>
             </Dropdown.Item>
           </>
         </Dropdown.Menu>

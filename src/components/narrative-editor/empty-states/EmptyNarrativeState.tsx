@@ -1,6 +1,7 @@
 "use client";
 
 import { Layers, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button, Card } from "@/components/ui";
 
 // Editor-specific empty state. Renders below NarrativeForm (NOT in
@@ -28,17 +29,17 @@ export function EmptyNarrativeState({
   onAddOrphanWorkstream: () => void;
   pending: boolean;
 }) {
+  const t = useTranslations("narratives.editor.emptyState");
   return (
     <Card variant="hero" className="text-center">
       <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-warm-100">
         <Layers className="size-8 text-text-muted" aria-hidden="true" />
       </div>
       <h3 className="mt-5 text-xl font-semibold text-text-primary">
-        Esta narrativa está vacía
+        {t("title")}
       </h3>
       <p className="mx-auto mt-2 max-w-md text-base text-text-secondary">
-        Empezá agregando una fase o un workstream sin fase. Podés seguir
-        editando el título, subtítulo y overview de arriba mientras tanto.
+        {t("body")}
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <Button
@@ -48,7 +49,7 @@ export function EmptyNarrativeState({
           disabled={pending}
         >
           <Plus className="size-4" aria-hidden="true" />
-          Agregar primera fase
+          {t("addPhase")}
         </Button>
         <Button
           variant="secondary"
@@ -57,7 +58,7 @@ export function EmptyNarrativeState({
           disabled={pending}
         >
           <Plus className="size-4" aria-hidden="true" />
-          Workstream sin fase
+          {t("addOrphanWorkstream")}
         </Button>
       </div>
     </Card>

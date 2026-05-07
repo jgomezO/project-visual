@@ -1,1 +1,289 @@
-{}
+{
+  "list": {
+    "heading": {
+      "withName": "Narrativas de {name}",
+      "generic": "Narrativas del proyecto"
+    },
+    "empty": {
+      "title": "Aún no hay narrativas para este proyecto",
+      "description": "Las narrativas te ayudan a presentar el plan de un proyecto a audiencias no técnicas. Cada narrativa puede tener fases, workstreams, dependencias y riesgos, todo conectado con issues reales de Jira.",
+      "cta": "Crear primera narrativa"
+    },
+    "card": {
+      "lastEdited": "Última edición {time} · por {actor}",
+      "actionsAria": "Acciones",
+      "menu": {
+        "duplicate": "Duplicar",
+        "delete": "Eliminar"
+      },
+      "preview": {
+        "label": "Vista previa",
+        "draftTooltip": "Publicá la narrativa para previsualizarla."
+      },
+      "status": {
+        "published": "Publicada",
+        "draft": "Borrador"
+      },
+      "errors": {
+        "duplicateFailed": "Error al duplicar",
+        "deleteFailed": "Error al eliminar"
+      },
+      "deleteModal": {
+        "title": "¿Eliminar narrativa?",
+        "body": "Esta acción no se puede deshacer. Se eliminarán también las fases, workstreams, dependencias y riesgos asociados.",
+        "cancel": "Cancelar",
+        "confirm": { "idle": "Eliminar", "pending": "Eliminando…" }
+      }
+    },
+    "newButton": {
+      "cta": "Nueva narrativa",
+      "modal": {
+        "heading": "Nueva narrativa",
+        "title": { "label": "Título", "placeholder": "Ej: Ticketing V2 — Phase 0 & Phase 1" },
+        "subtitle": { "label": "Subtítulo (opcional)", "placeholder": "Audiencia / contexto / fecha" },
+        "cancel": "Cancelar",
+        "create": { "idle": "Crear y editar", "pending": "Creando…" }
+      },
+      "errors": {
+        "titleRequired": "El título es obligatorio.",
+        "titleTooLong": "El título no puede superar {max} caracteres.",
+        "subtitleTooLong": "El subtítulo no puede superar {max} caracteres.",
+        "createFailed": "No se pudo crear: {message}",
+        "unknown": "Error desconocido"
+      }
+    }
+  },
+  "editor": {
+    "mobileFallback": {
+      "title": "Editor disponible en pantallas más anchas",
+      "body": "Volvé a abrir esta página desde una notebook o pantalla de escritorio. El editor de narrativas necesita más espacio del que tiene tu dispositivo actual.",
+      "backToList": "Volver al listado"
+    },
+    "header": {
+      "breadcrumb": {
+        "aria": "Ruta de navegación",
+        "projects": "Proyectos",
+        "narratives": "Narrativas"
+      },
+      "preview": "Vista previa",
+      "publish": {
+        "publish": "Publicar",
+        "unpublish": "Despublicar",
+        "pending": "Aplicando…"
+      },
+      "publishFlushFailed": "No se pudo guardar el formulario. Revisá los campos antes de publicar.",
+      "unpublishConfirm": "¿Despublicar esta narrativa? Dejará de ser visible en la vista pública.",
+      "publishErrorFallback": "Error al publicar"
+    },
+    "sidebar": {
+      "emptyState": "Esta narrativa no tiene fases ni workstreams todavía. Empezá agregando una fase o un workstream sin fase.",
+      "noWorkstreams": "Sin workstreams",
+      "orphanGroup": "Sin fase",
+      "groups": {
+        "dependencies": "Dependencias",
+        "risks": "Riesgos"
+      },
+      "aria": {
+        "actionsFor": "Acciones para {name}",
+        "expandPhase": "Expandir fase",
+        "collapsePhase": "Colapsar fase"
+      },
+      "menu": {
+        "moveUp": "Mover arriba",
+        "moveDown": "Mover abajo",
+        "delete": "Eliminar",
+        "moveToPhase": "Mover a {target}",
+        "moveToOrphan": "Sin fase",
+        "endOfPhase": "Al final de {phase}"
+      },
+      "buttons": {
+        "addPhase": "Agregar fase",
+        "addWorkstream": "Agregar workstream",
+        "addDependency": "Agregar dependencia",
+        "addRisk": "Agregar riesgo"
+      },
+      "defaults": {
+        "newPhase": "Nueva fase",
+        "newWorkstream": "Nuevo workstream",
+        "newDependency": "Nueva dependencia",
+        "newRisk": "Nuevo riesgo",
+        "riskImpact": "Describir el impacto…",
+        "riskMitigation": "Describir la mitigación…"
+      }
+    },
+    "panel": {
+      "notFound": {
+        "phase": "Fase no encontrada.",
+        "workstream": "Workstream no encontrado.",
+        "dependency": "Dependencia no encontrada.",
+        "risk": "Riesgo no encontrado."
+      }
+    },
+    "narrative": {
+      "section": "Narrativa",
+      "fields": {
+        "title": { "label": "Título", "required": "El título es obligatorio." },
+        "subtitle": { "label": "Subtítulo", "placeholder": "Audiencia / contexto / fecha" },
+        "overview": { "label": "Overview", "helper": "Contexto general del proyecto. Markdown plain (sin renderizado por ahora)." },
+        "statusSummary": { "label": "Estado actual", "helper": "Resumen del momento actual del proyecto. Aparece en la vista pública." },
+        "risksSubtitle": { "label": "Subtítulo de la sección de riesgos", "placeholder": "Opcional: aparece bajo el título \"Riesgos del proyecto\"" }
+      },
+      "meta": {
+        "createdBy": "Creado por",
+        "updatedBy": "Actualizado por",
+        "created": "Creado",
+        "updated": "Actualizado"
+      },
+      "saveError": "El título es obligatorio y no puede ser tan largo."
+    },
+    "phase": {
+      "section": "Fase",
+      "fields": {
+        "name": { "label": "Nombre", "required": "El nombre es obligatorio." },
+        "objective": { "label": "Objetivo", "helper": "El qué — qué se busca lograr en esta fase." },
+        "rationale": { "label": "Rationale", "helper": "El por qué — clave para narrativas ejecutivas." },
+        "status": { "label": "Estado" },
+        "startDate": { "label": "Inicio" },
+        "endDate": { "label": "Fin", "orderInvalid": "Debe ser igual o posterior al inicio." },
+        "progress": {
+          "label": "Progreso (%)",
+          "helper": "Si lo dejás vacío, se calcula automáticamente desde los issues asociados a sus workstreams.",
+          "invalid": "El progreso debe estar entre 0 y 100."
+        }
+      },
+      "delete": { "idle": "Eliminar fase", "pending": "Eliminando…" },
+      "saveError": "Hay campos inválidos en el formulario."
+    },
+    "workstream": {
+      "section": "Workstream",
+      "fields": {
+        "name": { "label": "Nombre", "required": "El nombre es obligatorio." },
+        "description": { "label": "Descripción", "helper": "Markdown plain (sin renderizado por ahora)." },
+        "phase": { "label": "Fase", "orphan": "Sin fase" }
+      },
+      "delete": { "idle": "Eliminar workstream", "pending": "Eliminando…" }
+    },
+    "dependency": {
+      "section": "Dependencia",
+      "fields": {
+        "title": { "label": "Título", "required": "El título es obligatorio." },
+        "description": { "label": "Descripción", "placeholder": "¿Qué se necesita del provider?" },
+        "workstream": { "label": "Workstream impactado", "narrativeOption": "Toda la narrativa" },
+        "neededBy": { "label": "Cuándo lo necesitamos" },
+        "expectedDelivery": {
+          "label": "Cuándo se entregaría",
+          "helper": "Si lo dejás vacío y vinculaste issues, se calcula automáticamente desde la fecha de entrega más tardía de esos issues."
+        },
+        "commitmentStatus": { "label": "Estado del compromiso" },
+        "coordinationNotes": {
+          "label": "Esfuerzo de coordinación",
+          "placeholder": "¿Qué hay que sincronizar entre equipos? Reuniones, dependencias técnicas, escalations…"
+        }
+      },
+      "delete": { "idle": "Eliminar dependencia", "pending": "Eliminando…" }
+    },
+    "risk": {
+      "section": "Riesgo",
+      "fields": {
+        "title": { "label": "Título", "required": "El título es obligatorio." },
+        "description": { "label": "Descripción", "placeholder": "¿Qué riesgo es y por qué nos preocupa?" },
+        "severity": { "label": "Severidad" },
+        "impacts": {
+          "label": "Impactos",
+          "placeholder": "Describí un impacto…",
+          "required": "Mínimo un impacto no vacío."
+        },
+        "mitigations": {
+          "label": "Mitigaciones",
+          "placeholder": "Describí una mitigación…",
+          "required": "Mínimo una mitigación no vacía."
+        },
+        "relatedDependencies": {
+          "label": "Dependencias relacionadas",
+          "helper": "Marcá las dependencias afectadas por este riesgo. Aparecerán linkeadas en la vista pública.",
+          "empty": "Esta narrativa todavía no tiene dependencias para vincular."
+        }
+      },
+      "delete": { "idle": "Eliminar riesgo", "pending": "Eliminando…" },
+      "saveError": "Riesgo inválido: revisá título, impactos y mitigaciones."
+    },
+    "dependenciesList": {
+      "heading": "Dependencias de la narrativa",
+      "description": "Compromisos cross-team que afectan la entrega del proyecto. Para agregar, usá el botón \"Agregar dependencia\" en la barra lateral.",
+      "empty": "Esta narrativa todavía no tiene dependencias. Agregá la primera desde el panel izquierdo.",
+      "card": {
+        "issuesCount": "{count, plural, one {# issue} other {# issues}}",
+        "deleteAria": "Eliminar {title}"
+      }
+    },
+    "risksList": {
+      "heading": "Riesgos del proyecto",
+      "description": "Riesgos declarados a nivel narrativa, con sus impactos y mitigaciones. Para agregar, usá el botón \"Agregar riesgo\" en la barra lateral.",
+      "empty": "Esta narrativa todavía no tiene riesgos. Agregá el primero desde el panel izquierdo.",
+      "card": {
+        "severityLabel": "Severidad: {label}",
+        "impactsCount": "{count, plural, one {# impacto} other {# impactos}}",
+        "mitigationsCount": "{count, plural, one {# mitigación} other {# mitigaciones}}",
+        "deleteAria": "Eliminar {title}"
+      }
+    },
+    "emptyState": {
+      "title": "Esta narrativa está vacía",
+      "body": "Empezá agregando una fase o un workstream sin fase. Podés seguir editando el título, subtítulo y overview de arriba mientras tanto.",
+      "addPhase": "Agregar primera fase",
+      "addOrphanWorkstream": "Workstream sin fase"
+    },
+    "autosave": {
+      "saving": "Guardando…",
+      "saved": "Guardado {time}",
+      "errorTitle": "Error al guardar",
+      "retry": "Reintentar"
+    },
+    "selectionFlushFailed": "No se pudo guardar el formulario. Revisá los campos antes de cambiar de sección.",
+    "errors": {
+      "createPhase": "No se pudo crear la fase",
+      "createWorkstream": "No se pudo crear el workstream",
+      "createDependency": "No se pudo crear la dependencia",
+      "createRisk": "No se pudo crear el riesgo",
+      "deletePhase": "No se pudo eliminar la fase",
+      "deleteWorkstream": "No se pudo eliminar el workstream",
+      "deleteDependency": "No se pudo eliminar la dependencia",
+      "deleteRisk": "No se pudo eliminar el riesgo",
+      "movePhase": "No se pudo mover la fase",
+      "moveWorkstream": "No se pudo mover el workstream",
+      "moveDependency": "No se pudo mover la dependencia",
+      "moveRisk": "No se pudo mover el riesgo",
+      "deleteFallback": "Error al eliminar"
+    }
+  },
+  "confirm": {
+    "deletePhase": "¿Eliminar la fase \"{name}\"? Sus workstreams también se eliminarán.",
+    "deleteWorkstream": "¿Eliminar el workstream \"{name}\"?",
+    "deleteDependency": "¿Eliminar la dependencia \"{title}\"?",
+    "deleteRisk": "¿Eliminar el riesgo \"{title}\"?"
+  },
+  "inputs": {
+    "bulletList": {
+      "empty": "Sin elementos.",
+      "addItem": "Agregar item",
+      "removeItemAria": "Remover elemento {n}"
+    },
+    "jiraIssues": {
+      "label": "Issues de Jira",
+      "empty": "Sin issues vinculadas.",
+      "searchPlaceholder": "Buscar por key o título…",
+      "chip": {
+        "removeAria": "Remover issue",
+        "openAria": "Abrir {key} en Jira",
+        "notFoundTooltip": "Issue no encontrada en sync. Verificá el key o ejecutá un sync."
+      }
+    },
+    "pod": {
+      "label": "Provider (PoD / equipo)",
+      "placeholder": "Equipo o proyecto provider…",
+      "helper": "Si el equipo provider no es un proyecto Jira sincronizado, escribilo libre y dejá el link sin completar.",
+      "linkedTitle": "Vinculado al proyecto Jira {key}",
+      "unlinkAria": "Desvincular del proyecto"
+    }
+  }
+}

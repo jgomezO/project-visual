@@ -3,6 +3,7 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
+import { useTranslations } from "next-intl";
 import { updatePhaseAction } from "@/app/actions/narratives";
 import type { NarrativePhase, PhaseStatus } from "@/lib/narratives/types";
 import {
@@ -18,11 +19,11 @@ import { useAutoSave, type SaveState } from "./useAutoSave";
 
 const NAME_MAX = 200;
 
-const STATUS_OPTIONS: { id: PhaseStatus; label: string }[] = [
-  { id: "upcoming", label: "Próxima" },
-  { id: "in_progress", label: "En curso" },
-  { id: "completed", label: "Completada" },
-  { id: "at_risk", label: "En riesgo" },
+const STATUS_KEYS: PhaseStatus[] = [
+  "upcoming",
+  "in_progress",
+  "completed",
+  "at_risk",
 ];
 
 interface PhaseFormProps {
@@ -38,6 +39,8 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
     { phase, onPatched, onDelete, pendingDelete, onSaveStateChange },
     ref,
   ) {
+    const t = useTranslations("narratives.editor.phase");
+    const tStatus = useTranslations("common.phaseStatus");
     const [draft, setDraft] = useState({
       name: phase.name,
       objective: phase.objective ?? "",
@@ -63,7 +66,7 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
       draft,
       async (snapshot) => {
         if (isInvalid) {
-          throw new Error("Hay campos inválidos en el formulario.");
+          throw new Error(t("saveError"));
         }
         const updated = await updatePhaseAction(phase.id, {
           name: snapshot.name,
@@ -92,11 +95,11 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <SectionHeading>Fase</SectionHeading>
+        <SectionHeading>{t("section")}</SectionHeading>
 
         <Field
-          label="Nombre"
-          error={nameInvalid ? "El nombre es obligatorio." : undefined}
+          label={t("fields.name.label")}
+          error={nameInvalid ? t("fields.name.required") : undefined}
         >
           <TextInput
             value={draft.name}
@@ -109,8 +112,8 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
         </Field>
 
         <Field
-          label="Objetivo"
-          helper="El qué — qué se busca lograr en esta fase."
+          label={t("fields.objective.label")}
+          helper={t("fields.objective.helper")}
         >
           <Textarea
             value={draft.objective}
@@ -122,8 +125,8 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
         </Field>
 
         <Field
-          label="Rationale"
-          helper="El por qué — clave para narrativas ejecutivas."
+          label={t("fields.rationale.label")}
+          helper={t("fields.rationale.helper")}
         >
           <Textarea
             value={draft.rationale}
@@ -140,7 +143,7 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
           onChange={handleStatusChange}
         >
           <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-            Estado
+            {t("fields.status.label")}
           </Label>
           <Select.Trigger>
             <Select.Value />
@@ -148,42 +151,39 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              {STATUS_OPTIONS.map((opt) => (
-                <ListBox.Item key={opt.id} id={opt.id} textValue={opt.label}>
-                  {opt.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
+              {STATUS_KEYS.map((key) => {
+                const label = tStatus(key);
+                return (
+                  <ListBox.Item key={key} id={key} textValue={label}>
+                    {label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                );
+              })}
             </ListBox>
           </Select.Popover>
         </Select>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <DateInputField
-            label="Inicio"
+            label={t("fields.startDate.label")}
             value={draft.start_date}
             onChange={(v) => setDraft({ ...draft, start_date: v })}
           />
           <DateInputField
-            label="Fin"
+            label={t("fields.endDate.label")}
             value={draft.end_date}
             onChange={(v) => setDraft({ ...draft, end_date: v })}
             error={
-              dateOrderInvalid
-                ? "Debe ser igual o posterior al inicio."
-                : undefined
+              dateOrderInvalid ? t("fields.endDate.orderInvalid") : undefined
             }
           />
         </div>
 
         <Field
-          label="Progreso (%)"
-          helper="Si lo dejás vacío, se calcula automáticamente desde los issues asociados a sus workstreams."
-          error={
-            progressInvalid
-              ? "El progreso debe estar entre 0 y 100."
-              : undefined
-          }
+          label={t("fields.progress.label")}
+          helper={t("fields.progress.helper")}
+          error={progressInvalid ? t("fields.progress.invalid") : undefined}
         >
           <TextInput
             type="number"
@@ -207,7 +207,7 @@ export const PhaseForm = forwardRef<FormHandle, PhaseFormProps>(
         </Field>
 
         <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
-          {pendingDelete ? "Eliminando…" : "Eliminar fase"}
+          {pendingDelete ? t("delete.pending") : t("delete.idle")}
         </FormDeleteButton>
       </form>
     );

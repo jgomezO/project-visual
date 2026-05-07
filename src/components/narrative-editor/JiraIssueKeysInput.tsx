@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { GeistMono } from "geist/font/mono";
 import { Tooltip } from "@heroui/react";
 import { AlertTriangle, ExternalLink, Search, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { StatusChip } from "@/components/project/StatusChip";
 import type { StatusCategory } from "@/components/project/ProjectTable";
 import { getAnonSupabase } from "@/lib/supabase/anon";
@@ -47,6 +48,7 @@ export function JiraIssueKeysInput({
   value,
   onChange,
 }: Props) {
+  const t = useTranslations("narratives.inputs.jiraIssues");
   const [resolvedProviderId, setResolvedProviderId] = useState<
     string | null | "pending"
   >(providerProjectKey ? "pending" : null);
@@ -211,11 +213,11 @@ export function JiraIssueKeysInput({
         id={`${inputId}-label`}
         className="text-xs font-medium uppercase tracking-wide text-text-secondary"
       >
-        Issues de Jira
+        {t("label")}
       </span>
 
       {chipsForRender.length === 0 ? (
-        <p className="text-sm italic text-text-muted">Sin issues vinculadas.</p>
+        <p className="text-sm italic text-text-muted">{t("empty")}</p>
       ) : (
         <ul className="flex flex-wrap gap-1.5">
           {chipsForRender.map(({ key, data }) => (
@@ -240,7 +242,7 @@ export function JiraIssueKeysInput({
             id={inputId}
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
-            placeholder="Buscar por key o título…"
+            placeholder={t("searchPlaceholder")}
             className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
             aria-labelledby={`${inputId}-label`}
             autoComplete="off"
@@ -285,6 +287,7 @@ function IssueChip({
   data: IssueChipData | null | undefined;
   onRemove: () => void;
 }) {
+  const t = useTranslations("narratives.inputs.jiraIssues.chip");
   const jiraBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, "");
   const jiraHref = jiraBase ? `${jiraBase}/browse/${issueKey}` : null;
 
@@ -311,9 +314,7 @@ function IssueChip({
           <ChipRemoveButton onClick={onRemove} />
         </span>
         <Tooltip.Content>
-          <p className="text-xs">
-            Issue no encontrada en sync. Verificá el key o ejecutá un sync.
-          </p>
+          <p className="text-xs">{t("notFoundTooltip")}</p>
         </Tooltip.Content>
       </Tooltip>
     );
@@ -334,7 +335,7 @@ function IssueChip({
             rel="noreferrer"
             className="inline-flex items-center text-primary-700 transition-colors hover:text-primary-900"
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Abrir ${issueKey} en Jira`}
+            aria-label={t("openAria", { key: issueKey })}
           >
             <ExternalLink className="size-3" aria-hidden="true" />
           </a>
@@ -354,12 +355,13 @@ function IssueChip({
 }
 
 function ChipRemoveButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations("narratives.inputs.jiraIssues.chip");
   return (
     <button
       type="button"
       onClick={onClick}
       className="rounded-full p-0.5 transition-colors hover:bg-primary-200"
-      aria-label="Remover issue"
+      aria-label={t("removeAria")}
     >
       <X className="size-3" aria-hidden="true" />
     </button>

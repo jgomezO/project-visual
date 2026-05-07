@@ -4,6 +4,7 @@ import { forwardRef, useImperativeHandle, useState } from "react";
 import { GeistMono } from "geist/font/mono";
 import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
+import { useTranslations } from "next-intl";
 import { updateRiskAction } from "@/app/actions/narratives";
 import type {
   NarrativeDependency,
@@ -23,11 +24,7 @@ import { useAutoSave, type SaveState } from "./useAutoSave";
 
 const TITLE_MAX = 200;
 
-const SEVERITY_OPTIONS: { id: RiskSeverity; label: string }[] = [
-  { id: "low", label: "Baja" },
-  { id: "medium", label: "Media" },
-  { id: "high", label: "Alta" },
-];
+const SEVERITY_KEYS: RiskSeverity[] = ["low", "medium", "high"];
 
 interface RiskFormProps {
   risk: NarrativeRisk;
@@ -53,6 +50,8 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
     },
     ref,
   ) {
+    const t = useTranslations("narratives.editor.risk");
+    const tSeverity = useTranslations("common.riskSeverity");
     const [draft, setDraft] = useState({
       title: risk.title,
       description: risk.description ?? "",
@@ -78,9 +77,7 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
       draft,
       async () => {
         if (isInvalid) {
-          throw new Error(
-            "Riesgo inválido: revisá título, impactos y mitigaciones.",
-          );
+          throw new Error(t("saveError"));
         }
         const updated = await updateRiskAction(risk.id, {
           title: draft.title.trim(),
@@ -120,7 +117,7 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
         onSubmit={(e) => e.preventDefault()}
       >
         <header className="flex items-center gap-2">
-          <SectionHeading>Riesgo</SectionHeading>
+          <SectionHeading>{t("section")}</SectionHeading>
           <span
             className={`${GeistMono.className} rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-semibold text-text-secondary`}
           >
@@ -129,8 +126,8 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
         </header>
 
         <Field
-          label="Título"
-          error={titleInvalid ? "El título es obligatorio." : undefined}
+          label={t("fields.title.label")}
+          error={titleInvalid ? t("fields.title.required") : undefined}
         >
           <TextInput
             value={draft.title}
@@ -142,14 +139,14 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
           />
         </Field>
 
-        <Field label="Descripción">
+        <Field label={t("fields.description.label")}>
           <Textarea
             value={draft.description}
             onChange={(e) =>
               setDraft({ ...draft, description: e.currentTarget.value })
             }
             rows={3}
-            placeholder="¿Qué riesgo es y por qué nos preocupa?"
+            placeholder={t("fields.description.placeholder")}
           />
         </Field>
 
@@ -159,7 +156,7 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
           onChange={handleSeverityChange}
         >
           <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-            Severidad
+            {t("fields.severity.label")}
           </Label>
           <Select.Trigger>
             <Select.Value />
@@ -167,33 +164,38 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
           </Select.Trigger>
           <Select.Popover>
             <ListBox>
-              {SEVERITY_OPTIONS.map((opt) => (
-                <ListBox.Item key={opt.id} id={opt.id} textValue={opt.label}>
-                  {opt.label}
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
+              {SEVERITY_KEYS.map((key) => {
+                const label = tSeverity(key);
+                return (
+                  <ListBox.Item key={key} id={key} textValue={label}>
+                    {label}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                );
+              })}
             </ListBox>
           </Select.Popover>
         </Select>
 
         <BulletListInput
-          label="Impactos"
+          label={t("fields.impacts.label")}
           value={draft.impacts}
           onChange={(next) => setDraft({ ...draft, impacts: next })}
-          placeholder="Describí un impacto…"
+          placeholder={t("fields.impacts.placeholder")}
           tone="danger"
-          errorMessage={impactsInvalid ? "Mínimo un impacto no vacío." : null}
+          errorMessage={
+            impactsInvalid ? t("fields.impacts.required") : null
+          }
         />
 
         <BulletListInput
-          label="Mitigaciones"
+          label={t("fields.mitigations.label")}
           value={draft.mitigations}
           onChange={(next) => setDraft({ ...draft, mitigations: next })}
-          placeholder="Describí una mitigación…"
+          placeholder={t("fields.mitigations.placeholder")}
           tone="success"
           errorMessage={
-            mitigationsInvalid ? "Mínimo una mitigación no vacía." : null
+            mitigationsInvalid ? t("fields.mitigations.required") : null
           }
         />
 
@@ -204,7 +206,7 @@ export const RiskForm = forwardRef<FormHandle, RiskFormProps>(
         />
 
         <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
-          {pendingDelete ? "Eliminando…" : "Eliminar riesgo"}
+          {pendingDelete ? t("delete.pending") : t("delete.idle")}
         </FormDeleteButton>
       </form>
     );
@@ -220,15 +222,14 @@ function RelatedDependenciesPicker({
   selected: string[];
   onToggle: (id: string) => void;
 }) {
+  const t = useTranslations("narratives.editor.risk.fields.relatedDependencies");
   if (dependencies.length === 0) {
     return (
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-          Dependencias relacionadas
+          {t("label")}
         </span>
-        <p className="text-sm italic text-text-muted">
-          Esta narrativa todavía no tiene dependencias para vincular.
-        </p>
+        <p className="text-sm italic text-text-muted">{t("empty")}</p>
       </div>
     );
   }
@@ -237,12 +238,9 @@ function RelatedDependenciesPicker({
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-        Dependencias relacionadas
+        {t("label")}
       </span>
-      <p className="text-sm text-text-secondary">
-        Marcá las dependencias afectadas por este riesgo. Aparecerán
-        linkeadas en la vista pública.
-      </p>
+      <p className="text-sm text-text-secondary">{t("helper")}</p>
       <ul className="flex flex-wrap gap-1.5">
         {dependencies.map((dep) => {
           const isOn = selectedSet.has(dep.id);

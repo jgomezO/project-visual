@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Button as HeroButton,
   Dropdown,
@@ -11,13 +9,14 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { AlertTriangle, ExternalLink, MoreHorizontal } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import {
   deleteNarrativeAction,
   duplicateNarrativeAction,
 } from "@/app/actions/narratives";
 import { Button, Card, Chip } from "@/components/ui";
+import { Link, useRouter } from "@/i18n/navigation";
 import { formatActor } from "@/lib/format/actor";
-import { relativeFromNow } from "@/lib/format/relativeTime";
 import type { ProjectNarrative } from "@/lib/narratives/types";
 
 export function NarrativeCard({
@@ -27,6 +26,9 @@ export function NarrativeCard({
   projectKey: string;
   narrative: ProjectNarrative;
 }) {
+  const t = useTranslations("narratives.list.card");
+  const tActor = useTranslations("common.actor");
+  const format = useFormatter();
   const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -46,7 +48,7 @@ export function NarrativeCard({
           router.push(`/projects/${projectKey}/narratives/${copy.id}/edit`);
         } catch (err) {
           setError(
-            err instanceof Error ? err.message : "Error al duplicar",
+            err instanceof Error ? err.message : t("errors.duplicateFailed"),
           );
         }
       });
@@ -63,11 +65,15 @@ export function NarrativeCard({
         router.refresh();
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Error al eliminar",
+          err instanceof Error ? err.message : t("errors.deleteFailed"),
         );
       }
     });
   }
+
+  const actorTranslator = (key: "system") => tActor(key);
+  const actorLabel = formatActor(narrative.updated_by, actorTranslator);
+  const updatedTime = format.relativeTime(new Date(narrative.updated_at));
 
   return (
     <>
@@ -89,31 +95,29 @@ export function NarrativeCard({
               </p>
             ) : null}
             <p className="mt-3 text-xs text-text-muted">
-              Última edición {relativeFromNow(narrative.updated_at)}
-              {" · por "}
-              {formatActor(narrative.updated_by)}
+              {t("lastEdited", { time: updatedTime, actor: actorLabel })}
             </p>
           </Link>
           <Dropdown>
             <HeroButton
               isIconOnly
               variant="tertiary"
-              aria-label="Acciones"
+              aria-label={t("actionsAria")}
               isDisabled={pending}
             >
               <MoreHorizontal className="size-4" />
             </HeroButton>
             <Dropdown.Popover>
               <Dropdown.Menu onAction={handleMenuAction}>
-                <Dropdown.Item id="duplicate" textValue="Duplicar">
-                  <Label>Duplicar</Label>
+                <Dropdown.Item id="duplicate" textValue={t("menu.duplicate")}>
+                  <Label>{t("menu.duplicate")}</Label>
                 </Dropdown.Item>
                 <Dropdown.Item
                   id="delete"
-                  textValue="Eliminar"
+                  textValue={t("menu.delete")}
                   variant="danger"
                 >
-                  <Label>Eliminar</Label>
+                  <Label>{t("menu.delete")}</Label>
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown.Popover>
@@ -147,10 +151,11 @@ export function NarrativeCard({
 }
 
 function PublishedBadge({ published }: { published: boolean }) {
+  const t = useTranslations("narratives.list.card.status");
   if (published) {
-    return <Chip variant="status-done">Publicada</Chip>;
+    return <Chip variant="status-done">{t("published")}</Chip>;
   }
-  return <Chip variant="status-todo">Borrador</Chip>;
+  return <Chip variant="status-todo">{t("draft")}</Chip>;
 }
 
 function PreviewLink({
@@ -160,19 +165,18 @@ function PreviewLink({
   published: boolean;
   href: string;
 }) {
+  const t = useTranslations("narratives.list.card.preview");
   if (!published) {
     return (
       <Tooltip delay={150}>
         <span tabIndex={0} aria-disabled="true">
           <Button variant="secondary" size="sm" disabled>
             <ExternalLink className="size-3.5" aria-hidden="true" />
-            Vista previa
+            {t("label")}
           </Button>
         </span>
         <Tooltip.Content>
-          <p className="text-xs">
-            Publicá la narrativa para previsualizarla.
-          </p>
+          <p className="text-xs">{t("draftTooltip")}</p>
         </Tooltip.Content>
       </Tooltip>
     );
@@ -188,7 +192,7 @@ function PreviewLink({
       className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-warm-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
     >
       <ExternalLink className="size-3.5" aria-hidden="true" />
-      Vista previa
+      {t("label")}
     </a>
   );
 }
@@ -204,6 +208,7 @@ function ConfirmDeleteModal({
   onConfirm: () => void;
   pending: boolean;
 }) {
+  const t = useTranslations("narratives.list.card.deleteModal");
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container>
@@ -217,21 +222,18 @@ function ConfirmDeleteModal({
               >
                 <AlertTriangle className="size-5 text-error" />
               </span>
-              <Modal.Heading>¿Eliminar narrativa?</Modal.Heading>
+              <Modal.Heading>{t("title")}</Modal.Heading>
             </div>
           </Modal.Header>
           <Modal.Body>
-            <p className="text-base text-text-secondary">
-              Esta acción no se puede deshacer. Se eliminarán también las
-              fases, workstreams, dependencias y riesgos asociados.
-            </p>
+            <p className="text-base text-text-secondary">{t("body")}</p>
           </Modal.Body>
           <Modal.Footer>
             <HeroButton slot="close" variant="secondary" isDisabled={pending}>
-              Cancelar
+              {t("cancel")}
             </HeroButton>
             <HeroButton onPress={onConfirm} isDisabled={pending}>
-              {pending ? "Eliminando…" : "Eliminar"}
+              {pending ? t("confirm.pending") : t("confirm.idle")}
             </HeroButton>
           </Modal.Footer>
         </Modal.Dialog>

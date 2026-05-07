@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { GeistMono } from "geist/font/mono";
 import { Search, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { getAnonSupabase } from "@/lib/supabase/anon";
 
 interface ProjectSuggestion {
@@ -29,6 +30,7 @@ interface Props {
  * cleared.
  */
 export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
+  const t = useTranslations("narratives.inputs.pod");
   const [query, setQuery] = useState(pod ?? "");
   const [suggestions, setSuggestions] = useState<ProjectSuggestion[]>([]);
   const [searching, setSearching] = useState(false);
@@ -98,7 +100,7 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
         id={`${inputId}-label`}
         className="text-xs font-medium uppercase tracking-wide text-text-secondary"
       >
-        Provider (PoD / equipo)
+        {t("label")}
       </span>
       <div className="relative">
         <div className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 transition-colors focus-within:border-transparent focus-within:ring-2 focus-within:ring-primary-500">
@@ -113,7 +115,7 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
             onBlur={() => {
               if (query !== (pod ?? "")) commitFreeText(query);
             }}
-            placeholder="Equipo o proyecto provider…"
+            placeholder={t("placeholder")}
             className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
             aria-labelledby={`${inputId}-label`}
             autoComplete="off"
@@ -121,14 +123,14 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
           {podKey ? (
             <span
               className={`${GeistMono.className} inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold text-primary-700`}
-              title={`Vinculado al proyecto Jira ${podKey}`}
+              title={t("linkedTitle", { key: podKey })}
             >
               → {podKey}
               <button
                 type="button"
                 onClick={() => onChange({ pod, podKey: null })}
                 className="rounded-full p-0.5 transition-colors hover:bg-primary-200"
-                aria-label="Desvincular del proyecto"
+                aria-label={t("unlinkAria")}
               >
                 <X className="size-2.5" aria-hidden="true" />
               </button>
@@ -161,10 +163,7 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
           </ul>
         ) : null}
       </div>
-      <p className="text-sm text-text-secondary">
-        Si el equipo provider no es un proyecto Jira sincronizado, escribilo
-        libre y dejá el link sin completar.
-      </p>
+      <p className="text-sm text-text-secondary">{t("helper")}</p>
     </div>
   );
 }

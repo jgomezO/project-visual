@@ -1,8 +1,8 @@
 "use client";
 
 import { AlertCircle, Check, Loader2 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
-import { relativeFromNow } from "@/lib/format/relativeTime";
 import type { SaveState } from "./useAutoSave";
 
 // Compact pill-style status read-out for the editor header. Three live
@@ -10,6 +10,9 @@ import type { SaveState } from "./useAutoSave";
 // Prism functional palette, AlertCircle icon for error (was AlertTriangle —
 // AlertCircle is the canonical "needs attention" affordance vs AlertTriangle
 // which is a heavier "danger" cue we reserve for actual destructive paths).
+//
+// iter 5 (i18n): drops the local `relativeFromNow` helper for
+// `useFormatter().relativeTime()` which respects the active locale.
 export function AutosaveIndicator({
   state,
   lastSavedAt,
@@ -21,6 +24,9 @@ export function AutosaveIndicator({
   errorMessage: string | null;
   onRetry: () => void;
 }) {
+  const t = useTranslations("narratives.editor.autosave");
+  const format = useFormatter();
+
   if (state === "saving") {
     return (
       <span
@@ -31,7 +37,7 @@ export function AutosaveIndicator({
           className="size-3.5 animate-spin motion-reduce:animate-none"
           aria-hidden="true"
         />
-        Guardando…
+        {t("saving")}
       </span>
     );
   }
@@ -42,25 +48,24 @@ export function AutosaveIndicator({
         role="alert"
       >
         <AlertCircle className="size-3.5" aria-hidden="true" />
-        Error al guardar
+        {t("errorTitle")}
         {errorMessage ? (
           <span className="text-text-muted">— {errorMessage}</span>
         ) : null}
         <Button size="sm" variant="ghost" onClick={onRetry}>
-          Reintentar
+          {t("retry")}
         </Button>
       </span>
     );
   }
   if (state === "saved" && lastSavedAt) {
-    const iso = new Date(lastSavedAt).toISOString();
     return (
       <span
         className="inline-flex items-center gap-1.5 text-xs text-success"
         role="status"
       >
         <Check className="size-3.5" aria-hidden="true" />
-        Guardado {relativeFromNow(iso)}
+        {t("saved", { time: format.relativeTime(new Date(lastSavedAt)) })}
       </span>
     );
   }

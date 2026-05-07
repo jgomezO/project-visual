@@ -1,4 +1,5 @@
 import { FileText } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { NarrativeCard } from "./NarrativeCard";
 import { NewNarrativeButton } from "./NewNarrativeButton";
 import { getNarrativesByProject } from "@/lib/narratives/queries";
@@ -6,11 +7,11 @@ import { getNarrativesByProject } from "@/lib/narratives/queries";
 interface Props {
   projectKey: string;
   projectId: string;
-  // Display name shown in the heading ("Narrativas de <name>"). Pass
-  // null to use the generic "Narrativas del proyecto" — appropriate
-  // when the panel is embedded under a UI surface that already shows
-  // the project name (e.g. the /projects/[key] tab, where the
-  // KpiHeader sits above with its own h1).
+  // Display name shown in the heading ("Narratives for <name>"). Pass
+  // null to use the generic "Project narratives" — appropriate when
+  // the panel is embedded under a UI surface that already shows the
+  // project name (e.g. the /projects/[key] tab, where the KpiHeader
+  // sits above with its own h1).
   projectName: string | null;
 }
 
@@ -24,10 +25,11 @@ export async function NarrativesListPanel({
   projectName,
 }: Props) {
   const narratives = await getNarrativesByProject(projectKey);
+  const t = await getTranslations("narratives.list");
 
   const heading = projectName
-    ? `Narrativas de ${projectName}`
-    : "Narrativas del proyecto";
+    ? t("heading.withName", { name: projectName })
+    : t("heading.generic");
 
   return (
     <div className="space-y-6">
@@ -51,33 +53,29 @@ export async function NarrativesListPanel({
   );
 }
 
-function EmptyState({
+async function EmptyState({
   projectKey,
   projectId,
 }: {
   projectKey: string;
   projectId: string;
 }) {
+  const t = await getTranslations("narratives.list.empty");
   return (
     <div className="rounded-2xl border border-dashed border-default-300 p-12 text-center">
       <FileText
         className="mx-auto mb-3 size-12 text-muted"
         aria-hidden="true"
       />
-      <h3 className="text-lg font-semibold">
-        Aún no hay narrativas para este proyecto
-      </h3>
+      <h3 className="text-lg font-semibold">{t("title")}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-        Las narrativas te ayudan a presentar el plan de un proyecto a
-        audiencias no técnicas. Cada narrativa puede tener fases,
-        workstreams, dependencias y riesgos, todo conectado con issues
-        reales de Jira.
+        {t("description")}
       </p>
       <div className="mt-5 flex justify-center">
         <NewNarrativeButton
           projectKey={projectKey}
           projectId={projectId}
-          ctaLabel="Crear primera narrativa"
+          ctaLabelOverride={t("cta")}
         />
       </div>
     </div>

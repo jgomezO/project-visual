@@ -3,6 +3,7 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { Label, ListBox, Select } from "@heroui/react";
 import type { Key } from "@heroui/react";
+import { useTranslations } from "next-intl";
 import { updateWorkstreamAction } from "@/app/actions/narratives";
 import type {
   NarrativePhaseWithWorkstreams,
@@ -45,6 +46,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
     },
     ref,
   ) {
+    const t = useTranslations("narratives.editor.workstream");
     const [draft, setDraft] = useState({
       name: workstream.name,
       description: workstream.description ?? "",
@@ -58,7 +60,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
       draft,
       async (snapshot) => {
         if (nameInvalid) {
-          throw new Error("El nombre es obligatorio.");
+          throw new Error(t("fields.name.required"));
         }
         const updated = await updateWorkstreamAction(workstream.id, {
           name: snapshot.name,
@@ -81,17 +83,18 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
     }
 
     const phaseSelectValue = draft.phase_id ?? ORPHAN_KEY;
+    const orphanLabel = t("fields.phase.orphan");
 
     return (
       <form
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <SectionHeading>Workstream</SectionHeading>
+        <SectionHeading>{t("section")}</SectionHeading>
 
         <Field
-          label="Nombre"
-          error={nameInvalid ? "El nombre es obligatorio." : undefined}
+          label={t("fields.name.label")}
+          error={nameInvalid ? t("fields.name.required") : undefined}
         >
           <TextInput
             value={draft.name}
@@ -104,8 +107,8 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
         </Field>
 
         <Field
-          label="Descripción"
-          helper="Markdown plain (sin renderizado por ahora)."
+          label={t("fields.description.label")}
+          helper={t("fields.description.helper")}
         >
           <Textarea
             value={draft.description}
@@ -122,7 +125,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
           onChange={handlePhaseChange}
         >
           <Label className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-            Fase
+            {t("fields.phase.label")}
           </Label>
           <Select.Trigger>
             <Select.Value />
@@ -136,8 +139,8 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
                   <ListBox.ItemIndicator />
                 </ListBox.Item>
               ))}
-              <ListBox.Item id={ORPHAN_KEY} textValue="Sin fase">
-                Sin fase
+              <ListBox.Item id={ORPHAN_KEY} textValue={orphanLabel}>
+                {orphanLabel}
                 <ListBox.ItemIndicator />
               </ListBox.Item>
             </ListBox>
@@ -153,7 +156,7 @@ export const WorkstreamForm = forwardRef<FormHandle, WorkstreamFormProps>(
         />
 
         <FormDeleteButton onClick={onDelete} disabled={pendingDelete}>
-          {pendingDelete ? "Eliminando…" : "Eliminar workstream"}
+          {pendingDelete ? t("delete.pending") : t("delete.idle")}
         </FormDeleteButton>
       </form>
     );

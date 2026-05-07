@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   Button as HeroButton,
   Input,
@@ -10,8 +9,10 @@ import {
   TextField,
 } from "@heroui/react";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { createNarrativeAction } from "@/app/actions/narratives";
 import { Button } from "@/components/ui";
+import { useRouter } from "@/i18n/navigation";
 
 const TITLE_MAX = 200;
 const SUBTITLE_MAX = 200;
@@ -19,18 +20,23 @@ const SUBTITLE_MAX = 200;
 export function NewNarrativeButton({
   projectKey,
   projectId,
-  ctaLabel = "Nueva narrativa",
+  ctaLabelOverride,
 }: {
   projectKey: string;
   projectId: string;
-  ctaLabel?: string;
+  // Lets the empty-state pass "Create first narrative" instead of the
+  // default "New narrative". Defaults to the t() value below.
+  ctaLabelOverride?: string;
 }) {
+  const t = useTranslations("narratives.list.newButton");
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const ctaLabel = ctaLabelOverride ?? t("cta");
 
   function reset() {
     setTitle("");
@@ -48,15 +54,15 @@ export function NewNarrativeButton({
   function handleCreate() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setError("El título es obligatorio.");
+      setError(t("errors.titleRequired"));
       return;
     }
     if (trimmedTitle.length > TITLE_MAX) {
-      setError(`El título no puede superar ${TITLE_MAX} caracteres.`);
+      setError(t("errors.titleTooLong", { max: TITLE_MAX }));
       return;
     }
     if (subtitle.length > SUBTITLE_MAX) {
-      setError(`El subtítulo no puede superar ${SUBTITLE_MAX} caracteres.`);
+      setError(t("errors.subtitleTooLong", { max: SUBTITLE_MAX }));
       return;
     }
 
@@ -75,8 +81,9 @@ export function NewNarrativeButton({
           `/projects/${projectKey}/narratives/${created.id}/edit`,
         );
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error desconocido";
-        setError(`No se pudo crear: ${message}`);
+        const message =
+          err instanceof Error ? err.message : t("errors.unknown");
+        setError(t("errors.createFailed", { message }));
       }
     });
   }
@@ -93,26 +100,26 @@ export function NewNarrativeButton({
           <Modal.Dialog className="sm:max-w-md">
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Nueva narrativa</Modal.Heading>
+              <Modal.Heading>{t("modal.heading")}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <div className="flex flex-col gap-4">
                 <TextField>
-                  <Label>Título</Label>
+                  <Label>{t("modal.title.label")}</Label>
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.currentTarget.value)}
-                    placeholder="Ej: Ticketing V2 — Phase 0 & Phase 1"
+                    placeholder={t("modal.title.placeholder")}
                     maxLength={TITLE_MAX}
                     autoFocus
                   />
                 </TextField>
                 <TextField>
-                  <Label>Subtítulo (opcional)</Label>
+                  <Label>{t("modal.subtitle.label")}</Label>
                   <Input
                     value={subtitle}
                     onChange={(e) => setSubtitle(e.currentTarget.value)}
-                    placeholder="Audiencia / contexto / fecha"
+                    placeholder={t("modal.subtitle.placeholder")}
                     maxLength={SUBTITLE_MAX}
                   />
                 </TextField>
@@ -129,10 +136,10 @@ export function NewNarrativeButton({
                 variant="secondary"
                 isDisabled={pending}
               >
-                Cancelar
+                {t("modal.cancel")}
               </HeroButton>
               <HeroButton onPress={handleCreate} isDisabled={pending}>
-                {pending ? "Creando…" : "Crear y editar"}
+                {pending ? t("modal.create.pending") : t("modal.create.idle")}
               </HeroButton>
             </Modal.Footer>
           </Modal.Dialog>

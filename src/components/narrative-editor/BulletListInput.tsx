@@ -2,6 +2,7 @@
 
 import { useId, useRef } from "react";
 import { Plus, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { TextInput } from "./form-fields";
 
 export type BulletTone = "neutral" | "danger" | "success";
@@ -52,6 +53,7 @@ export function BulletListInput({
   errorMessage,
   tone = "neutral",
 }: Props) {
+  const t = useTranslations("narratives.inputs.bulletList");
   const labelId = useId();
   // Track refs by index so newly-added rows can autofocus.
   const inputRefs = useRef<Map<number, HTMLInputElement | null>>(new Map());
@@ -105,7 +107,7 @@ export function BulletListInput({
       </div>
 
       {value.length === 0 ? (
-        <p className="text-sm italic text-text-muted">Sin elementos.</p>
+        <p className="text-sm italic text-text-muted">{t("empty")}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {value.map((item, index) => (
@@ -129,7 +131,7 @@ export function BulletListInput({
               <button
                 type="button"
                 onClick={() => removeItem(index)}
-                aria-label={`Remover elemento ${index + 1}`}
+                aria-label={t("removeItemAria", { n: index + 1 })}
                 className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-warm-50 hover:text-text-primary disabled:opacity-30"
               >
                 <X className="size-4" aria-hidden="true" />
@@ -147,7 +149,7 @@ export function BulletListInput({
           className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="size-4" aria-hidden="true" />
-          Agregar item
+          {t("addItem")}
         </button>
         {errorMessage ? (
           <span className="text-sm text-error" role="alert">

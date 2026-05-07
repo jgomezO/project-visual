@@ -1,1 +1,289 @@
-{}
+{
+  "list": {
+    "heading": {
+      "withName": "Narratives for {name}",
+      "generic": "Project narratives"
+    },
+    "empty": {
+      "title": "No narratives for this project yet",
+      "description": "Narratives help you present a project plan to non-technical audiences. Each narrative can have phases, workstreams, dependencies and risks, all connected to real Jira issues.",
+      "cta": "Create first narrative"
+    },
+    "card": {
+      "lastEdited": "Last edited {time} · by {actor}",
+      "actionsAria": "Actions",
+      "menu": {
+        "duplicate": "Duplicate",
+        "delete": "Delete"
+      },
+      "preview": {
+        "label": "Preview",
+        "draftTooltip": "Publish the narrative to preview it."
+      },
+      "status": {
+        "published": "Published",
+        "draft": "Draft"
+      },
+      "errors": {
+        "duplicateFailed": "Couldn't duplicate",
+        "deleteFailed": "Couldn't delete"
+      },
+      "deleteModal": {
+        "title": "Delete narrative?",
+        "body": "This action can't be undone. Phases, workstreams, dependencies and risks attached will also be deleted.",
+        "cancel": "Cancel",
+        "confirm": { "idle": "Delete", "pending": "Deleting…" }
+      }
+    },
+    "newButton": {
+      "cta": "New narrative",
+      "modal": {
+        "heading": "New narrative",
+        "title": { "label": "Title", "placeholder": "e.g. Ticketing V2 — Phase 0 & Phase 1" },
+        "subtitle": { "label": "Subtitle (optional)", "placeholder": "Audience / context / date" },
+        "cancel": "Cancel",
+        "create": { "idle": "Create and edit", "pending": "Creating…" }
+      },
+      "errors": {
+        "titleRequired": "Title is required.",
+        "titleTooLong": "Title can't be longer than {max} characters.",
+        "subtitleTooLong": "Subtitle can't be longer than {max} characters.",
+        "createFailed": "Couldn't create: {message}",
+        "unknown": "Unknown error"
+      }
+    }
+  },
+  "editor": {
+    "mobileFallback": {
+      "title": "Editor available on wider screens",
+      "body": "Reopen this page on a laptop or desktop screen. The narrative editor needs more space than your current device has.",
+      "backToList": "Back to list"
+    },
+    "header": {
+      "breadcrumb": {
+        "aria": "Breadcrumb",
+        "projects": "Projects",
+        "narratives": "Narratives"
+      },
+      "preview": "Preview",
+      "publish": {
+        "publish": "Publish",
+        "unpublish": "Unpublish",
+        "pending": "Applying…"
+      },
+      "publishFlushFailed": "Couldn't save the form. Review the fields before publishing.",
+      "unpublishConfirm": "Unpublish this narrative? It will stop being visible in the public view.",
+      "publishErrorFallback": "Couldn't publish"
+    },
+    "sidebar": {
+      "emptyState": "This narrative has no phases or workstreams yet. Start by adding a phase or a workstream without a phase.",
+      "noWorkstreams": "No workstreams",
+      "orphanGroup": "No phase",
+      "groups": {
+        "dependencies": "Dependencies",
+        "risks": "Risks"
+      },
+      "aria": {
+        "actionsFor": "Actions for {name}",
+        "expandPhase": "Expand phase",
+        "collapsePhase": "Collapse phase"
+      },
+      "menu": {
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "delete": "Delete",
+        "moveToPhase": "Move to {target}",
+        "moveToOrphan": "No phase",
+        "endOfPhase": "At the end of {phase}"
+      },
+      "buttons": {
+        "addPhase": "Add phase",
+        "addWorkstream": "Add workstream",
+        "addDependency": "Add dependency",
+        "addRisk": "Add risk"
+      },
+      "defaults": {
+        "newPhase": "New phase",
+        "newWorkstream": "New workstream",
+        "newDependency": "New dependency",
+        "newRisk": "New risk",
+        "riskImpact": "Describe the impact…",
+        "riskMitigation": "Describe the mitigation…"
+      }
+    },
+    "panel": {
+      "notFound": {
+        "phase": "Phase not found.",
+        "workstream": "Workstream not found.",
+        "dependency": "Dependency not found.",
+        "risk": "Risk not found."
+      }
+    },
+    "narrative": {
+      "section": "Narrative",
+      "fields": {
+        "title": { "label": "Title", "required": "Title is required." },
+        "subtitle": { "label": "Subtitle", "placeholder": "Audience / context / date" },
+        "overview": { "label": "Overview", "helper": "General project context. Plain Markdown (not rendered yet)." },
+        "statusSummary": { "label": "Current status", "helper": "Summary of the current project moment. Shows up in the public view." },
+        "risksSubtitle": { "label": "Risks section subtitle", "placeholder": "Optional: appears under the \"Project risks\" heading" }
+      },
+      "meta": {
+        "createdBy": "Created by",
+        "updatedBy": "Updated by",
+        "created": "Created",
+        "updated": "Updated"
+      },
+      "saveError": "Title is required and can't be too long."
+    },
+    "phase": {
+      "section": "Phase",
+      "fields": {
+        "name": { "label": "Name", "required": "Name is required." },
+        "objective": { "label": "Objective", "helper": "The what — what we want to achieve in this phase." },
+        "rationale": { "label": "Rationale", "helper": "The why — key for executive narratives." },
+        "status": { "label": "Status" },
+        "startDate": { "label": "Start" },
+        "endDate": { "label": "End", "orderInvalid": "Must be on or after the start." },
+        "progress": {
+          "label": "Progress (%)",
+          "helper": "If left empty, it's calculated automatically from the issues linked to its workstreams.",
+          "invalid": "Progress must be between 0 and 100."
+        }
+      },
+      "delete": { "idle": "Delete phase", "pending": "Deleting…" },
+      "saveError": "Form has invalid fields."
+    },
+    "workstream": {
+      "section": "Workstream",
+      "fields": {
+        "name": { "label": "Name", "required": "Name is required." },
+        "description": { "label": "Description", "helper": "Plain Markdown (not rendered yet)." },
+        "phase": { "label": "Phase", "orphan": "No phase" }
+      },
+      "delete": { "idle": "Delete workstream", "pending": "Deleting…" }
+    },
+    "dependency": {
+      "section": "Dependency",
+      "fields": {
+        "title": { "label": "Title", "required": "Title is required." },
+        "description": { "label": "Description", "placeholder": "What do we need from the provider?" },
+        "workstream": { "label": "Impacted workstream", "narrativeOption": "Entire narrative" },
+        "neededBy": { "label": "When we need it" },
+        "expectedDelivery": {
+          "label": "When it would be delivered",
+          "helper": "If left empty and you linked issues, it's calculated automatically from the latest delivery date among those issues."
+        },
+        "commitmentStatus": { "label": "Commitment status" },
+        "coordinationNotes": {
+          "label": "Coordination effort",
+          "placeholder": "What needs to be synced across teams? Meetings, technical dependencies, escalations…"
+        }
+      },
+      "delete": { "idle": "Delete dependency", "pending": "Deleting…" }
+    },
+    "risk": {
+      "section": "Risk",
+      "fields": {
+        "title": { "label": "Title", "required": "Title is required." },
+        "description": { "label": "Description", "placeholder": "What risk is it and why does it concern us?" },
+        "severity": { "label": "Severity" },
+        "impacts": {
+          "label": "Impacts",
+          "placeholder": "Describe an impact…",
+          "required": "At least one non-empty impact."
+        },
+        "mitigations": {
+          "label": "Mitigations",
+          "placeholder": "Describe a mitigation…",
+          "required": "At least one non-empty mitigation."
+        },
+        "relatedDependencies": {
+          "label": "Related dependencies",
+          "helper": "Mark the dependencies affected by this risk. They'll appear linked in the public view.",
+          "empty": "This narrative doesn't have any dependencies to link yet."
+        }
+      },
+      "delete": { "idle": "Delete risk", "pending": "Deleting…" },
+      "saveError": "Invalid risk: review title, impacts and mitigations."
+    },
+    "dependenciesList": {
+      "heading": "Dependencies in this narrative",
+      "description": "Cross-team commitments that affect project delivery. To add one, use the \"Add dependency\" button on the sidebar.",
+      "empty": "This narrative doesn't have any dependencies yet. Add the first one from the left panel.",
+      "card": {
+        "issuesCount": "{count, plural, one {# issue} other {# issues}}",
+        "deleteAria": "Delete {title}"
+      }
+    },
+    "risksList": {
+      "heading": "Project risks",
+      "description": "Risks declared at narrative level, with their impacts and mitigations. To add one, use the \"Add risk\" button on the sidebar.",
+      "empty": "This narrative doesn't have any risks yet. Add the first one from the left panel.",
+      "card": {
+        "severityLabel": "Severity: {label}",
+        "impactsCount": "{count, plural, one {# impact} other {# impacts}}",
+        "mitigationsCount": "{count, plural, one {# mitigation} other {# mitigations}}",
+        "deleteAria": "Delete {title}"
+      }
+    },
+    "emptyState": {
+      "title": "This narrative is empty",
+      "body": "Start by adding a phase or a workstream without a phase. You can keep editing the title, subtitle and overview above in the meantime.",
+      "addPhase": "Add first phase",
+      "addOrphanWorkstream": "Workstream without phase"
+    },
+    "autosave": {
+      "saving": "Saving…",
+      "saved": "Saved {time}",
+      "errorTitle": "Save failed",
+      "retry": "Retry"
+    },
+    "selectionFlushFailed": "Couldn't save the form. Review the fields before changing section.",
+    "errors": {
+      "createPhase": "Couldn't create phase",
+      "createWorkstream": "Couldn't create workstream",
+      "createDependency": "Couldn't create dependency",
+      "createRisk": "Couldn't create risk",
+      "deletePhase": "Couldn't delete phase",
+      "deleteWorkstream": "Couldn't delete workstream",
+      "deleteDependency": "Couldn't delete dependency",
+      "deleteRisk": "Couldn't delete risk",
+      "movePhase": "Couldn't move phase",
+      "moveWorkstream": "Couldn't move workstream",
+      "moveDependency": "Couldn't move dependency",
+      "moveRisk": "Couldn't move risk",
+      "deleteFallback": "Error deleting"
+    }
+  },
+  "confirm": {
+    "deletePhase": "Delete phase \"{name}\"? Its workstreams will be deleted as well.",
+    "deleteWorkstream": "Delete workstream \"{name}\"?",
+    "deleteDependency": "Delete dependency \"{title}\"?",
+    "deleteRisk": "Delete risk \"{title}\"?"
+  },
+  "inputs": {
+    "bulletList": {
+      "empty": "No items.",
+      "addItem": "Add item",
+      "removeItemAria": "Remove item {n}"
+    },
+    "jiraIssues": {
+      "label": "Jira issues",
+      "empty": "No linked issues.",
+      "searchPlaceholder": "Search by key or title…",
+      "chip": {
+        "removeAria": "Remove issue",
+        "openAria": "Open {key} in Jira",
+        "notFoundTooltip": "Issue not found in sync. Verify the key or run a sync."
+      }
+    },
+    "pod": {
+      "label": "Provider (PoD / team)",
+      "placeholder": "Provider team or project…",
+      "helper": "If the provider team isn't a synced Jira project, write it free-form and leave the link blank.",
+      "linkedTitle": "Linked to Jira project {key}",
+      "unlinkAria": "Unlink from project"
+    }
+  }
+}

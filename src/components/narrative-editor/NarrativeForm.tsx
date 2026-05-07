@@ -1,9 +1,9 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useState } from "react";
+import { useFormatter, useTranslations } from "next-intl";
 import { updateNarrativeAction } from "@/app/actions/narratives";
 import { formatActor } from "@/lib/format/actor";
-import { relativeFromNow } from "@/lib/format/relativeTime";
 import type { ProjectNarrative } from "@/lib/narratives/types";
 import { Field, SectionHeading, TextInput, Textarea } from "./form-fields";
 import { useAutoSave, type SaveState } from "./useAutoSave";
@@ -24,6 +24,9 @@ interface NarrativeFormProps {
 
 export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
   function NarrativeForm({ narrative, onPatched, onSaveStateChange }, ref) {
+    const t = useTranslations("narratives.editor.narrative");
+    const tActor = useTranslations("common.actor");
+    const format = useFormatter();
     const [draft, setDraft] = useState({
       title: narrative.title,
       subtitle: narrative.subtitle ?? "",
@@ -41,9 +44,7 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
       draft,
       async (snapshot) => {
         if (isInvalid) {
-          throw new Error(
-            "El título es obligatorio y no puede ser tan largo.",
-          );
+          throw new Error(t("saveError"));
         }
         const updated = await updateNarrativeAction(narrative.id, {
           title: snapshot.title,
@@ -64,16 +65,18 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
     void errorMessage;
     void lastSavedAt;
 
+    const actorTranslator = (key: "system") => tActor(key);
+
     return (
       <form
         className="flex flex-col gap-5"
         onSubmit={(e) => e.preventDefault()}
       >
-        <SectionHeading>Narrativa</SectionHeading>
+        <SectionHeading>{t("section")}</SectionHeading>
 
         <Field
-          label="Título"
-          error={titleInvalid ? "El título es obligatorio." : undefined}
+          label={t("fields.title.label")}
+          error={titleInvalid ? t("fields.title.required") : undefined}
         >
           <TextInput
             value={draft.title}
@@ -84,20 +87,20 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
           />
         </Field>
 
-        <Field label="Subtítulo">
+        <Field label={t("fields.subtitle.label")}>
           <TextInput
             value={draft.subtitle}
             onChange={(e) =>
               setDraft({ ...draft, subtitle: e.currentTarget.value })
             }
             maxLength={SUBTITLE_MAX}
-            placeholder="Audiencia / contexto / fecha"
+            placeholder={t("fields.subtitle.placeholder")}
           />
         </Field>
 
         <Field
-          label="Overview"
-          helper="Contexto general del proyecto. Markdown plain (sin renderizado por ahora)."
+          label={t("fields.overview.label")}
+          helper={t("fields.overview.helper")}
         >
           <Textarea
             value={draft.overview}
@@ -109,8 +112,8 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
         </Field>
 
         <Field
-          label="Estado actual"
-          helper="Resumen del momento actual del proyecto. Aparece en la vista pública."
+          label={t("fields.statusSummary.label")}
+          helper={t("fields.statusSummary.helper")}
         >
           <Textarea
             value={draft.status_summary}
@@ -121,7 +124,7 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
           />
         </Field>
 
-        <Field label="Subtítulo de la sección de riesgos">
+        <Field label={t("fields.risksSubtitle.label")}>
           <TextInput
             value={draft.risks_section_subtitle}
             onChange={(e) =>
@@ -130,26 +133,26 @@ export const NarrativeForm = forwardRef<FormHandle, NarrativeFormProps>(
                 risks_section_subtitle: e.currentTarget.value,
               })
             }
-            placeholder="Opcional: aparece bajo el título “Riesgos del proyecto”"
+            placeholder={t("fields.risksSubtitle.placeholder")}
           />
         </Field>
 
         <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
           <ReadOnlyField
-            label="Creado por"
-            value={formatActor(narrative.created_by)}
+            label={t("meta.createdBy")}
+            value={formatActor(narrative.created_by, actorTranslator)}
           />
           <ReadOnlyField
-            label="Actualizado por"
-            value={formatActor(narrative.updated_by)}
+            label={t("meta.updatedBy")}
+            value={formatActor(narrative.updated_by, actorTranslator)}
           />
           <ReadOnlyField
-            label="Creado"
-            value={relativeFromNow(narrative.created_at)}
+            label={t("meta.created")}
+            value={format.relativeTime(new Date(narrative.created_at))}
           />
           <ReadOnlyField
-            label="Actualizado"
-            value={relativeFromNow(narrative.updated_at)}
+            label={t("meta.updated")}
+            value={format.relativeTime(new Date(narrative.updated_at))}
           />
         </div>
       </form>

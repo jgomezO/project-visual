@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useRef, useState, useTransition } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ExternalLink, Monitor } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   createPhaseAction,
   createWorkstreamAction,
   publishNarrativeAction,
 } from "@/app/actions/narratives";
 import { Button, Card } from "@/components/ui";
+import { Link, useRouter } from "@/i18n/navigation";
 import type {
   NarrativeDependency,
   NarrativePhase,
@@ -45,6 +45,8 @@ export function EditorShell({
   projectName: string;
   initialNarrative: NarrativeWithChildren;
 }) {
+  const t = useTranslations("narratives.editor");
+  const tSidebar = useTranslations("narratives.editor.sidebar");
   const [tree, setTree] = useState<NarrativeWithChildren>(initialNarrative);
   const [selected, setSelected] = useState<SelectedNode>(NARRATIVE_NODE);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -144,7 +146,7 @@ export function EditorShell({
         const created = await createPhaseAction({
           narrative_id: tree.id,
           order_index: tree.phases.length,
-          name: "Nueva fase",
+          name: tSidebar("defaults.newPhase"),
           status: "upcoming",
         });
         setTree((prev) => ({
@@ -154,7 +156,7 @@ export function EditorShell({
         setSelected({ kind: "phase", id: created.id });
       } catch (err) {
         const msg =
-          err instanceof Error ? err.message : "No se pudo crear la fase";
+          err instanceof Error ? err.message : t("errors.createPhase");
         window.alert(msg);
       }
     });
@@ -167,7 +169,7 @@ export function EditorShell({
           narrative_id: tree.id,
           phase_id: null,
           order_index: tree.orphan_workstreams.length,
-          name: "Nuevo workstream",
+          name: tSidebar("defaults.newWorkstream"),
         });
         setTree((prev) => ({
           ...prev,
@@ -178,7 +180,7 @@ export function EditorShell({
         const msg =
           err instanceof Error
             ? err.message
-            : "No se pudo crear el workstream";
+            : t("errors.createWorkstream");
         window.alert(msg);
       }
     });
@@ -193,15 +195,13 @@ export function EditorShell({
       if (formRef.current) {
         const result = await formRef.current.flush();
         if (!result.ok) {
-          setSaveError(
-            "No se pudo guardar el formulario. Revisá los campos antes de cambiar de sección.",
-          );
+          setSaveError(t("selectionFlushFailed"));
           return;
         }
       }
       setSelected(next);
     },
-    [],
+    [t],
   );
 
   return (
@@ -212,19 +212,17 @@ export function EditorShell({
             <Monitor className="size-8 text-text-muted" aria-hidden="true" />
           </div>
           <h1 className="mt-5 text-xl font-semibold text-text-primary">
-            Editor disponible en pantallas más anchas
+            {t("mobileFallback.title")}
           </h1>
           <p className="mx-auto mt-2 text-base text-text-secondary">
-            Volvé a abrir esta página desde una notebook o pantalla de
-            escritorio. El editor de narrativas necesita más espacio del
-            que tiene tu dispositivo actual.
+            {t("mobileFallback.body")}
           </p>
           <div className="mt-6">
             <Link
               href={`/projects/${projectKey}?view=narratives`}
               className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-warm-50"
             >
-              Volver al listado
+              {t("mobileFallback.backToList")}
             </Link>
           </div>
         </Card>
@@ -240,9 +238,7 @@ export function EditorShell({
             if (formRef.current) {
               const result = await formRef.current.flush();
               if (!result.ok) {
-                window.alert(
-                  "No se pudo guardar el formulario. Revisá los campos antes de publicar.",
-                );
+                window.alert(t("header.publishFlushFailed"));
                 return false;
               }
             }
@@ -317,6 +313,7 @@ function EditorHeader({
   saveError: string | null;
   onRetry: () => void;
 }) {
+  const t = useTranslations("narratives.editor.header");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const previewHref = `/projects/${projectKey}/narratives/${narrative.id}/preview`;
@@ -324,9 +321,7 @@ function EditorHeader({
   function handlePublishToggle(): void {
     const goingToDraft = narrative.published;
     if (goingToDraft) {
-      const ok = window.confirm(
-        "¿Despublicar esta narrativa? Dejará de ser visible en la vista pública.",
-      );
+      const ok = window.confirm(t("unpublishConfirm"));
       if (!ok) return;
     }
     startTransition(async () => {
@@ -343,30 +338,31 @@ function EditorHeader({
           router.push(`/projects/${projectKey}/narratives`);
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Error al publicar";
+        const msg =
+          err instanceof Error ? err.message : t("publishErrorFallback");
         window.alert(msg);
       }
     });
   }
 
   const publishLabel = pending
-    ? "Aplicando…"
+    ? t("publish.pending")
     : narrative.published
-      ? "Despublicar"
-      : "Publicar";
+      ? t("publish.unpublish")
+      : t("publish.publish");
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">
         <nav
-          aria-label="Breadcrumb"
+          aria-label={t("breadcrumb.aria")}
           className="flex min-w-0 flex-wrap items-center gap-2 text-sm"
         >
           <Link
             href="/projects"
             className="text-text-secondary transition-colors hover:text-text-primary"
           >
-            Proyectos
+            {t("breadcrumb.projects")}
           </Link>
           <span aria-hidden="true" className="text-text-muted">
             /
@@ -384,7 +380,7 @@ function EditorHeader({
             href={`/projects/${projectKey}?view=narratives`}
             className="text-text-secondary transition-colors hover:text-text-primary"
           >
-            Narrativas
+            {t("breadcrumb.narratives")}
           </Link>
           <span aria-hidden="true" className="text-text-muted">
             /
@@ -408,7 +404,7 @@ function EditorHeader({
           className="inline-flex items-center justify-center gap-1.5 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-warm-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
         >
           <ExternalLink className="size-3.5" aria-hidden="true" />
-          Vista previa
+          {t("preview")}
         </a>
         <Button
           size="sm"
