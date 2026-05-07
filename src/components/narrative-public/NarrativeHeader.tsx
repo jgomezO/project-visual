@@ -36,33 +36,33 @@ export function NarrativeHeader({
   return (
     <header className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground group-data-[mode=presentation]/preview:text-5xl">
+        <h1 className="text-balance text-4xl font-bold tracking-tight text-text-primary group-data-[mode=presentation]/preview:text-5xl">
           {narrative.title}
         </h1>
         {narrative.subtitle ? (
-          <p className="text-xl font-normal text-muted group-data-[mode=presentation]/preview:text-2xl">
+          <p className="text-xl font-normal text-text-secondary group-data-[mode=presentation]/preview:text-2xl">
             {narrative.subtitle}
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted group-data-[mode=presentation]/preview:text-base">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted group-data-[mode=presentation]/preview:text-base">
         <Link
           href={`/projects/${projectKey}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+          className="inline-flex items-center gap-1 transition-colors hover:text-text-primary hover:underline"
         >
           <span className="font-mono">{projectKey}</span>
           <span aria-hidden="true">·</span>
           <span>{projectName}</span>
           <ExternalLink className="size-3" aria-hidden="true" />
         </Link>
-        <span aria-hidden="true" className="text-default-300">
+        <span aria-hidden="true" className="text-text-muted/60">
           •
         </span>
         <span>Actualizada {relativeFromNow(narrative.updated_at)}</span>
-        <span aria-hidden="true" className="text-default-300">
+        <span aria-hidden="true" className="text-text-muted/60">
           •
         </span>
         <span>
@@ -72,12 +72,12 @@ export function NarrativeHeader({
         </span>
         {totalDependencies > 0 ? (
           <>
-            <span aria-hidden="true" className="text-default-300">
+            <span aria-hidden="true" className="text-text-muted/60">
               •
             </span>
             <a
               href="#dependencias"
-              className="font-medium hover:text-foreground hover:underline"
+              className="font-medium transition-colors hover:text-text-primary hover:underline"
             >
               {totalDependencies} dependencia
               {totalDependencies === 1 ? "" : "s"}
@@ -85,7 +85,7 @@ export function NarrativeHeader({
             {criticalDependencyCount > 0 ? (
               <a
                 href="#dependencias"
-                className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 hover:bg-red-200"
+                className="inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-xs font-semibold text-error transition-colors hover:bg-error-bg/80"
               >
                 <AlertTriangle className="size-3" aria-hidden="true" />
                 {criticalDependencyCount} en estado crítico
@@ -95,19 +95,19 @@ export function NarrativeHeader({
         ) : null}
         {totalRisks > 0 ? (
           <>
-            <span aria-hidden="true" className="text-default-300">
+            <span aria-hidden="true" className="text-text-muted/60">
               •
             </span>
             <a
               href="#riesgos"
-              className="font-medium hover:text-foreground hover:underline"
+              className="font-medium transition-colors hover:text-text-primary hover:underline"
             >
               {totalRisks} riesgo{totalRisks === 1 ? "" : "s"}
             </a>
             {highSeverityRiskCount > 0 ? (
               <a
                 href="#riesgos"
-                className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 hover:bg-red-200"
+                className="inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-xs font-semibold text-error transition-colors hover:bg-error-bg/80"
               >
                 <AlertTriangle className="size-3" aria-hidden="true" />
                 {highSeverityRiskCount} de severidad alta
@@ -130,7 +130,7 @@ function OverviewBlock({ text }: { text: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="max-w-[70ch] whitespace-pre-line text-base leading-relaxed text-foreground group-data-[mode=presentation]/preview:text-lg">
+      <p className="max-w-[70ch] whitespace-pre-line text-base leading-relaxed text-text-primary group-data-[mode=presentation]/preview:text-lg">
         {display}
       </p>
       {isLong ? (
@@ -138,7 +138,7 @@ function OverviewBlock({ text }: { text: string }) {
           type="button"
           data-print="hide"
           onClick={() => setExpanded((v) => !v)}
-          className="self-start text-sm font-medium text-blue-700 hover:underline"
+          className="self-start text-sm font-medium text-primary-700 transition-colors hover:text-primary-800 hover:underline"
         >
           {expanded ? "Leer menos" : "Leer más"}
         </button>

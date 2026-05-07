@@ -115,6 +115,18 @@ html {
     margin: 1.5cm;
   }
 
+  /* Force browser to honor backgrounds + borders + colored chips inside the
+     preview tree. Without this, Chrome / Safari strip every non-text style
+     by default ("Background graphics off") and the printed page loses every
+     status palette, severity border, and Prism token cue we rely on to
+     communicate state. Scoped to [data-preview] so this only applies on the
+     public narrative — other surfaces keep the default behavior. */
+  [data-preview="true"],
+  [data-preview="true"] * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   [data-print="hide"] {
     display: none !important;
   }

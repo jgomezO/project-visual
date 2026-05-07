@@ -36,7 +36,8 @@ export function NarrativeView({
   return (
     <div
       data-mode={mode}
-      className="group/preview min-h-[100vh] bg-surface text-foreground"
+      data-preview="true"
+      className="group/preview min-h-[100vh] bg-surface text-text-primary"
     >
       {!narrative.published ? <DraftBanner /> : null}
 
@@ -44,18 +45,21 @@ export function NarrativeView({
         data-print="hide"
         className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3 px-4 pt-4 sm:px-6"
       >
-        {mode === "normal" ? (
-          <Link
-            href={`/projects/${projectKey}/narratives/${narrative.id}/edit`}
-            className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            Editor
-          </Link>
-        ) : (
-          <span aria-hidden="true" />
-        )}
-        <PresentationModeToggle mode={mode} />
+        <span className="text-sm font-medium tracking-wide text-text-muted">
+          PRISM
+        </span>
+        <div className="flex items-center gap-4">
+          {mode === "normal" ? (
+            <Link
+              href={`/projects/${projectKey}/narratives/${narrative.id}/edit`}
+              className="inline-flex items-center gap-1 text-sm text-text-muted transition-colors hover:text-text-primary"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Editor
+            </Link>
+          ) : null}
+          <PresentationModeToggle mode={mode} />
+        </div>
       </div>
 
       <main className="mx-auto flex max-w-[1200px] flex-col gap-8 px-4 py-10 sm:gap-10 sm:px-6 sm:py-12 group-data-[mode=presentation]/preview:py-20">
