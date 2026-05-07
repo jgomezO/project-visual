@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ExternalLink,
 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { Button, Card, Toggle } from "@/components/ui";
 import { AssigneeCell } from "./AssigneeCell";
 import { IssueDrawer } from "./IssueDrawer";
@@ -29,8 +30,6 @@ import {
   dateToX,
   endOfMonthUTC,
   endOfQuarterUTC,
-  formatMonthLabel,
-  formatShortDate,
   isValidISODate,
   parseISODate,
   startOfMonthUTC,
@@ -125,16 +124,17 @@ function parseRangeFromParams(
   return { from, to };
 }
 
+// Preset definitions are locale-agnostic — id + compute(rows). The
+// translated label is resolved at render time via t('presets.<id>').
+type PresetId = "quarter" | "6m" | "1y" | "all";
 interface PresetDef {
-  id: string;
-  label: string;
+  id: PresetId;
   compute: (rows: IssueRow[]) => RoadmapRange | null;
 }
 
 const PRESETS: PresetDef[] = [
   {
     id: "quarter",
-    label: "Este trimestre",
     compute: () => {
       const today = todayUTC();
       return { from: startOfQuarterUTC(today), to: endOfQuarterUTC(today) };
@@ -142,12 +142,10 @@ const PRESETS: PresetDef[] = [
   },
   {
     id: "6m",
-    label: "Próximos 6 meses",
     compute: () => defaultRange(),
   },
   {
     id: "1y",
-    label: "Próximo año",
     compute: () => {
       const today = todayUTC();
       return { from: today, to: addMonthsUTC(today, 12) };
@@ -155,7 +153,6 @@ const PRESETS: PresetDef[] = [
   },
   {
     id: "all",
-    label: "Todo",
     compute: (rows) => {
       const epics = rows.filter((r) => r.issue_type === "Epic");
       const dates: Date[] = [];
@@ -175,6 +172,8 @@ const PRESETS: PresetDef[] = [
 ];
 
 export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
+  const t = useTranslations("projectDetail.roadmap");
+  const format = useFormatter();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -254,6 +253,14 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
     today.getTime() >= range.from.getTime() &&
     today.getTime() <= range.to.getTime();
 
+  const todayLabel = t("todayLabel", {
+    date: format.dateTime(today, {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    }),
+  });
+
   return (
     <div className="space-y-4">
       <IssueDrawer
@@ -286,7 +293,7 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
               lineHeight: `${HEADER_HEIGHT}px`,
             }}
           >
-            Épica
+            {t("epicColumn")}
           </div>
           {visible.map((epic) => (
             <EpicLabel key={epic.row.id} epic={epic} />
@@ -336,7 +343,7 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
               <TodayLine
                 x={todayX}
                 bodyHeight={chartBodyHeight}
-                today={today}
+                label={todayLabel}
               />
             ) : null}
           </div>
@@ -378,13 +385,6 @@ const STATUS_BG: Record<EpicStatus, string> = {
   inProgress: "bg-info-bg",
   future: "bg-cool-200",
   done: "bg-success-bg",
-};
-
-const STATUS_LABEL: Record<EpicStatus, string> = {
-  overdue: "Atrasada",
-  inProgress: "En curso",
-  future: "Próxima",
-  done: "Completada",
 };
 
 function EpicBar({
@@ -455,6 +455,18 @@ function EpicBar({
 }
 
 function BarTooltipBody({ epic }: { epic: PlannedEpic }) {
+  const t = useTranslations("projectDetail.roadmap.statusLabels");
+  const format = useFormatter();
+  const startLabel = format.dateTime(epic.start, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+  const dueLabel = format.dateTime(epic.due, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
   return (
     <div className="flex flex-col gap-1.5 text-xs">
       <div className="flex items-center gap-2">
@@ -470,8 +482,7 @@ function BarTooltipBody({ epic }: { epic: PlannedEpic }) {
         {epic.row.summary}
       </p>
       <p className="text-text-muted">
-        {STATUS_LABEL[epic.status]} · {formatShortDate(epic.start)} →{" "}
-        {formatShortDate(epic.due)}
+        {t(epic.status)} · {startLabel} → {dueLabel}
       </p>
       <AssigneeCell displayName={epic.row.assignee_display_name} />
     </div>
@@ -481,11 +492,11 @@ function BarTooltipBody({ epic }: { epic: PlannedEpic }) {
 function TodayLine({
   x,
   bodyHeight,
-  today,
+  label,
 }: {
   x: number;
   bodyHeight: number;
-  today: Date;
+  label: string;
 }) {
   const totalHeight = HEADER_HEIGHT + bodyHeight;
   return (
@@ -498,7 +509,7 @@ function TodayLine({
           transform: "translateX(-50%)",
         }}
       >
-        Hoy · {formatShortDate(today)}
+        {label}
       </span>
       <span
         className="pointer-events-none absolute bg-error"
@@ -515,14 +526,11 @@ function TodayLine({
 }
 
 function NoEpicsEmpty() {
+  const t = useTranslations("projectDetail.roadmap.empty.noEpics");
   return (
     <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-      <p className="text-sm font-medium text-text-primary">
-        Este proyecto no tiene épicas todavía.
-      </p>
-      <p className="mt-1 text-sm text-text-secondary">
-        Cuando se sincronice una épica desde Jira aparecerá acá.
-      </p>
+      <p className="text-sm font-medium text-text-primary">{t("title")}</p>
+      <p className="mt-1 text-sm text-text-secondary">{t("body")}</p>
     </div>
   );
 }
@@ -536,11 +544,12 @@ function ChartEmptyOverlay({
   unplannedCount: number;
   onPickAll: (() => void) | null;
 }) {
+  const t = useTranslations("projectDetail.roadmap.empty");
   if (variant === "no-planned") {
     const message =
       unplannedCount > 0
-        ? "No hay épicas planificadas. Las que están sin fechas aparecen abajo."
-        : "Sin épicas planificadas en este momento.";
+        ? t("noPlanned.withUnplanned")
+        : t("noPlanned.withoutUnplanned");
     return (
       <div className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center">
         <p className="max-w-sm text-sm text-text-secondary">{message}</p>
@@ -550,12 +559,11 @@ function ChartEmptyOverlay({
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 px-6 text-center">
       <p className="max-w-sm text-sm text-text-secondary">
-        No hay épicas en este rango. Probá ajustar las fechas o ver
-        &ldquo;Todo&rdquo;.
+        {t("noneInRange.body")}
       </p>
       {onPickAll ? (
         <Button size="sm" variant="secondary" onClick={onPickAll}>
-          Ver todo
+          {t("noneInRange.cta")}
         </Button>
       ) : null}
     </div>
@@ -602,12 +610,6 @@ function buildUnplanned(rows: IssueRow[]): UnplannedEpic[] {
   return list;
 }
 
-const MISSING_LABEL: Record<Missing, string> = {
-  start: "Falta start date",
-  due: "Falta due date",
-  both: "Sin fechas",
-};
-
 function jiraBrowseUrl(key: string): string | null {
   const base = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, "");
   return base ? `${base}/browse/${key}` : null;
@@ -620,6 +622,7 @@ function UnplannedSection({
   rows: IssueRow[];
   onSelect: (issue: IssueRow) => void;
 }) {
+  const t = useTranslations("projectDetail.roadmap.unplanned");
   const unplanned = useMemo(() => buildUnplanned(rows), [rows]);
   if (unplanned.length === 0) return null;
 
@@ -627,8 +630,7 @@ function UnplannedSection({
     <section className="space-y-3">
       <div className="flex items-center gap-2 border-t border-border pt-4">
         <h2 className="text-xs font-medium uppercase tracking-wide text-text-muted">
-          Sin planificar ({unplanned.length}{" "}
-          {unplanned.length === 1 ? "épica" : "épicas"})
+          {t("heading", { count: unplanned.length })}
         </h2>
       </div>
       <ul className="flex flex-col gap-2">
@@ -651,8 +653,15 @@ function UnplannedCard({
   unplanned: UnplannedEpic;
   onSelect: () => void;
 }) {
+  const t = useTranslations("projectDetail.roadmap.unplanned");
   const { row, missing } = unplanned;
   const jiraUrl = jiraBrowseUrl(row.key);
+  const missingLabel =
+    missing === "start"
+      ? t("missingStart")
+      : missing === "due"
+        ? t("missingDue")
+        : t("missingBoth");
 
   return (
     <li className="relative">
@@ -677,7 +686,7 @@ function UnplannedCard({
           <AssigneeCell displayName={row.assignee_display_name} />
           <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning">
             <AlertTriangle className="size-3" aria-hidden="true" />
-            {MISSING_LABEL[missing]}
+            {missingLabel}
           </span>
         </div>
       </button>
@@ -688,7 +697,7 @@ function UnplannedCard({
           rel="noreferrer"
           className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-text-primary px-2.5 py-1 text-xs font-medium text-surface hover:opacity-90"
         >
-          Editar en Jira
+          {t("editInJira")}
           <ExternalLink className="size-3" aria-hidden="true" />
         </a>
       ) : null}
@@ -697,38 +706,49 @@ function UnplannedCard({
 }
 
 function OutOfRangeCounter({ epics }: { epics: PlannedEpic[] }) {
+  const t = useTranslations("projectDetail.roadmap.outOfRange");
+  const format = useFormatter();
   return (
     <Popover>
       <Button size="sm" variant="ghost">
-        {epics.length}{" "}
-        {epics.length === 1
-          ? "épica fuera del rango actual"
-          : "épicas fuera del rango actual"}
+        {t("counter", { count: epics.length })}
       </Button>
       <Popover.Content className="max-w-md">
         <Popover.Dialog>
-          <Popover.Heading>Fuera del rango actual</Popover.Heading>
+          <Popover.Heading>{t("heading")}</Popover.Heading>
           <ul className="mt-2 flex max-h-80 flex-col gap-1.5 overflow-y-auto">
-            {epics.map((e) => (
-              <li
-                key={e.row.id}
-                className="flex flex-col gap-0.5 rounded-md bg-warm-50 px-2 py-1.5 text-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`${GeistMono.className} text-xs text-text-muted`}
-                  >
-                    {e.row.key}
+            {epics.map((e) => {
+              const startLabel = format.dateTime(e.start, {
+                day: "numeric",
+                month: "short",
+                timeZone: "UTC",
+              });
+              const dueLabel = format.dateTime(e.due, {
+                day: "numeric",
+                month: "short",
+                timeZone: "UTC",
+              });
+              return (
+                <li
+                  key={e.row.id}
+                  className="flex flex-col gap-0.5 rounded-md bg-warm-50 px-2 py-1.5 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`${GeistMono.className} text-xs text-text-muted`}
+                    >
+                      {e.row.key}
+                    </span>
+                    <span className="truncate text-text-primary">
+                      {e.row.summary}
+                    </span>
+                  </div>
+                  <span className="text-xs text-text-muted">
+                    {startLabel} → {dueLabel}
                   </span>
-                  <span className="truncate text-text-primary">
-                    {e.row.summary}
-                  </span>
-                </div>
-                <span className="text-xs text-text-muted">
-                  {formatShortDate(e.start)} → {formatShortDate(e.due)}
-                </span>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </Popover.Dialog>
       </Popover.Content>
@@ -751,6 +771,7 @@ function RangeControls({
   showCompleted: boolean;
   onToggleCompleted: (next: boolean) => void;
 }) {
+  const t = useTranslations("projectDetail.roadmap");
   const isPresetActive = (preset: PresetDef): boolean => {
     const r = preset.compute(rows);
     if (!r) return false;
@@ -773,7 +794,7 @@ function RangeControls({
               disabled={range === null}
               onClick={() => range && onPick(range)}
             >
-              {p.label}
+              {t(`presets.${p.id}`)}
             </Button>
           );
         })}
@@ -791,7 +812,7 @@ function RangeControls({
       <Toggle
         checked={showCompleted}
         onChange={onToggleCompleted}
-        label="Mostrar completadas"
+        label={t("showCompleted")}
         className="ml-auto"
       />
     </div>
@@ -815,6 +836,7 @@ function ManualRangeInputs({
   currentToIso: string;
   onApply: (from: string, to: string) => void;
 }) {
+  const t = useTranslations("projectDetail.roadmap.range");
   const initial: DateRangeValue = {
     start: parseDate(currentFromIso),
     end: parseDate(currentToIso),
@@ -839,10 +861,10 @@ function ManualRangeInputs({
         className="w-72"
         value={draft}
         onChange={(next) => setDraft(next as DateRangeValue | null)}
-        aria-label="Rango del roadmap"
+        aria-label={t("aria")}
       >
         <Label className="text-xs font-medium uppercase tracking-wide text-text-muted">
-          Rango
+          {t("label")}
         </Label>
         <DateField.Group fullWidth>
           <DateField.Input slot="start">
@@ -859,7 +881,7 @@ function ManualRangeInputs({
           </DateField.Suffix>
         </DateField.Group>
         <DateRangePicker.Popover>
-          <RangeCalendar aria-label="Rango del roadmap">
+          <RangeCalendar aria-label={t("aria")}>
             <RangeCalendar.Header>
               <RangeCalendar.YearPickerTrigger>
                 <RangeCalendar.YearPickerTriggerHeading />
@@ -894,16 +916,14 @@ function ManualRangeInputs({
         disabled={!isValid || !isDirty}
         onClick={() => onApply(draftFromIso, draftToIso)}
       >
-        Aplicar
+        {t("apply")}
       </Button>
     </div>
   );
 }
 
 interface MonthTick {
-  // x is computed from this date.
   date: Date;
-  label: string;
 }
 
 interface WeekTick {
@@ -916,6 +936,10 @@ interface WeekTick {
 //    shows its starting month at x=0 instead of skipping it.
 //  - lineTicks: vertical month-boundary lines on the grid. Drawn only at
 //    actual month boundaries (1st of each month) inside the range.
+//
+// iter 5 (i18n): the precomputed `label` field is gone — TimelineHeader
+// formats each tick at render time via useFormatter, so labels respect
+// the active locale.
 function buildMonthTicks(
   from: Date,
   to: Date,
@@ -927,16 +951,15 @@ function buildMonthTicks(
   const isPartialFirstMonth = fromMonthStart.getTime() < from.getTime();
 
   if (isPartialFirstMonth) {
-    labelTicks.push({ date: from, label: formatMonthLabel(fromMonthStart) });
+    labelTicks.push({ date: from });
   }
 
   let cursor = isPartialFirstMonth
     ? startOfMonthUTC(addMonthsUTC(from, 1))
     : fromMonthStart;
   while (cursor.getTime() <= to.getTime()) {
-    const label = formatMonthLabel(cursor);
-    labelTicks.push({ date: cursor, label });
-    lineTicks.push({ date: cursor, label });
+    labelTicks.push({ date: cursor });
+    lineTicks.push({ date: cursor });
     cursor = addMonthsUTC(cursor, 1);
   }
 
@@ -965,6 +988,7 @@ function TimelineHeader({
   from: Date;
   to: Date;
 }) {
+  const format = useFormatter();
   return (
     <div
       className="relative border-b border-border"
@@ -972,6 +996,14 @@ function TimelineHeader({
     >
       {labelTicks.map((tick) => {
         const x = dateToX(tick.date, from, to, chartWidth);
+        // For the partial-first-month case the tick.date is the range
+        // start, but the label should reflect its containing month.
+        const labelDate = startOfMonthUTC(tick.date);
+        const label = format.dateTime(labelDate, {
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        });
         return (
           <span
             key={tick.date.toISOString()}
@@ -982,7 +1014,7 @@ function TimelineHeader({
               lineHeight: `${HEADER_HEIGHT}px`,
             }}
           >
-            {tick.label}
+            {label}
           </span>
         );
       })}

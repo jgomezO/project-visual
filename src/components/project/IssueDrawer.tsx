@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button, Drawer } from "@heroui/react";
 import { ExternalLink } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { IssueRow, StatusCategory } from "./ProjectTable";
 import { StatusChip } from "./StatusChip";
 import { DueDateCell } from "./DueDateCell";
@@ -45,6 +46,7 @@ export function IssueDrawer({
   issue: IssueRow | null;
   onClose: () => void;
 }) {
+  const t = useTranslations("projectDetail.drawer");
   const [detail, setDetail] = useState<IssueDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -102,10 +104,10 @@ export function IssueDrawer({
         string,
         { summary: string; status: StatusCategory }
       >();
-      for (const t of targetsRes.data ?? []) {
-        targetById.set(t.id, {
-          summary: t.summary,
-          status: t.status_category as StatusCategory,
+      for (const tgt of targetsRes.data ?? []) {
+        targetById.set(tgt.id, {
+          summary: tgt.summary,
+          status: tgt.status_category as StatusCategory,
         });
       }
 
@@ -178,29 +180,29 @@ export function IssueDrawer({
           <Drawer.Body>
             {issue && (
               <div className="flex flex-col gap-5">
-                <Section label="Estado">
+                <Section label={t("sections.status")}>
                   <StatusChip
                     category={issue.status_category}
                     statusName={issue.status_name}
                   />
                 </Section>
-                <Section label="Asignado">
+                <Section label={t("sections.assignee")}>
                   <AssigneeCell displayName={issue.assignee_display_name} />
                 </Section>
-                <Section label="Vence">
+                <Section label={t("sections.dueDate")}>
                   <DueDateCell
                     date={issue.due_date}
                     isDone={issue.status_category === "Done"}
                   />
                 </Section>
                 {issue.priority ? (
-                  <Section label="Prioridad">
+                  <Section label={t("sections.priority")}>
                     <span className="text-sm">{issue.priority}</span>
                   </Section>
                 ) : null}
 
                 {detail?.parent ? (
-                  <Section label="Épica padre">
+                  <Section label={t("sections.parent")}>
                     <RelatedLine
                       keyText={detail.parent.key}
                       summary={detail.parent.summary}
@@ -209,40 +211,54 @@ export function IssueDrawer({
                 ) : null}
 
                 {detail && detail.children.length > 0 ? (
-                  <Section label={`Historias (${detail.children.length})`}>
+                  <Section
+                    label={t("sections.children", {
+                      count: detail.children.length,
+                    })}
+                  >
                     <RelatedList items={detail.children} />
                   </Section>
                 ) : null}
 
                 {detail && detail.subtasks.length > 0 ? (
-                  <Section label={`Subtareas (${detail.subtasks.length})`}>
+                  <Section
+                    label={t("sections.subtasks", {
+                      count: detail.subtasks.length,
+                    })}
+                  >
                     <RelatedList items={detail.subtasks} />
                   </Section>
                 ) : null}
 
                 {detail && detail.blockedBy.length > 0 ? (
-                  <Section label={`Bloqueada por (${detail.blockedBy.length})`}>
+                  <Section
+                    label={t("sections.blockedBy", {
+                      count: detail.blockedBy.length,
+                    })}
+                  >
                     <LinkedList items={detail.blockedBy} />
                   </Section>
                 ) : null}
 
                 {detail && detail.blocks.length > 0 ? (
-                  <Section label={`Bloquea a (${detail.blocks.length})`}>
+                  <Section
+                    label={t("sections.blocks", {
+                      count: detail.blocks.length,
+                    })}
+                  >
                     <LinkedList items={detail.blocks} />
                   </Section>
                 ) : null}
 
                 {loading ? (
-                  <span className="text-sm text-muted">
-                    Cargando detalles…
-                  </span>
+                  <span className="text-sm text-muted">{t("loading")}</span>
                 ) : null}
               </div>
             )}
           </Drawer.Body>
           <Drawer.Footer>
             <Button slot="close" variant="secondary">
-              Cerrar
+              {t("actions.close")}
             </Button>
             {jiraUrl ? (
               <a
@@ -251,7 +267,7 @@ export function IssueDrawer({
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90"
               >
-                Abrir en Jira
+                {t("actions.openInJira")}
                 <ExternalLink className="size-4" />
               </a>
             ) : null}
@@ -296,6 +312,7 @@ function RelatedList({ items }: { items: RelatedIssue[] }) {
 }
 
 function LinkedList({ items }: { items: LinkedIssue[] }) {
+  const t = useTranslations("projectDetail.drawer.linked");
   return (
     <ul className="flex flex-col gap-1.5">
       {items.map((it) => (
@@ -305,7 +322,7 @@ function LinkedList({ items }: { items: LinkedIssue[] }) {
         >
           <RelatedLine
             keyText={it.target_key}
-            summary={it.target_summary ?? "(fuera del alcance sincronizado)"}
+            summary={it.target_summary ?? t("outOfScope")}
             muted={it.target_summary === null}
           />
           {it.target_status ? (

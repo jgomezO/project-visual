@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { GeistMono } from "geist/font/mono";
 import { AlertTriangle, Ban, CheckCircle2, Clock } from "lucide-react";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { Card } from "@/components/ui";
-import { relativeFromNow } from "@/lib/format/relativeTime";
+import { Link } from "@/i18n/navigation";
 
 export interface DashboardData {
   project_id: string | null;
@@ -18,7 +18,10 @@ export interface DashboardData {
   blocked_count: number | null;
 }
 
-export function KpiHeader({ data }: { data: DashboardData }) {
+export async function KpiHeader({ data }: { data: DashboardData }) {
+  const t = await getTranslations("projectDetail");
+  const format = await getFormatter();
+
   const total = data.total ?? 0;
   const todo = data.todo_count ?? 0;
   const inProgress = data.in_progress_count ?? 0;
@@ -26,6 +29,12 @@ export function KpiHeader({ data }: { data: DashboardData }) {
   const overdue = data.overdue_count ?? 0;
   const blocked = data.blocked_count ?? 0;
   const donePct = total === 0 ? 0 : Math.round((done / total) * 100);
+
+  const lastSyncText = data.last_synced_at
+    ? t("header.lastSync", {
+        time: format.relativeTime(new Date(data.last_synced_at)),
+      })
+    : t("header.notSynced");
 
   return (
     <header className="space-y-8">
@@ -35,7 +44,7 @@ export function KpiHeader({ data }: { data: DashboardData }) {
 
       <div>
         <h1 className="text-4xl font-bold tracking-tight text-text-primary">
-          {data.project_name ?? "Proyecto sin nombre"}
+          {data.project_name ?? t("header.untitled")}
         </h1>
         <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-base text-text-secondary">
           <span className={`${GeistMono.className} text-sm`}>
@@ -46,18 +55,16 @@ export function KpiHeader({ data }: { data: DashboardData }) {
               <span aria-hidden="true" className="text-text-muted">
                 ·
               </span>
-              <span>Lead: {data.lead_display_name}</span>
+              <span>
+                {t("header.lead", { name: data.lead_display_name })}
+              </span>
             </>
           ) : null}
           <span aria-hidden="true" className="text-text-muted">
             ·
           </span>
           <Clock className="size-4" aria-hidden="true" />
-          <span>
-            {data.last_synced_at
-              ? `Última sync: ${relativeFromNow(data.last_synced_at)}`
-              : "Sin sincronizar"}
-          </span>
+          <span>{lastSyncText}</span>
         </p>
       </div>
 
@@ -76,14 +83,15 @@ export function KpiHeader({ data }: { data: DashboardData }) {
   );
 }
 
-function Breadcrumb({ projectName }: { projectName: string }) {
+async function Breadcrumb({ projectName }: { projectName: string }) {
+  const t = await getTranslations("projectDetail.breadcrumb");
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm">
+    <nav aria-label={t("aria")} className="flex items-center gap-2 text-sm">
       <Link
         href="/projects"
         className="text-text-secondary transition-colors hover:text-text-primary"
       >
-        Proyectos
+        {t("projects")}
       </Link>
       <span aria-hidden="true" className="text-text-muted">
         /
@@ -104,7 +112,7 @@ function CardCaption({ children }: { children: React.ReactNode }) {
   );
 }
 
-function TotalCard({
+async function TotalCard({
   total,
   todo,
   inProgress,
@@ -115,14 +123,15 @@ function TotalCard({
   inProgress: number;
   done: number;
 }) {
-  const tooltip = `${todo} To Do · ${inProgress} In Progress · ${done} Done`;
+  const t = await getTranslations("projectDetail.kpis");
+  const tooltip = t("totalBreakdown", { todo, inProgress, done });
   const todoPct = total === 0 ? 0 : (todo / total) * 100;
   const inProgressPct = total === 0 ? 0 : (inProgress / total) * 100;
   const donePct = total === 0 ? 0 : (done / total) * 100;
 
   return (
     <Card>
-      <CardCaption>Total de issues</CardCaption>
+      <CardCaption>{t("totalIssues")}</CardCaption>
       <p className="mt-2 text-4xl font-bold tabular-nums text-text-primary">
         {total}
       </p>
@@ -141,21 +150,20 @@ function TotalCard({
           <p className="mt-2 text-xs text-text-muted">{tooltip}</p>
         </>
       ) : (
-        <p className="mt-4 text-xs text-text-muted">
-          Sin issues sincronizadas
-        </p>
+        <p className="mt-4 text-xs text-text-muted">{t("noIssuesYet")}</p>
       )}
     </Card>
   );
 }
 
-function CompletedCard({ pct }: { pct: number }) {
+async function CompletedCard({ pct }: { pct: number }) {
+  const t = await getTranslations("projectDetail.kpis");
   let colorClass = "text-success";
   if (pct < 30) colorClass = "text-error";
   else if (pct < 70) colorClass = "text-warning";
   return (
     <Card>
-      <CardCaption>% completado</CardCaption>
+      <CardCaption>{t("percentCompleted")}</CardCaption>
       <p className={`mt-2 text-4xl font-bold tabular-nums ${colorClass}`}>
         {pct}%
       </p>
@@ -163,13 +171,14 @@ function CompletedCard({ pct }: { pct: number }) {
   );
 }
 
-function OverdueCard({ count }: { count: number }) {
+async function OverdueCard({ count }: { count: number }) {
+  const t = await getTranslations("projectDetail.kpis");
   const safe = count === 0;
   const Icon = safe ? CheckCircle2 : AlertTriangle;
   const colorClass = safe ? "text-success" : "text-error";
   return (
     <Card>
-      <CardCaption>Issues vencidas</CardCaption>
+      <CardCaption>{t("overdueIssues")}</CardCaption>
       <p
         className={`mt-2 flex items-center gap-2 text-4xl font-bold tabular-nums ${colorClass}`}
       >
@@ -180,13 +189,14 @@ function OverdueCard({ count }: { count: number }) {
   );
 }
 
-function BlockedCard({ count }: { count: number }) {
+async function BlockedCard({ count }: { count: number }) {
+  const t = await getTranslations("projectDetail.kpis");
   const safe = count === 0;
   const Icon = safe ? CheckCircle2 : Ban;
   const colorClass = safe ? "text-success" : "text-error";
   return (
     <Card>
-      <CardCaption>Issues bloqueadas</CardCaption>
+      <CardCaption>{t("blockedIssues")}</CardCaption>
       <p
         className={`mt-2 flex items-center gap-2 text-4xl font-bold tabular-nums ${colorClass}`}
       >

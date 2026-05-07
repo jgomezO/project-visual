@@ -1,1 +1,127 @@
-{}
+{
+  "breadcrumb": {
+    "aria": "Breadcrumb",
+    "projects": "Projects"
+  },
+  "header": {
+    "untitled": "Untitled project",
+    "lead": "Lead: {name}",
+    "lastSync": "Last sync: {time}",
+    "notSynced": "Not synced yet"
+  },
+  "kpis": {
+    "totalIssues": "Total issues",
+    "percentCompleted": "% completed",
+    "overdueIssues": "Overdue issues",
+    "blockedIssues": "Blocked issues",
+    "totalBreakdown": "{todo} To Do · {inProgress} In Progress · {done} Done",
+    "noIssuesYet": "No issues synced yet"
+  },
+  "tabs": {
+    "aria": "Project view",
+    "list": "List",
+    "roadmap": "Roadmap",
+    "narratives": "Narratives"
+  },
+  "list": {
+    "filters": {
+      "onlyActive": "Active only",
+      "onlyWithDueDate": "With due date only"
+    },
+    "headers": {
+      "summary": "Summary",
+      "status": "Status",
+      "assignee": "Assignee",
+      "dueDate": "Due"
+    },
+    "epicEmpty": "This epic has no stories yet.",
+    "expandAria": "Expand epic",
+    "collapseAria": "Collapse epic",
+    "epicCompletedAria": "Epic completed",
+    "noStoriesBadge": "No stories",
+    "orphansHeading": "No epic",
+    "empty": {
+      "filtered": {
+        "message": "No issues match the current filters.",
+        "clear": "Clear filters"
+      },
+      "noIssues": {
+        "title": "This project has no issues synced yet.",
+        "body": "Go back to /projects and use \"Resync\" to pull data from Jira."
+      }
+    }
+  },
+  "roadmap": {
+    "presets": {
+      "quarter": "This quarter",
+      "6m": "Next 6 months",
+      "1y": "Next year",
+      "all": "All"
+    },
+    "range": {
+      "label": "Range",
+      "aria": "Roadmap range",
+      "apply": "Apply"
+    },
+    "showCompleted": "Show completed",
+    "epicColumn": "Epic",
+    "todayLabel": "Today · {date}",
+    "outOfRange": {
+      "counter": "{count, plural, one {# epic outside current range} other {# epics outside current range}}",
+      "heading": "Outside the current range"
+    },
+    "statusLabels": {
+      "overdue": "Overdue",
+      "inProgress": "In progress",
+      "future": "Upcoming",
+      "done": "Completed"
+    },
+    "empty": {
+      "noEpics": {
+        "title": "This project has no epics yet.",
+        "body": "When an epic is synced from Jira it'll show up here."
+      },
+      "noPlanned": {
+        "withUnplanned": "No planned epics. The ones missing dates appear below.",
+        "withoutUnplanned": "No planned epics right now."
+      },
+      "noneInRange": {
+        "body": "No epics in this range. Try adjusting the dates or view \"All\".",
+        "cta": "View all"
+      }
+    },
+    "unplanned": {
+      "heading": "{count, plural, one {Unplanned (# epic)} other {Unplanned (# epics)}}",
+      "missingStart": "Missing start date",
+      "missingDue": "Missing due date",
+      "missingBoth": "No dates",
+      "editInJira": "Edit in Jira"
+    }
+  },
+  "drawer": {
+    "sections": {
+      "status": "Status",
+      "assignee": "Assignee",
+      "dueDate": "Due",
+      "priority": "Priority",
+      "parent": "Parent epic",
+      "children": "{count, plural, one {Story (#)} other {Stories (#)}}",
+      "subtasks": "{count, plural, one {Subtask (#)} other {Subtasks (#)}}",
+      "blockedBy": "Blocked by ({count})",
+      "blocks": "Blocks ({count})"
+    },
+    "linked": {
+      "outOfScope": "(outside synced scope)"
+    },
+    "loading": "Loading details…",
+    "actions": {
+      "close": "Close",
+      "openInJira": "Open in Jira"
+    }
+  },
+  "notFound": {
+    "title": "Project not found",
+    "description": "This project doesn't exist in the local database. It may need to be synced, or the key may be incorrect.",
+    "backToList": "Back to list"
+  }
+}

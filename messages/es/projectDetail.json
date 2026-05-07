@@ -1,1 +1,127 @@
-{}
+{
+  "breadcrumb": {
+    "aria": "Ruta de navegación",
+    "projects": "Proyectos"
+  },
+  "header": {
+    "untitled": "Proyecto sin nombre",
+    "lead": "Lead: {name}",
+    "lastSync": "Última sync: {time}",
+    "notSynced": "Sin sincronizar"
+  },
+  "kpis": {
+    "totalIssues": "Total de issues",
+    "percentCompleted": "% completado",
+    "overdueIssues": "Issues vencidas",
+    "blockedIssues": "Issues bloqueadas",
+    "totalBreakdown": "{todo} To Do · {inProgress} In Progress · {done} Done",
+    "noIssuesYet": "Sin issues sincronizadas"
+  },
+  "tabs": {
+    "aria": "Vista del proyecto",
+    "list": "Lista",
+    "roadmap": "Roadmap",
+    "narratives": "Narrativas"
+  },
+  "list": {
+    "filters": {
+      "onlyActive": "Solo activas",
+      "onlyWithDueDate": "Solo con due date"
+    },
+    "headers": {
+      "summary": "Summary",
+      "status": "Status",
+      "assignee": "Asignado",
+      "dueDate": "Vence"
+    },
+    "epicEmpty": "Esta épica aún no tiene historias.",
+    "expandAria": "Expandir épica",
+    "collapseAria": "Colapsar épica",
+    "epicCompletedAria": "Épica completada",
+    "noStoriesBadge": "Sin historias",
+    "orphansHeading": "Sin épica",
+    "empty": {
+      "filtered": {
+        "message": "No hay issues que coincidan con los filtros actuales.",
+        "clear": "Limpiar filtros"
+      },
+      "noIssues": {
+        "title": "Este proyecto no tiene issues sincronizadas todavía.",
+        "body": "Volvé a /projects y usá \"Resincronizar\" para traer los datos de Jira."
+      }
+    }
+  },
+  "roadmap": {
+    "presets": {
+      "quarter": "Este trimestre",
+      "6m": "Próximos 6 meses",
+      "1y": "Próximo año",
+      "all": "Todo"
+    },
+    "range": {
+      "label": "Rango",
+      "aria": "Rango del roadmap",
+      "apply": "Aplicar"
+    },
+    "showCompleted": "Mostrar completadas",
+    "epicColumn": "Épica",
+    "todayLabel": "Hoy · {date}",
+    "outOfRange": {
+      "counter": "{count, plural, one {# épica fuera del rango actual} other {# épicas fuera del rango actual}}",
+      "heading": "Fuera del rango actual"
+    },
+    "statusLabels": {
+      "overdue": "Atrasada",
+      "inProgress": "En curso",
+      "future": "Próxima",
+      "done": "Completada"
+    },
+    "empty": {
+      "noEpics": {
+        "title": "Este proyecto no tiene épicas todavía.",
+        "body": "Cuando se sincronice una épica desde Jira aparecerá acá."
+      },
+      "noPlanned": {
+        "withUnplanned": "No hay épicas planificadas. Las que están sin fechas aparecen abajo.",
+        "withoutUnplanned": "Sin épicas planificadas en este momento."
+      },
+      "noneInRange": {
+        "body": "No hay épicas en este rango. Probá ajustar las fechas o ver \"Todo\".",
+        "cta": "Ver todo"
+      }
+    },
+    "unplanned": {
+      "heading": "{count, plural, one {Sin planificar (# épica)} other {Sin planificar (# épicas)}}",
+      "missingStart": "Falta start date",
+      "missingDue": "Falta due date",
+      "missingBoth": "Sin fechas",
+      "editInJira": "Editar en Jira"
+    }
+  },
+  "drawer": {
+    "sections": {
+      "status": "Estado",
+      "assignee": "Asignado",
+      "dueDate": "Vence",
+      "priority": "Prioridad",
+      "parent": "Épica padre",
+      "children": "{count, plural, one {Historia (#)} other {Historias (#)}}",
+      "subtasks": "{count, plural, one {Subtarea (#)} other {Subtareas (#)}}",
+      "blockedBy": "Bloqueada por ({count})",
+      "blocks": "Bloquea a ({count})"
+    },
+    "linked": {
+      "outOfScope": "(fuera del alcance sincronizado)"
+    },
+    "loading": "Cargando detalles…",
+    "actions": {
+      "close": "Cerrar",
+      "openInJira": "Abrir en Jira"
+    }
+  },
+  "notFound": {
+    "title": "Proyecto no encontrado",
+    "description": "Este proyecto no existe en la base local. Puede que falte sincronizar, o que la key sea incorrecta.",
+    "backToList": "Volver al listado"
+  }
+}

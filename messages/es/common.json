@@ -1,1 +1,13 @@
-{}
+{
+  "issueType": {
+    "epic": "Épica",
+    "story": "Historia",
+    "task": "Tarea",
+    "bug": "Bug",
+    "subtask": "Subtarea",
+    "other": "Otro"
+  },
+  "assignee": {
+    "unassigned": "Sin asignar"
+  }
+}

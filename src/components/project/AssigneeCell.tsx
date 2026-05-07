@@ -1,16 +1,26 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 // Custom avatar circle (iter 4h R2) — drops HeroUI Avatar in favor of
 // the same lavender-on-primary-100 swatch ProjectCard uses on
 // /projects, so the two surfaces share an avatar vocabulary.
+//
+// iter 5 (i18n): becomes "use client" because useTranslations is a
+// hook. AssigneeCell is consumed exclusively by Client components
+// today (ProjectTable, ProjectRoadmap, IssueDrawer), so the directive
+// doesn't introduce a new server/client boundary.
 export function AssigneeCell({
   displayName,
 }: {
   displayName: string | null;
 }) {
+  const t = useTranslations("common.assignee");
   if (!displayName) {
     return (
       <div className="flex items-center gap-2">
         <Circle initials="?" muted />
-        <span className="text-sm text-text-muted">Sin asignar</span>
+        <span className="text-sm text-text-muted">{t("unassigned")}</span>
       </div>
     );
   }

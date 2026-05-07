@@ -1,19 +1,14 @@
 "use client";
 
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ProjectRoadmap } from "./ProjectRoadmap";
 import { ProjectTable, type IssueRow } from "./ProjectTable";
 
 export type ViewKey = "list" | "roadmap" | "narratives";
 
-const TAB_DEFS: { id: ViewKey; label: string }[] = [
-  { id: "list", label: "Lista" },
-  { id: "roadmap", label: "Roadmap" },
-  { id: "narratives", label: "Narrativas" },
-];
-
-const VIEW_KEYS: readonly ViewKey[] = TAB_DEFS.map((t) => t.id);
+const VIEW_KEYS: readonly ViewKey[] = ["list", "roadmap", "narratives"];
 
 function isViewKey(value: unknown): value is ViewKey {
   return (
@@ -36,6 +31,18 @@ function isViewKey(value: unknown): value is ViewKey {
 // active tab is in the natural tab order (tabIndex=0); inactive tabs
 // are skipped (tabIndex=-1) per WAI-ARIA Tabs pattern, with arrow
 // keys moving focus + selection within the tablist.
+//
+// iter 5 (i18n): the static TAB_DEFS label list is gone; labels come
+// from useTranslations('projectDetail.tabs') so /en sees "List" /
+// "Roadmap" / "Narratives" and /es sees the equivalents. The tab IDs
+// stay locale-stable (?view=list, etc.) — only the displayed text
+// changes per locale, the URL stays a deterministic snapshot.
+//
+// usePathname stays from next/navigation here (returns the full
+// pathname including locale prefix) because we re-build the same
+// path with new query params via router.replace; using @/i18n/navigation
+// would strip the locale and the replace would land on a bare path
+// that the middleware then re-redirects.
 export function ProjectViews({
   rows,
   view,
@@ -45,10 +52,17 @@ export function ProjectViews({
   view: ViewKey;
   narrativesPanel: ReactNode;
 }) {
+  const t = useTranslations("projectDetail.tabs");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const tabs: { id: ViewKey; label: string }[] = [
+    { id: "list", label: t("list") },
+    { id: "roadmap", label: t("roadmap") },
+    { id: "narratives", label: t("narratives") },
+  ];
 
   const select = (next: ViewKey) => {
     if (next === view) return;
@@ -61,14 +75,14 @@ export function ProjectViews({
 
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null;
-    if (e.key === "ArrowRight") nextIndex = (index + 1) % TAB_DEFS.length;
+    if (e.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
     else if (e.key === "ArrowLeft")
-      nextIndex = (index - 1 + TAB_DEFS.length) % TAB_DEFS.length;
+      nextIndex = (index - 1 + tabs.length) % tabs.length;
     else if (e.key === "Home") nextIndex = 0;
-    else if (e.key === "End") nextIndex = TAB_DEFS.length - 1;
+    else if (e.key === "End") nextIndex = tabs.length - 1;
     if (nextIndex === null) return;
     e.preventDefault();
-    const next = TAB_DEFS[nextIndex];
+    const next = tabs[nextIndex];
     select(next.id);
     tabRefs.current[nextIndex]?.focus();
   };
@@ -77,10 +91,10 @@ export function ProjectViews({
     <div>
       <div
         role="tablist"
-        aria-label="Vista del proyecto"
+        aria-label={t("aria")}
         className="flex gap-2 border-b border-border"
       >
-        {TAB_DEFS.map((tab, index) => {
+        {tabs.map((tab, index) => {
           const active = tab.id === view;
           return (
             <button

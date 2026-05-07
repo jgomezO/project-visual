@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { GeistMono } from "geist/font/mono";
 import { CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Card, Toggle } from "@/components/ui";
 import { AssigneeCell } from "./AssigneeCell";
 import { DueDateCell } from "./DueDateCell";
@@ -35,6 +36,7 @@ interface Buckets {
 }
 
 export function ProjectTable({ rows }: { rows: IssueRow[] }) {
+  const t = useTranslations("projectDetail.list");
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [onlyWithDueDate, setOnlyWithDueDate] = useState(false);
   const [overrides, setOverrides] = useState<Map<string, boolean>>(
@@ -81,12 +83,12 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
         <Toggle
           checked={showOnlyActive}
           onChange={setShowOnlyActive}
-          label="Solo activas"
+          label={t("filters.onlyActive")}
         />
         <Toggle
           checked={onlyWithDueDate}
           onChange={setOnlyWithDueDate}
-          label="Solo con due date"
+          label={t("filters.onlyWithDueDate")}
         />
       </div>
 
@@ -103,10 +105,10 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
             <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wide text-text-muted">
-                  <th className="px-4 py-3">Summary</th>
-                  <th className="w-32 px-4 py-3">Status</th>
-                  <th className="w-56 px-4 py-3">Asignado</th>
-                  <th className="w-28 px-4 py-3">Vence</th>
+                  <th className="px-4 py-3">{t("headers.summary")}</th>
+                  <th className="w-32 px-4 py-3">{t("headers.status")}</th>
+                  <th className="w-56 px-4 py-3">{t("headers.assignee")}</th>
+                  <th className="w-28 px-4 py-3">{t("headers.dueDate")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,10 +156,13 @@ function EpicGroup({
   onToggle: () => void;
   onSelect: (issue: IssueRow) => void;
 }) {
+  const t = useTranslations("projectDetail.list");
+  const tType = useTranslations("common.issueType");
   const isDone = epic.status_category === "Done";
   const Chevron = expanded ? ChevronDown : ChevronRight;
   const showEmptyEpicBadge = !expanded && kids.length === 0;
   const meta = getIssueTypeMeta(epic.issue_type);
+  const typeLabel = tType(meta.key);
 
   return (
     <>
@@ -169,7 +174,7 @@ function EpicGroup({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              aria-label={expanded ? "Colapsar épica" : "Expandir épica"}
+              aria-label={expanded ? t("collapseAria") : t("expandAria")}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggle();
@@ -182,8 +187,8 @@ function EpicGroup({
               className={`size-4 shrink-0 ${meta.colorClass}`}
               aria-hidden="true"
             />
-            <span title={meta.label} className="sr-only">
-              {meta.label}
+            <span title={typeLabel} className="sr-only">
+              {typeLabel}
             </span>
             <span className={`${GeistMono.className} text-xs text-text-muted`}>
               {epic.key}
@@ -194,12 +199,12 @@ function EpicGroup({
             {isDone ? (
               <CheckCircle2
                 className="size-4 text-success"
-                aria-label="Épica completada"
+                aria-label={t("epicCompletedAria")}
               />
             ) : null}
             {showEmptyEpicBadge ? (
               <span className="whitespace-nowrap rounded-full bg-warm-100 px-2 py-0.5 text-xs text-text-muted">
-                Sin historias
+                {t("noStoriesBadge")}
               </span>
             ) : null}
           </div>
@@ -225,7 +230,7 @@ function EpicGroup({
                   colSpan={4}
                   className="border-b border-border px-4 py-3 pl-12 text-sm italic text-text-muted"
                 >
-                  Esta épica aún no tiene historias.
+                  {t("epicEmpty")}
                 </td>
               </tr>
             )
@@ -249,6 +254,7 @@ function OrphansSection({
   orphans: IssueRow[];
   onSelect: (issue: IssueRow) => void;
 }) {
+  const t = useTranslations("projectDetail.list");
   return (
     <>
       <tr>
@@ -256,7 +262,7 @@ function OrphansSection({
           colSpan={4}
           className="border-b border-border bg-warm-50 px-4 pb-1 pt-6 text-xs font-medium uppercase tracking-wide text-text-muted"
         >
-          Sin épica
+          {t("orphansHeading")}
         </td>
       </tr>
       {orphans.map((o) => (
@@ -275,8 +281,10 @@ function ChildRow({
   indented: boolean;
   onSelect: (issue: IssueRow) => void;
 }) {
+  const tType = useTranslations("common.issueType");
   const isDone = issue.status_category === "Done";
   const meta = getIssueTypeMeta(issue.issue_type);
+  const typeLabel = tType(meta.key);
   return (
     <tr
       className="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-warm-50"
@@ -288,8 +296,8 @@ function ChildRow({
             className={`size-4 shrink-0 ${meta.colorClass}`}
             aria-hidden="true"
           />
-          <span title={meta.label} className="sr-only">
-            {meta.label}
+          <span title={typeLabel} className="sr-only">
+            {typeLabel}
           </span>
           <span className={`${GeistMono.className} text-xs text-text-muted`}>
             {issue.key}
@@ -314,32 +322,27 @@ function ChildRow({
 }
 
 function FilteredEmpty({ onClear }: { onClear: () => void }) {
+  const t = useTranslations("projectDetail.list.empty.filtered");
   return (
     <Card variant="compact" className="border border-dashed border-border bg-transparent text-center shadow-none">
-      <p className="text-sm text-text-secondary">
-        No hay issues que coincidan con los filtros actuales.
-      </p>
+      <p className="text-sm text-text-secondary">{t("message")}</p>
       <button
         type="button"
         onClick={onClear}
         className="mt-2 text-sm font-medium text-primary-700 underline-offset-2 hover:underline"
       >
-        Limpiar filtros
+        {t("clear")}
       </button>
     </Card>
   );
 }
 
 function NoIssuesEmpty() {
+  const t = useTranslations("projectDetail.list.empty.noIssues");
   return (
     <Card variant="compact" className="border border-dashed border-border bg-transparent text-center shadow-none">
-      <p className="text-sm font-medium text-text-primary">
-        Este proyecto no tiene issues sincronizadas todavía.
-      </p>
-      <p className="mt-1 text-sm text-text-secondary">
-        Volvé a /projects y usá &ldquo;Resincronizar&rdquo; para traer los
-        datos de Jira.
-      </p>
+      <p className="text-sm font-medium text-text-primary">{t("title")}</p>
+      <p className="mt-1 text-sm text-text-secondary">{t("body")}</p>
     </Card>
   );
 }

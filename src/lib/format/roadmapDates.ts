@@ -79,23 +79,8 @@ export function isValidISODate(s: string | undefined): s is string {
   return !Number.isNaN(d.getTime());
 }
 
-const MONTH_FORMATTER = new Intl.DateTimeFormat("es-AR", {
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-export function formatMonthLabel(d: Date): string {
-  // "may. 2026" → strip trailing dot of the month abbreviation for cleanliness.
-  return MONTH_FORMATTER.format(d).replace(".", "");
-}
-
-const SHORT_DATE = new Intl.DateTimeFormat("es-AR", {
-  day: "numeric",
-  month: "short",
-  timeZone: "UTC",
-});
-
-export function formatShortDate(d: Date): string {
-  return SHORT_DATE.format(d).replace(".", "");
-}
+// iter 5 (i18n): formatMonthLabel + formatShortDate were removed.
+// They hardcoded `Intl.DateTimeFormat("es-AR")`; consumers now call
+// `useFormatter().dateTime` from next-intl so the label respects the
+// active locale ("May 2026" / "may. 2026"). The math helpers above
+// stay — they're locale-agnostic.
