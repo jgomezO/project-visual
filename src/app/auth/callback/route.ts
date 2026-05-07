@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedDomain } from "@/lib/auth/domain-check";
 import { verifyUserInJira } from "@/lib/auth/verify-jira-user";
+import { routing, type Locale } from "@/i18n/routing";
 import { getServerSupabase } from "@/lib/supabase/server";
 
 // OAuth callback. Supabase Auth redirects here with ?code=<one-time>.
@@ -9,7 +10,14 @@ import { getServerSupabase } from "@/lib/supabase/server";
 //   2. Email must resolve to a real Jira user (cached in user_profiles
 //      after first success so subsequent logins skip the API hit)
 //
-// Any failure → signOut() + redirect to /login?error=<code>.
+// Any failure → signOut() + redirect to /<locale>/login?error=<code>.
+//
+// iter 5 (i18n): the route stays OUTSIDE the [locale] segment because
+// Google's redirect URI in Cloud Console is fixed at
+// `${origin}/auth/callback`. To send users back to the locale they
+// came from, we read the NEXT_LOCALE cookie (set by intl middleware
+// when the user toggles language). Falls back to defaultLocale 'en'
+// if the cookie isn't there — first-time visitors land in English.
 //
 // Eligible for the Edge runtime in theory, but we stay on Node so
 // fetch-with-AbortSignal.timeout (used by verifyUserInJira) and the
@@ -17,9 +25,10 @@ import { getServerSupabase } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const locale = readLocaleCookie(request);
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=unknown`);
+    return NextResponse.redirect(`${origin}/${locale}/login?error=unknown`);
   }
 
   const supabase = await getServerSupabase();
@@ -28,7 +37,7 @@ export async function GET(request: NextRequest) {
     await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
     console.error("[auth/callback] exchangeCodeForSession failed:", exchangeError);
-    return NextResponse.redirect(`${origin}/login?error=unknown`);
+    return NextResponse.redirect(`${origin}/${locale}/login?error=unknown`);
   }
 
   const {
@@ -38,13 +47,13 @@ export async function GET(request: NextRequest) {
   if (userError || !user || !user.email) {
     console.error("[auth/callback] getUser failed:", userError);
     await supabase.auth.signOut();
-    return NextResponse.redirect(`${origin}/login?error=unknown`);
+    return NextResponse.redirect(`${origin}/${locale}/login?error=unknown`);
   }
 
   // Gate 1: domain whitelist.
   if (!isAllowedDomain(user.email)) {
     await supabase.auth.signOut();
-    return NextResponse.redirect(`${origin}/login?error=domain`);
+    return NextResponse.redirect(`${origin}/${locale}/login?error=domain`);
   }
 
   // Skip the Jira API hit if we've already verified this user before.
@@ -57,7 +66,7 @@ export async function GET(request: NextRequest) {
     .maybeSingle();
 
   if (profile?.jira_account_id) {
-    return NextResponse.redirect(`${origin}/projects`);
+    return NextResponse.redirect(`${origin}/${locale}/projects`);
   }
 
   // Gate 2: Jira verification (first login only). The trigger should
@@ -67,7 +76,7 @@ export async function GET(request: NextRequest) {
   const accountId = await verifyUserInJira(user.email);
   if (!accountId) {
     await supabase.auth.signOut();
-    return NextResponse.redirect(`${origin}/login?error=jira`);
+    return NextResponse.redirect(`${origin}/${locale}/login?error=jira`);
   }
 
   // Cache the verification so future logins skip the Jira call.
@@ -105,5 +114,19 @@ export async function GET(request: NextRequest) {
   // Either way the user gets in. We don't punish them for a write
   // failure — worst case we re-verify against Jira on the next login.
 
-  return NextResponse.redirect(`${origin}/projects`);
+  return NextResponse.redirect(`${origin}/${locale}/projects`);
+}
+
+// Read the user's last selected locale from the NEXT_LOCALE cookie
+// the next-intl middleware writes whenever they navigate or use the
+// language switcher. First-time visitors don't have the cookie — fall
+// back to defaultLocale so they land in English. Validates against
+// `routing.locales` so a tampered cookie can't redirect them to a
+// path that doesn't exist.
+function readLocaleCookie(request: NextRequest): Locale {
+  const raw = request.cookies.get("NEXT_LOCALE")?.value;
+  if (raw && (routing.locales as readonly string[]).includes(raw)) {
+    return raw as Locale;
+  }
+  return routing.defaultLocale;
 }
