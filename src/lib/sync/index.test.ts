@@ -28,6 +28,10 @@ const successResult = {
   issuesCreated: 5,
   issuesUpdated: 2,
   linksSkipped: 1,
+  // iter 9a: incremental syncs always report 0 for both deletion fields
+  // (detection only runs on full syncs).
+  issuesMarkedDeleted: 0,
+  issuesRestoredFromDeleted: 0,
 };
 
 beforeEach(() => {

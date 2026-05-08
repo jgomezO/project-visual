@@ -8,6 +8,7 @@ import {
 } from "@/lib/jira/types";
 import { getServerSupabaseAdmin } from "@/lib/supabase/service";
 import type { Json } from "@/lib/supabase/types";
+import { detectDeletedIssues } from "./detect-deleted";
 
 const PAGE_SIZE = 100;
 
@@ -17,6 +18,11 @@ export interface SyncIssuesResult {
   issuesCreated: number;
   issuesUpdated: number;
   linksSkipped: number;
+  // iter 9a: tombstone reconciliation. Only populated on FULL syncs;
+  // incremental returns 0 for both because we can't observe absence
+  // when the JQL filter is `updated >= watermark`.
+  issuesMarkedDeleted: number;
+  issuesRestoredFromDeleted: number;
 }
 
 function escapeJql(value: string): string {
@@ -218,6 +224,21 @@ export async function syncIssuesForProject(
   // link in the DB.
   await backfillIssueLinkTargetsForKeys(syncedKeys);
 
+  // iter 9a: tombstone reconciliation. ONLY runs on full syncs because
+  // an incremental fetch returns just the slice updated since the
+  // watermark — absence of an issue from a partial fetch does NOT
+  // imply deletion upstream. Also runs AFTER every successful upsert /
+  // backfill so a thrown error earlier in the pipeline never reaches
+  // detection (deleted_at stays untouched, the run lands in
+  // partial/failed, badge surfaces it).
+  let issuesMarkedDeleted = 0;
+  let issuesRestoredFromDeleted = 0;
+  if (isFull) {
+    const result = await detectDeletedIssues(project.id, syncedKeys, supabase);
+    issuesMarkedDeleted = result.markedDeleted;
+    issuesRestoredFromDeleted = result.restoredFromDeleted;
+  }
+
   const { error: stampError } = await supabase
     .from("projects")
     .update({ last_synced_at: startedAt })
@@ -230,6 +251,8 @@ export async function syncIssuesForProject(
     issuesCreated,
     issuesUpdated,
     linksSkipped,
+    issuesMarkedDeleted,
+    issuesRestoredFromDeleted,
   };
 }
 

@@ -34,6 +34,11 @@ export interface RunSyncResult {
   issuesCreated: number;
   issuesUpdated: number;
   linksSkipped: number;
+  // iter 9a: tombstone reconciliation totals. Only non-zero for runs
+  // that include at least one full per-project sync (incrementals
+  // can't observe absence, so they contribute 0).
+  issuesMarkedDeleted: number;
+  issuesRestoredFromDeleted: number;
   // iter 6: per-project resilience surface.
   // success = count of projects that synced cleanly within this run.
   // failed = per-project errors; empty array on clean success.
@@ -90,8 +95,10 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
   const stats: RunStats = {
     issuesCreated: 0,
     issuesUpdated: 0,
+    issuesDeleted: 0,
     linksSkipped: 0,
   };
+  let issuesRestoredFromDeleted = 0;
   const failedProjects: FailedProject[] = [];
   let successCount = 0;
 
@@ -128,13 +135,26 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
         });
         stats.issuesCreated += result.issuesCreated;
         stats.issuesUpdated += result.issuesUpdated;
+        stats.issuesDeleted =
+          (stats.issuesDeleted ?? 0) + result.issuesMarkedDeleted;
+        issuesRestoredFromDeleted += result.issuesRestoredFromDeleted;
         stats.linksSkipped += result.linksSkipped;
         lastJql = result.jql;
         resolvedSyncType = result.syncType;
         successCount += 1;
+        // iter 9a: deletion telemetry only meaningful on full syncs.
+        // Suffix only renders when something actually changed so
+        // incremental log lines stay tidy.
+        const deletedSuffix =
+          result.issuesMarkedDeleted > 0 ||
+          result.issuesRestoredFromDeleted > 0
+            ? ` markedDeleted=${result.issuesMarkedDeleted}` +
+              ` restoredFromDeleted=${result.issuesRestoredFromDeleted}`
+            : "";
         console.log(
           `[sync] runId=${runId} project=${key} ok ` +
-            `created=${result.issuesCreated} updated=${result.issuesUpdated}`,
+            `created=${result.issuesCreated} updated=${result.issuesUpdated}` +
+            deletedSuffix,
         );
       } catch (e) {
         const message = describeError(e);
@@ -152,9 +172,15 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
     if (failedProjects.length === 0) {
       // Clean run — every project succeeded (or there were zero to do).
       await succeedRun(runId, stats, lastJql);
+      const deletedSuffix =
+        (stats.issuesDeleted ?? 0) > 0 || issuesRestoredFromDeleted > 0
+          ? ` markedDeleted=${stats.issuesDeleted ?? 0}` +
+            ` restoredFromDeleted=${issuesRestoredFromDeleted}`
+          : "";
       console.log(
         `[sync] runId=${runId} done status=success success=${successCount} ` +
-          `failed=0 durationMs=${totalDurationMs}`,
+          `failed=0 durationMs=${totalDurationMs}` +
+          deletedSuffix,
       );
       return {
         syncRunId: runId,
@@ -166,6 +192,8 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
         issuesCreated: stats.issuesCreated,
         issuesUpdated: stats.issuesUpdated,
         linksSkipped: stats.linksSkipped,
+        issuesMarkedDeleted: stats.issuesDeleted ?? 0,
+        issuesRestoredFromDeleted,
         success: successCount,
         failed: failedProjects,
         totalDurationMs,
@@ -194,6 +222,8 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
         issuesCreated: stats.issuesCreated,
         issuesUpdated: stats.issuesUpdated,
         linksSkipped: stats.linksSkipped,
+        issuesMarkedDeleted: stats.issuesDeleted ?? 0,
+        issuesRestoredFromDeleted,
         success: 0,
         failed: failedProjects,
         totalDurationMs,
@@ -203,9 +233,15 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
 
     // Mixed: at least one success and at least one failure → partial.
     await partialRun(runId, stats, lastJql, failedProjects);
+    const deletedSuffix =
+      (stats.issuesDeleted ?? 0) > 0 || issuesRestoredFromDeleted > 0
+        ? ` markedDeleted=${stats.issuesDeleted ?? 0}` +
+          ` restoredFromDeleted=${issuesRestoredFromDeleted}`
+        : "";
     console.log(
       `[sync] runId=${runId} done status=partial success=${successCount} ` +
-        `failed=${failedProjects.length} durationMs=${totalDurationMs}`,
+        `failed=${failedProjects.length} durationMs=${totalDurationMs}` +
+        deletedSuffix,
     );
     return {
       syncRunId: runId,
@@ -217,6 +253,8 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
       issuesCreated: stats.issuesCreated,
       issuesUpdated: stats.issuesUpdated,
       linksSkipped: stats.linksSkipped,
+      issuesMarkedDeleted: stats.issuesDeleted ?? 0,
+      issuesRestoredFromDeleted,
       success: successCount,
       failed: failedProjects,
       totalDurationMs,
@@ -242,6 +280,8 @@ export async function runSync(args: RunSyncArgs = {}): Promise<RunSyncResult> {
       issuesCreated: stats.issuesCreated,
       issuesUpdated: stats.issuesUpdated,
       linksSkipped: stats.linksSkipped,
+      issuesMarkedDeleted: stats.issuesDeleted ?? 0,
+      issuesRestoredFromDeleted,
       success: successCount,
       failed: failedProjects,
       totalDurationMs,
