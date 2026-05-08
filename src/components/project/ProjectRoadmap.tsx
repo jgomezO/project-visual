@@ -222,10 +222,6 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
     [allPlanned, range.from, range.to],
   );
 
-  if (allEpics.length === 0) {
-    return <NoEpicsEmpty />;
-  }
-
   const days = daysBetween(range.from, range.to);
   const chartWidth = Math.max(LEFT_COL_WIDTH, days * PX_PER_DAY);
   const showWeekTicks = days <= WEEK_TICKS_THRESHOLD_DAYS;
@@ -260,6 +256,17 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
       timeZone: "UTC",
     }),
   });
+
+  // Early return AFTER all hooks: React 19's rules-of-hooks requires
+  // the same hook count on every render. Placing this above the
+  // useMemo blocks for labelTicks / lineTicks / weekTicks would skip
+  // them when allEpics is empty, triggering "Rendered more hooks than
+  // during the previous render" the next time `rows` populates. The
+  // wasted compute (a few small derivations + tick array allocations)
+  // is negligible — happens only when the project has zero epics.
+  if (allEpics.length === 0) {
+    return <NoEpicsEmpty />;
+  }
 
   return (
     <div className="space-y-4">
