@@ -159,6 +159,7 @@ export type Database = {
           assignee_display_name: string | null
           created_at: string
           created_at_jira: string | null
+          deleted_at: string | null
           due_date: string | null
           id: string
           issue_type: string
@@ -180,6 +181,7 @@ export type Database = {
           assignee_display_name?: string | null
           created_at?: string
           created_at_jira?: string | null
+          deleted_at?: string | null
           due_date?: string | null
           id: string
           issue_type: string
@@ -201,6 +203,7 @@ export type Database = {
           assignee_display_name?: string | null
           created_at?: string
           created_at_jira?: string | null
+          deleted_at?: string | null
           due_date?: string | null
           id?: string
           issue_type?: string
