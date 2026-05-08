@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:ui": "vitest --ui",
     "gen:types": "supabase gen types typescript --linked > src/lib/supabase/types.ts",
     "seed:narrative": "node --env-file=.env.local --import tsx scripts/seed-narrative.ts",
     "diag:runs": "node --env-file=.env.local --import tsx scripts/diag-runs.ts",
@@ -32,12 +36,14 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/ui": "^4.1.5",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "postcss": "^8.5.13",
     "server-only": "^0.0.1",
     "tailwindcss": "^4.2.4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.5"
   }
 }
