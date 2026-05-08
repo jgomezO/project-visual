@@ -38,6 +38,8 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 After R4 the multi-round Prism rollout is complete: every internal surface (`/projects`, `/projects/[key]`, narrative editor, public preview) consumes Prism primitives directly. Subsequent visual work should be feature-driven, not round-driven.
 
+**Iteration 8 (testing + CI gate):** First test surface lands. Vitest 4 with co-located `*.test.ts(x)` files; `environment: "node"` (no jsdom — iter 8 covers pure libs only). 61 tests across 5 files, ~250ms run: `formatActor` smoke (10), `runSync` decision tree per the iter 6 contract (8), `computeDerived` recursive progress + `deriveRiskLevel` precedence (20), pricing math (7), and `workstream-description` prompt builders + SYSTEM_PROMPT contract guards (16, with inline snapshots for the structural format). Mock strategy: replace helper modules at the import boundary (`vi.mock('./runs')`, `vi.mock('./projects')`, `vi.mock('./issues')`, `vi.mock('@/lib/jira/client')`) instead of mocking Supabase / Jira directly — iter 8 tests are about decision trees and pure computation, not the inner library wiring. `test-utils/server-only.ts` stub aliased via `vitest.config.ts → resolve.alias` so server-only modules under test don't crash at import (Node environment, not RSC). New scripts: `test`, `test:watch`, `test:ui`, `typecheck` (split out from lint so CI can stage them as separate steps). GitHub Actions workflow at `.github/workflows/ci.yml` triggers on push to main + pull_request to main, runs lint + typecheck + tests with pnpm cache via `setup-node@v4`'s `cache: pnpm`. Concurrency group cancels superseded runs; install uses `--frozen-lockfile` to fail on lockfile drift. No secrets needed — every test mocks at the module boundary. **Pre-iter-8 fix**: a real `react-hooks/rules-of-hooks` violation in `ProjectRoadmap.tsx` (early return before two `useMemo` calls) was caught by `pnpm lint` during commit-6 verification and fixed in its own commit before iter 8 proceeded; React 19 strict mode would have crashed on the "0 epics → N epics" transition. Nine remaining `react-hooks/set-state-in-effect` + `react-hooks/refs` lint findings are intentionally suppressed per-site with `eslint-disable-next-line` + a per-site reason + a TODO post-iter-8 (option δ from the iter 8 plan: keeps strictness for new code, co-locates the deuda with the pattern, supports incremental cleanup as we refactor each file).
+
 **Iteration 7 (AI assist — workstream descriptions):** First AI capability shipped. Two operations on the workstream description field in the narrative editor: `'generate'` (button when description is empty) streams Claude Haiku 4.5 output directly into the field; `'refine'` (button when description has content) opens an `AIRefineModal` with split-view (your original ↔ AI refined) and three actions (Keep original / Refine again / Use refined version). Wire format is SSE (`text/event-stream`) over POST `/api/ai/workstream-description`, consumed by `useWorkstreamDescriptionAI` hook with `fetch + ReadableStream + AbortController`. New table `ai_usage` (migration `20260507194722_add_ai_usage_table.sql`) is the immutable audit log: per-user RLS read-only, service-role writes only, columns for input JSONB / output / token counts / cost_usd DECIMAL(10,6) / duration / status (`success | error | cancelled`) / `triggered_by`-style `operation` (`generate_workstream_description | refine_workstream_description`). Three error surfaces classified end-to-end: (a) HTTP errors from our route (401 unauthorized / 404 issuesNotFound / 429 rateLimited / 5xx serviceUnavailable) mapped via `mapHttpStatus` in the hook; (b) in-stream Anthropic SDK errors classified into `AIErrorCode` (`config | rate | service | timeout | generic`) by `classifyAnthropicError` in the route handler and surfaced via SSE error frames with an `errorCode` field; (c) stream-closed-early (likely Vercel function timeout) detected after the reader exits without seeing a terminal frame, surfaced as `timeout`. Anthropic SDK pinned to `claude-haiku-4-5-20251001` (snapshotted, NOT the alias — alias drift would silently change prompt behavior). Pricing constants in `src/lib/ai/usage/pricing.ts` verified against anthropic.com/pricing on 2026-05-07. New env var `ANTHROPIC_API_KEY` (server-only). Middleware allow-lists `/api/ai/*` alongside `/api/sync` and `/api/cron/*`. i18n strings under `narratives.ai.*` (en + es); Spanish preserves "AI" + "issues" terms per CLAUDE.md preserved-terms list. Spend limit on the Anthropic Console is the only safety net — no per-user app-layer rate limiting today.
 
 **Iteration 6 (cron sync):** Daily automated Jira sync via Vercel Cron on Hobby plan. `vercel.json` declares one cron entry hitting `GET /api/cron/sync-jira` at `0 6 * * *` (06:00 UTC = 01:00 Colombia / 03:00 Argentina — pre-workday everywhere we operate, Vercel valley hours). The cron route handler verifies `Authorization: Bearer ${CRON_SECRET}` (Vercel attaches this automatically) and calls `runSync({ triggeredBy: 'cron' })` directly — NOT a self-fetch to `/api/sync`. Direct call avoids stacking two serverless functions against the 60s Hobby budget and keeps `SYNC_SECRET` out of the cron path. `runSync` rewritten with per-project resilience: each `syncIssuesForProject(key)` runs inside its own try/catch, so one project's Jira hiccup no longer aborts the whole run. Aggregate status decision: `'success'` (every project clean), `'partial'` (some OK, some failed), `'failed'` (none OK or pre-loop abort). HTTP status: success/partial → 200, failed → 500. New `sync_runs` columns: `triggered_by` ('manual' | 'cron') and `failed_projects` JSONB array of `{projectKey, error}` entries. The status CHECK extended to allow `'partial'`. Migration `20260507165439_extend_sync_runs_for_cron.sql`. UI: `/projects` Hero shows a `SyncStatusBadge` (warning chip for partial, error chip for failed) with a HeroUI Popover detailing run id, trigger source, and per-project errors. Returns null on success / no-run-yet so the happy-path layout is unchanged. Loader queries TWO sync_runs rows in parallel: last-success (drives Hero subtitle "Last sync: 1 day ago") + last-finished-any-status (drives the badge — surfaces a partial today even when yesterday's success is still the most recent OK). Manual sync via the Hero `SyncButton` keeps working unchanged; the Server Action now stamps `triggered_by: 'manual'` so a future operations split between scheduled-health and PM-clicks is one query away. `maxDuration = 60` on the cron route. `CRON_SECRET` configured in Vercel dashboard, never in committed `.env`.
@@ -54,6 +56,7 @@ After R4 the multi-round Prism rollout is complete: every internal surface (`/pr
 - `@internationalized/date` — direct dep since iter 4h R2 (powers HeroUI's DatePicker / DateRangePicker)
 - `next-intl@4.11` — direct dep since iter 5; powers locale routing, message loading, type-safe `t()`, ICU plurals, locale-aware date / relative-time formatting
 - `@anthropic-ai/sdk@0.95` — direct dep since iter 7; powers AI assist for workstream descriptions (generate + refine via streaming Claude Haiku 4.5)
+- `vitest@4` + `@vitest/ui` — devDeps since iter 8; test runner with native tsconfig-paths resolution and inline snapshot support
 - Supabase (cloud), `@supabase/supabase-js` direct — no ORM
 - `lucide-react` for icons
 - pnpm 10, ESLint 9
@@ -71,6 +74,10 @@ pnpm dev                # Dev server at http://localhost:3000 (Turbopack)
 pnpm build              # Production build — typechecks, lints, compiles
 pnpm start              # Serve the production build
 pnpm lint               # ESLint
+pnpm typecheck          # tsc --noEmit (iter 8 — split from lint so CI stages them separately)
+pnpm test               # Vitest run-once (CI mode)
+pnpm test:watch         # Vitest interactive watch (dev loop)
+pnpm test:ui            # Vitest browser UI (visual inspector)
 pnpm gen:types          # Regenerate src/lib/supabase/types.ts from the linked project
 pnpm seed:narrative     # Dev-only: idempotent demo narrative on NOXSCRUM (uses tsx + service role)
 pnpm diag:runs          # Dev-only: print recent sync_runs + per-project issue / link counts
@@ -1390,6 +1397,77 @@ Today every authenticated user can read every narrative + every issue. When per-
 4. i18n strings under a sibling key (e.g. `narratives.ai.phaseGenerate.*`) — keep `ai.errors.*` shared.
 5. Document the new surface in this section.
 
+### Testing (iter 8)
+
+First test surface lands. 61 tests, 5 files, ~250ms run.
+
+#### Running tests
+
+```bash
+pnpm test              # one-shot (CI mode, exits 0/1)
+pnpm test:watch        # interactive watch — dev default
+pnpm test:ui           # vitest --ui browser-based UI
+pnpm test -u           # update inline snapshots after intentional changes
+```
+
+`pnpm test -u` is the canonical workflow when prompt builders or other snapshotted output changes intentionally. Snapshot fails → `-u` to capture the new output → review the diff in PR. **Never `-u` without reading the diff** — that's how silent format regressions slip in.
+
+#### Convention: co-located `.test.ts` files
+
+Tests live next to source: `src/lib/sync/index.test.ts` is next to `src/lib/sync/index.ts`. Pros: refactors that move source files drag tests automatically, directory listings show coverage at a glance, no `tests/` indirection. Vitest picks up `src/**/*.{test,spec}.{ts,tsx}` from anywhere; no per-test config.
+
+Inline snapshots (`.toMatchInlineSnapshot()`) are the default for prompt builder structural tests — keeps the snapshot in the test file alongside the assertion. No `.snap` sidecar files. Reviewers see the diff in the same file when the format drifts.
+
+#### What's covered
+
+| Surface | File | Coverage |
+| --- | --- | --- |
+| Smoke + i18n format helper | `src/lib/format/actor.test.ts` | 10 tests — locks the NULL / `"system"` / empty-string → translated System label contract |
+| `runSync` decision tree (iter 6) | `src/lib/sync/index.test.ts` | 8 tests — `success` / `partial` / `failed` aggregate status, projectKey filter, stats accounting, `triggeredBy` stamping. Mocks `./runs` / `./projects` / `./issues` + JiraClient at the import boundary; doesn't touch Supabase or Jira. |
+| `computeDerived` recursive progress + `deriveRiskLevel` (iter 4c-d) | `src/lib/narratives/derived.test.ts` | 20 tests — global progress aggregation (canonical "phase ≠ unit of weighting"), recursive closure, cycle protection, per-phase manual override + clamping, overdue counting, all 7 precedence rules of `deriveRiskLevel` |
+| AI pricing (iter 7) | `src/lib/ai/usage/pricing.test.ts` | 7 tests — boundary token counts, mixed sums, 6-decimal rounding to land cleanly in DECIMAL(10,6) |
+| AI prompt builders (iter 7) | `src/lib/ai/prompts/workstream-description.test.ts` | 16 tests — `truncateSummary` unit logic, inline snapshots of `buildGeneratePrompt` / `buildRefinePrompt`, contains-checks for SYSTEM_PROMPT v2 critical phrases |
+
+#### What's NOT covered (deliberate, iter 8 scope decision)
+
+- **UI components** with HeroUI / Tailwind. Snapshot-testing markup is high-maintenance, low-value at this stage. The visual surface is validated manually via `pnpm dev` and the canonical `/dev/components-preview` page.
+- **Server Actions de mutación** (narrative create / update / delete, AI runner). Would require either a test DB or heavy Supabase mocking; ROI is low until a regression actually bites in production.
+- **Hooks with SSE streaming** (`useWorkstreamDescriptionAI`). Testable but the setup (mock `fetch` + ReadableStream + AbortController parser) duplicates app complexity in test scaffolding.
+- **E2E with Playwright**. Out of scope. The locale routing, auth gates, and editor flows would all need browser-driven tests; deferred until the test surface above stabilizes and a real regression motivates the cost.
+
+The trade-off: high regression value on pure compute (decision trees, recursive math, pricing, prompt structure) for low test scaffolding cost. UI / mutation / E2E expand only when a specific bug class makes the test surface worth its weight.
+
+#### Mock strategy: replace at the helper boundary, not at Supabase
+
+`runSync` doesn't get tested with a fake supabase client. Instead, `vi.mock('./runs')`, `vi.mock('./projects')`, `vi.mock('./issues')`, and `vi.mock('@/lib/jira/client')` replace the helper modules. Reasons:
+1. `runSync`'s job is the decision tree (success / partial / failed). The helpers' work is tested elsewhere — or isn't, for the inner sync loops, which are out of iter 8 scope.
+2. Mocking supabase-js's fluent builder (`.from().select().eq().single()`) deep-down adds test scaffolding for behavior the test isn't about.
+3. No DB / network in tests = fast (~250ms total), no env vars needed in CI.
+
+`server-only` is stubbed via `resolve.alias` in `vitest.config.ts` pointing at `test-utils/server-only.ts` (an empty `export {}`). The real package throws on import to break client-component bundling — that guard is a false positive in Vitest's Node environment. Production bundling still uses the real package; the alias is scoped to Vitest only.
+
+#### CI gate
+
+`.github/workflows/ci.yml`. Triggers on push to main and pull_request to main. Single job: lint → typecheck → test. Concurrency group cancels superseded runs on the same ref. Install uses `--frozen-lockfile` so a lockfile drift fails CI loudly. No secrets — every test mocks at the module boundary.
+
+If a future test needs a real service (live Supabase, real Anthropic API for prompt evaluation), add the secret here and document it.
+
+#### React 19 hook lint deuda (deferred, post-iter-8)
+
+Nine sites carry `eslint-disable-next-line` (or block) for `react-hooks/set-state-in-effect` (6) and `react-hooks/refs` (3). All three are React 19 best-practice rules; the patterns are legitimate but suboptimal. Per-site reasons + cleanup recipe live at the disable line. Inventory:
+
+| Site | Rule | Pattern | Cleanup recipe |
+| --- | --- | --- | --- |
+| `narrative-editor/AIRefineModal.tsx:55` | set-state-in-effect | reset prior refined text on modal reopen | use a `key` prop on the modal so React unmounts + remounts and the state initializer handles the reset |
+| `narrative-editor/JiraIssueKeysInput.tsx:56` | set-state-in-effect | sync resolved provider id back to null when prop clears | derive via `useSyncExternalStore` over the in-memory cache |
+| `narrative-editor/JiraIssueKeysInput.tsx:144` | set-state-in-effect | clear suggestions / loading flag on empty query (debounce reset) | derive `suggestions` via `useMemo` returning `[]` for empty query, fold the search into a `useEffectEvent` |
+| `narrative-editor/PodAutocompleteInput.tsx:41` | set-state-in-effect | mirror controlled input value when `pod` prop changes | lift to fully uncontrolled + parent-driven, or `useImperativeHandle` reset trigger |
+| `narrative-editor/PodAutocompleteInput.tsx:47` | set-state-in-effect | clear suggestions on empty query (mirrors JiraIssueKeysInput) | same recipe as JiraIssueKeysInput:144 |
+| `project/IssueDrawer.tsx:53` | set-state-in-effect | clear drawer detail when issue selection clears | derive `detail` from `issue` via `useDeferredValue` + a lazy fetcher pattern |
+| `narrative-editor/useAutoSave.ts:51-53` | refs | latest-value ref pattern for stable autosave callbacks | revisit when `useEffectEvent` ships stable; deps-tracked closures complicate the synchronous flush() timing |
+
+Cleanup is incremental — when refactoring any of these files for product reasons, take the cleanup path at the same time and remove the disable. **Do not batch a "fix all 9" iter** without a concrete React 19 strict-mode reason. The disables are safe; the rules are aspirational best-practice, not bug catches (the one real bug — `rules-of-hooks` in `ProjectRoadmap.tsx` — was fixed pre-iter-8 in its own commit).
+
 ### `/projects` list view
 
 - **`project_stats` SQL view** (in
@@ -1599,6 +1677,7 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **Folders:** `src/app/` (routes), `src/lib/jira/`, `src/lib/supabase/`, `src/lib/sync/`, `src/lib/auth/`, `src/lib/narratives/`, `src/lib/format/`, `src/components/`, `src/types/`.
 - **`raw` jsonb columns are not for UI consumption.** If you find yourself reading a recurrent field from `raw`, promote it to a typed column in a new migration.
 - **i18n (post-iter 5)**: every UI string goes through `useTranslations` / `getTranslations`; never hardcode a Spanish or English literal in a component. Date / relative-time formatting routes through `useFormatter` / `getFormatter`; `Intl.DateTimeFormat("es-AR")` is forbidden. Internal navigation uses `Link` / `useRouter` from `@/i18n/navigation`, NOT `next/link` / `next/navigation` — the locale prefix MUST follow the user. New copy follows the gated workflow: English JSON proposal → user review → Spanish together → only THEN apply to components. See "Internationalization (iter 5)" for the full contract.
+- **Testing (post-iter 8)**: tests live co-located with source as `*.test.ts(x)`. Mock at the helper-module boundary (`vi.mock('./helper')`), NOT deep at Supabase / Jira. Run `pnpm test` before pushing — CI enforces. Inline snapshots for structural drift (prompt format, etc.); update intentional changes via `pnpm test -u` and review the diff in PR. New code that touches `src/lib/sync/*`, `src/lib/narratives/derived.ts`, `src/lib/ai/*` should land with corresponding tests; UI / mutation / E2E surfaces are deliberately out of scope until a regression motivates them. See "Testing (iter 8)" for the full contract.
 - **AI assist (post-iter 7)**: every AI operation logs a row in `ai_usage` (immutable audit log). `src/lib/ai/` is server-only — never import its client / pricing / log helpers from a client component. The route handler at `/api/ai/<operation>` is the SSE endpoint pattern; the client hook is the SSE consumer pattern. Both follow the iter 7 conventions: classify Anthropic SDK errors via `AIErrorCode`, surface via SSE error frames with `errorCode`, map to localized i18n strings under `narratives.ai.errors.*` (or operation-specific siblings). Pricing constants in `src/lib/ai/usage/pricing.ts` get a `verified-on YYYY-MM-DD` comment; updating means re-checking anthropic.com/pricing + bumping the date. Cancellations DO incur partial costs — design UX accordingly.
 
 ## Known tech debt
@@ -1609,7 +1688,8 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **`/projects/[key]` issues table is not virtualized.** Fine for the current scale (NOXSCRUM has ~813 issues, render is snappy). At ~2000+ rows, switch to a virtualized renderer or paginate server-side. The bucketize/filter passes are O(n); the cost is in the DOM.
 - **`/projects/[key]` roadmap is not virtualized.** Designed for ~10x current scale (~270 epics). The chart renders one absolutely-positioned `<button>` per visible epic plus a couple of SVG lines per week — at 270 epics × month-ranged ranges that's ~300 DOM nodes, fine. At 2000+ epics consider virtualizing the chart body rows (the left label column would virtualize in lockstep) and pre-bucketing on the server.
 - **Drawer link enrichment runs a second `in()` query** to fetch summary/status for linked targets. At ~10s of links per issue this is fine; consider a single SQL function with JOINs if drawers feel slow.
-- **No tests, no CI yet.**
+- **Tests cover pure libs only (post-iter 8).** UI components, Server Actions de mutación, hooks with SSE streaming, and Playwright E2E are deliberately out of scope. The trade-off: high regression value on decision trees / recursive math / pricing / prompt structure for low scaffolding cost. UI surfaces still need manual smoke testing via `pnpm dev` + the visual bench at `/dev/components-preview`. Expand the surface only when a real regression motivates the cost.
+- **9 react-hooks lint sites have `eslint-disable-next-line` deuda (post-iter 8).** All sites are React 19 best-practice rules (`set-state-in-effect`, `refs`) on legitimate-but-suboptimal patterns. Each disable carries a per-site reason + cleanup recipe at the line. Cleanup is incremental — refactor files when there's a product reason and take the React 19 fix at the same time. Don't batch a dedicated cleanup iter without a concrete strict-mode bug. Full inventory in the "Testing (iter 8)" section above.
 - **No realtime updates** — the page is a static-ish render until reload or a click on Resincronizar.
 - **Server-thrown errors are not translated (iter 5).** UI fallbacks ARE; the underlying `Error.message` strings thrown from `src/lib/narratives/mutations.ts`, `src/lib/sync/*`, the Supabase client, etc. are still English-only. Translating them means routing every throw through a translator (or shipping error codes the UI maps locally). Substantial refactor — TODO.
 - **`/preview` stays auth-walled (iter 5).** Tokenized public share links remain a future iteration; today the public preview is reachable only via the locale-prefixed authenticated URL. If a stakeholder needs the link, they need a Veevart account.
