@@ -52,6 +52,7 @@ export function IssueDrawer({
 
   useEffect(() => {
     if (!issue) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear drawer detail when the parent deselects the issue (selection → null transition). TODO post-iter-8: derive `detail` directly from `issue` via a useDeferredValue + lazy fetcher pattern so the null branch needs no setState.
       setDetail(null);
       return;
     }

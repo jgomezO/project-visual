@@ -55,6 +55,7 @@ export function JiraIssueKeysInput({
 
   useEffect(() => {
     if (!providerProjectKey) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync resolved provider id back to null when the parent prop clears. TODO post-iter-8: derive resolvedProviderId via useSyncExternalStore over projectIdByKeyCache so prop transitions don't require an effect.
       setResolvedProviderId(null);
       return;
     }
@@ -143,6 +144,7 @@ export function JiraIssueKeysInput({
   // Debounced autocomplete on the query input.
   useEffect(() => {
     if (query.trim().length === 0 || !effectiveProjectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear suggestions / loading flag when the query is empty (debounce-reset path). TODO post-iter-8: derive suggestions via a useMemo that returns [] for empty query, fold the search into a useEffectEvent.
       setSuggestions([]);
       setSearching(false);
       return;

@@ -39,6 +39,7 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
   // Sync the input when the parent draft changes (e.g. after auto-save
   // returns the row and the form remounts on selection change).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror the controlled input value when the `pod` prop changes underneath us. TODO post-iter-8: lift this fully to the parent (uncontrolled child) or expose a useImperativeHandle reset trigger.
     setQuery(pod ?? "");
   }, [pod]);
 
@@ -47,6 +48,7 @@ export function PodAutocompleteInput({ pod, podKey, onChange }: Props) {
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear suggestions / loading flag when the query is empty (mirrors JiraIssueKeysInput debounce-reset). TODO post-iter-8: derive via useMemo + useEffectEvent.
       setSuggestions([]);
       setSearching(false);
       return;

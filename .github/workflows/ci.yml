@@ -1,0 +1,50 @@
+name: CI
+
+# Triggers:
+#   - push to main: validates after merge so a bad commit in main is
+#     visible immediately (and to back the green badge on GitHub).
+#   - pull_request to main: the load-bearing gate. Catches issues
+#     before they reach main.
+#
+# Concurrency: cancel superseded runs on the same ref so a string of
+# pushes doesn't queue 5 parallel workflow runs.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm setup must come before setup-node; setup-node's
+      # `cache: pnpm` option requires the pnpm CLI on PATH first.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # --frozen-lockfile fails CI loudly if pnpm-lock.yaml drifts
+      # from package.json — preferable to silent regeneration.
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+# No secrets needed: every test mocks Supabase / Jira / Anthropic at
+# the module boundary (vi.mock). typecheck reads only the committed
+# src/lib/supabase/types.ts. If a future commit needs CI to hit a
+# real service, add the secret here and document it in CLAUDE.md.

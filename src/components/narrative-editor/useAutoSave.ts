@@ -48,9 +48,11 @@ export function useAutoSave<T extends object>(
   const saveFnRef = useRef(saveFn);
   const onStateChangeRef = useRef(options?.onStateChange);
 
+  /* eslint-disable react-hooks/refs -- latest-value ref pattern for the autosave callback chain. The flush() and retry() callbacks need the freshest draft / saveFn / onStateChange snapshot WITHOUT being recreated on every render (which would re-arm the debounce timer). React 19's rules-of-refs flags writes-during-render as antipattern; canonical replacements (useEffectEvent, deps-tracked closures) are non-trivial here because the timing matters synchronously for tab-close and navigate-away flushes. TODO post-iter-8: revisit when useEffectEvent ships stable. */
   draftRef.current = draft;
   saveFnRef.current = saveFn;
   onStateChangeRef.current = options?.onStateChange;
+  /* eslint-enable react-hooks/refs */
 
   const setState = useCallback((next: SaveState) => {
     setStateRaw(next);

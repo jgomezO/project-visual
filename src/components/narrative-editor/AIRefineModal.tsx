@@ -55,6 +55,7 @@ export function AIRefineModal({
   useEffect(() => {
     if (!isOpen) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset prior refined text on modal reopen so a second invocation starts blank. TODO post-iter-8: drive via a `key` prop on the modal so React unmounts + remounts and the state initializer handles the reset cleanly.
     setRefinedText("");
     ai.clearError();
     void ai.start({
