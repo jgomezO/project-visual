@@ -91,6 +91,7 @@ function makeIssue(
   key: string,
   status: StatusCategory = "To Do",
   dueDate: string | null = null,
+  deletedAt: string | null = null,
 ): IssuePublicData {
   return {
     key,
@@ -100,7 +101,24 @@ function makeIssue(
     due_date: dueDate,
     assignee_display_name: null,
     issue_type: "Story",
+    deleted_at: deletedAt,
   };
+}
+
+// Shape mirrors the internal `ChildIssue` in derived.ts. Kept inline
+// here because the type isn't exported (it's a derived-only detail).
+interface TestChild {
+  key: string;
+  status_category: StatusCategory;
+  deleted_at: string | null;
+}
+
+function makeChild(
+  key: string,
+  status: StatusCategory,
+  deletedAt: string | null = null,
+): TestChild {
+  return { key, status_category: status, deleted_at: deletedAt };
 }
 
 // --- Global progress + workstream-level aggregation ------------------
@@ -208,17 +226,8 @@ describe("computeDerived — recursive progress closure", () => {
       ["S1", makeIssue("S1", "Done")],
       ["S2", makeIssue("S2", "To Do")],
     ]);
-    const childrenMap = new Map<
-      string,
-      Array<{ key: string; status_category: StatusCategory }>
-    >([
-      [
-        "E",
-        [
-          { key: "S1", status_category: "Done" },
-          { key: "S2", status_category: "To Do" },
-        ],
-      ],
+    const childrenMap = new Map<string, TestChild[]>([
+      ["E", [makeChild("S1", "Done"), makeChild("S2", "To Do")]],
     ]);
     const result = computeDerived(narrative, issuesByKey, childrenMap);
     // E recursive = avg([100 (S1), 0 (S2)]) = 50. The Epic's own
@@ -235,12 +244,9 @@ describe("computeDerived — recursive progress closure", () => {
       ["A", makeIssue("A", "Done")],
       ["B", makeIssue("B", "To Do")],
     ]);
-    const childrenMap = new Map<
-      string,
-      Array<{ key: string; status_category: StatusCategory }>
-    >([
-      ["A", [{ key: "B", status_category: "To Do" }]],
-      ["B", [{ key: "A", status_category: "Done" }]],
+    const childrenMap = new Map<string, TestChild[]>([
+      ["A", [makeChild("B", "To Do")]],
+      ["B", [makeChild("A", "Done")]],
     ]);
 
     expect(() =>
@@ -329,6 +335,93 @@ describe("computeDerived — overdue counting", () => {
     ]);
     const result = computeDerived(narrative, issuesByKey, new Map());
     expect(result.perWorkstream.get("ws1")?.overdueCount).toBe(2);
+  });
+});
+
+// --- iter 9a: soft-deleted issue behavior ---------------------------
+
+describe("computeDerived — soft-deleted issues (iter 9a)", () => {
+  const DELETED_AT = "2026-05-08T12:00:00.000Z";
+
+  it("deleted linked issue → surfaces in deletedKeys, excluded from byCategory + foundIssues", () => {
+    const ws = makeWS({ id: "ws1", jira_issue_keys: ["A", "B", "C"] });
+    const narrative = makeNarrative({ orphan_workstreams: [ws] });
+    const issuesByKey = new Map([
+      ["A", makeIssue("A", "Done")],
+      ["B", makeIssue("B", "Done", null, DELETED_AT)], // deleted
+      ["C", makeIssue("C", "To Do")],
+    ]);
+    const result = computeDerived(narrative, issuesByKey, new Map());
+    const wsd = result.perWorkstream.get("ws1");
+    expect(wsd?.deletedKeys).toEqual(["B"]);
+    expect(wsd?.foundIssues).toBe(2); // A + C — B excluded
+    expect(wsd?.byCategory.Done).toBe(1); // only A counts; B was Done but is deleted
+    expect(wsd?.totalKeys).toBe(3);
+  });
+
+  it("deleted issue does NOT participate in progress denominator", () => {
+    const ws = makeWS({ id: "ws1", jira_issue_keys: ["A", "B"] });
+    const narrative = makeNarrative({ orphan_workstreams: [ws] });
+    const issuesByKey = new Map([
+      ["A", makeIssue("A", "Done")],
+      ["B", makeIssue("B", "To Do", null, DELETED_AT)], // would drag to 50 if counted
+    ]);
+    const result = computeDerived(narrative, issuesByKey, new Map());
+    // (100) / 1 = 100, not (100 + 0) / 2 = 50.
+    expect(result.perWorkstream.get("ws1")?.progress).toBe(100);
+  });
+
+  it("all-deleted workstream → progress=0, deletedKeys lists every key", () => {
+    const ws = makeWS({ id: "ws1", jira_issue_keys: ["A", "B"] });
+    const narrative = makeNarrative({ orphan_workstreams: [ws] });
+    const issuesByKey = new Map([
+      ["A", makeIssue("A", "Done", null, DELETED_AT)],
+      ["B", makeIssue("B", "Done", null, DELETED_AT)],
+    ]);
+    const result = computeDerived(narrative, issuesByKey, new Map());
+    const wsd = result.perWorkstream.get("ws1");
+    expect(wsd?.deletedKeys).toEqual(["A", "B"]);
+    expect(wsd?.foundIssues).toBe(0);
+    // Empty linked → progress falls to 0 (same path as a workstream
+    // with all-missing keys).
+    expect(wsd?.progress).toBe(0);
+  });
+
+  it("deleted child is filtered out of recursive walk (parent reverts to leaf treatment)", () => {
+    const ws = makeWS({ id: "ws1", jira_issue_keys: ["E"] });
+    const narrative = makeNarrative({ orphan_workstreams: [ws] });
+    const issuesByKey = new Map([
+      ["E", makeIssue("E", "Done")], // would be leaf-Done = 100
+      ["S1", makeIssue("S1", "To Do")],
+      ["S2", makeIssue("S2", "To Do")],
+    ]);
+    // Both children deleted → parent has no LIVE children, so it
+    // reverts to its own Done status → 100. Without the filter the
+    // result would be avg([0, 0]) = 0.
+    const childrenMap = new Map<string, TestChild[]>([
+      [
+        "E",
+        [
+          makeChild("S1", "To Do", DELETED_AT),
+          makeChild("S2", "To Do", DELETED_AT),
+        ],
+      ],
+    ]);
+    const result = computeDerived(narrative, issuesByKey, childrenMap);
+    expect(result.perWorkstream.get("ws1")?.progress).toBe(100);
+  });
+
+  it("global totalIssues counts only non-deleted unique keys across workstreams", () => {
+    const ws1 = makeWS({ id: "ws1", jira_issue_keys: ["A", "B"] });
+    const ws2 = makeWS({ id: "ws2", jira_issue_keys: ["B", "C"] });
+    const narrative = makeNarrative({ orphan_workstreams: [ws1, ws2] });
+    const issuesByKey = new Map([
+      ["A", makeIssue("A")],
+      ["B", makeIssue("B")], // shared between ws1 and ws2 — still counts once
+      ["C", makeIssue("C", "To Do", null, DELETED_AT)], // deleted → excluded
+    ]);
+    const result = computeDerived(narrative, issuesByKey, new Map());
+    expect(result.totalIssues).toBe(2); // A + B, C dropped
   });
 });
 

@@ -1,7 +1,12 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, User } from "lucide-react";
-import { useTranslations } from "next-intl";
+import {
+  AlertTriangle,
+  ExternalLink,
+  Trash2,
+  User,
+} from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { StatusChip } from "@/components/project/StatusChip";
 import type { IssuePublicData } from "@/lib/narratives/derived";
 import { getIssueTypeMeta, IssueTypeIcon } from "./issueTypeIcon";
@@ -13,9 +18,13 @@ interface Props {
 
 // Single row inside an expanded WorkstreamCard. Server-rendered: data
 // arrives precomputed from the page-level batch query, so this is pure
-// presentation. Two states: known issue (full row with summary, status,
-// assignee tooltip-style hint, Jira link) and missing-from-sync
-// (warning row with key only — does not break the rest of the card).
+// presentation. Three states:
+//   * known issue        → full row (summary, status, assignee, Jira link)
+//   * missing from sync  → warning row, key only (never synced upstream)
+//   * deleted in Jira    → tombstone row: line-through summary, gray
+//                          tone, Trash2 icon, status chip preserved as
+//                          last known state, link to Jira disabled
+//                          (the page is gone)
 //
 // Marked "use client" because the issue-type label is resolved via
 // useTranslations (common.issueType.*) and both consumers (WorkstreamCard
@@ -24,6 +33,7 @@ interface Props {
 export function IssueChip({ issueKey, issue }: Props) {
   const t = useTranslations("preview.issueChip");
   const tType = useTranslations("common.issueType");
+  const format = useFormatter();
   const jiraBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, "");
   const jiraHref = jiraBase ? `${jiraBase}/browse/${issueKey}` : null;
 
@@ -42,6 +52,38 @@ export function IssueChip({ issueKey, issue }: Props) {
 
   const typeKey = getIssueTypeMeta(issue.issue_type).key;
   const typeLabel = tType(typeKey);
+  const isDeleted = issue.deleted_at !== null;
+
+  if (isDeleted) {
+    const dateLabel = format.dateTime(new Date(issue.deleted_at!), {
+      dateStyle: "medium",
+      timeZone: "UTC",
+    });
+    return (
+      <li
+        className="flex items-start gap-2.5 rounded-md border border-border bg-warm-50/40 px-3 py-2 text-sm opacity-70"
+        title={t("deletedTooltip", { date: dateLabel })}
+      >
+        <span className="flex flex-1 flex-wrap items-center gap-2">
+          <IssueTypeIcon rawType={issue.issue_type} label={typeLabel} />
+          <Trash2
+            className="size-3.5 shrink-0 text-text-muted"
+            aria-label={t("deletedLabel")}
+          />
+          <span className="font-mono text-xs text-text-muted line-through">
+            {issueKey}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-text-muted line-through">
+            {issue.summary}
+          </span>
+          <StatusChip
+            category={issue.status_category}
+            statusName={issue.status_name}
+          />
+        </span>
+      </li>
+    );
+  }
 
   return (
     <li className="flex items-start gap-2.5 rounded-md border border-border bg-warm-50/60 px-3 py-2 text-sm">

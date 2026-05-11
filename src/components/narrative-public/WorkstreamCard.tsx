@@ -109,6 +109,13 @@ function CountsRow({ derived }: { derived: WorkstreamDerived }) {
   if (derived.missingKeys.length > 0) {
     parts.push(t("missing", { count: derived.missingKeys.length }));
   }
+  // iter 9a: "deleted" sits between active issues and missing-from-sync
+  // in severity. Surfaced inline so a workstream that lost 1 of 5 keys
+  // upstream reads as "4 issues • 1 deleted" — the reader gets the
+  // total intent at a glance.
+  if (derived.deletedKeys.length > 0) {
+    parts.push(t("deleted", { count: derived.deletedKeys.length }));
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">

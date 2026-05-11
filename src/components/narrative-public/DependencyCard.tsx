@@ -254,6 +254,11 @@ function ProviderBlock({
             {t("missing", { count: derived.providerIssuesData.missing.length })}
           </span>
         ) : null}
+        {derived.providerIssuesData.deleted.length > 0 ? (
+          <span className="inline-flex items-center gap-1 text-text-muted">
+            {t("deleted", { count: derived.providerIssuesData.deleted.length })}
+          </span>
+        ) : null}
       </div>
     </section>
   );

@@ -21,6 +21,10 @@ export interface IssuePublicData {
   due_date: string | null;
   assignee_display_name: string | null;
   issue_type: string;
+  // iter 9a: ISO timestamp when this issue was tombstoned by sync, or
+  // null while it's still active in Jira. Surfaces visually in
+  // IssueChip / WorkstreamCard / DependencyCard.
+  deleted_at: string | null;
 }
 
 // Minimal child shape used by the recursive progress walker. We don't
@@ -29,6 +33,9 @@ export interface IssuePublicData {
 interface ChildIssue {
   key: string;
   status_category: StatusCategory;
+  // iter 9a: deleted children are skipped by computeIssueProgress so
+  // a tombstoned descendant never contributes to its parent's average.
+  deleted_at: string | null;
 }
 
 // Output of the load step. Two indices:
@@ -48,11 +55,17 @@ export interface NarrativeIssueData {
 // issues (`workstream.jira_issue_keys`) — the ones the lay reader put
 // into the workstream and expects to see. `progress` uses the recursive
 // closure: a parent's progress folds in its children's leaf-level Done
-// state. Issues missing from sync don't participate.
+// state. Issues missing from sync OR tombstoned by sync don't
+// participate in any of those numbers — but `deletedKeys` surfaces the
+// latter separately so the UI can show "5 issues (1 deleted)" without
+// conflating "never synced" and "deleted in Jira".
 export interface WorkstreamDerived {
   totalKeys: number;
   foundIssues: number;
   missingKeys: string[];
+  // iter 9a: keys that exist in our DB but have a non-null deleted_at.
+  // Disjoint from missingKeys (those were never synced at all).
+  deletedKeys: string[];
   byCategory: Record<StatusCategory, number>;
   progress: number;
   overdueCount: number;
@@ -77,6 +90,11 @@ export type AggregateStatus =
 export interface ProviderIssuesData {
   found: IssuePublicData[];
   missing: string[];
+  // iter 9a: third bucket — provider issues we KNOW were deleted in
+  // Jira (distinct from "missing" = never synced). Excluded from
+  // aggregateProgress / aggregateStatus so a tombstoned issue can't
+  // distort the dependency's risk picture.
+  deleted: IssuePublicData[];
   aggregateProgress: number;
   aggregateStatus: AggregateStatus;
 }
@@ -144,8 +162,11 @@ export async function loadIssuesForNarrative(
   }
 
   const supabase = getAnonSupabase();
+  // iter 9a: `deleted_at` flows through to IssuePublicData + ChildIssue
+  // so the public view can surface deleted issues with a visual marker
+  // without re-querying.
   const SELECT =
-    "id, key, summary, status_name, status_category, due_date, assignee_display_name, issue_type, parent_id";
+    "id, key, summary, status_name, status_category, due_date, assignee_display_name, issue_type, parent_id, deleted_at";
 
   type LoadedRow = {
     id: string;
@@ -157,6 +178,7 @@ export async function loadIssuesForNarrative(
     assignee_display_name: string | null;
     issue_type: string;
     parent_id: string | null;
+    deleted_at: string | null;
   };
 
   const closure = new Map<string, LoadedRow>();
@@ -203,12 +225,17 @@ export async function loadIssuesForNarrative(
       due_date: row.due_date,
       assignee_display_name: row.assignee_display_name,
       issue_type: row.issue_type,
+      deleted_at: row.deleted_at,
     });
     if (row.parent_id) {
       const parentKey = idToKey.get(row.parent_id);
       if (parentKey) {
         const list = childrenMap.get(parentKey) ?? [];
-        list.push({ key: row.key, status_category: statusCategory });
+        list.push({
+          key: row.key,
+          status_category: statusCategory,
+          deleted_at: row.deleted_at,
+        });
         childrenMap.set(parentKey, list);
       }
     }
@@ -326,13 +353,25 @@ function computeDependencyDerived(
   childrenMap: Map<string, ChildIssue[]>,
   todayMs: number,
 ): DependencyDerived {
-  // Provider issues breakdown
+  // Provider issues breakdown — three buckets after iter 9a:
+  //   * found    → in DB, deleted_at null
+  //   * deleted  → in DB, deleted_at set (still listed in the dep but
+  //                gone upstream; surfaces with a tombstone marker)
+  //   * missing  → never synced
   const found: IssuePublicData[] = [];
   const missing: string[] = [];
+  const deleted: IssuePublicData[] = [];
   for (const key of dep.provider_jira_issue_keys) {
     const issue = issuesByKey.get(key);
-    if (issue) found.push(issue);
-    else missing.push(key);
+    if (!issue) {
+      missing.push(key);
+      continue;
+    }
+    if (issue.deleted_at !== null) {
+      deleted.push(issue);
+      continue;
+    }
+    found.push(issue);
   }
 
   const aggregateProgress =
@@ -381,7 +420,13 @@ function computeDependencyDerived(
     daysUntilDelivery,
     delayRiskDays,
     resolvedExpectedDeliveryDate,
-    providerIssuesData: { found, missing, aggregateProgress, aggregateStatus },
+    providerIssuesData: {
+      found,
+      missing,
+      deleted,
+      aggregateProgress,
+      aggregateStatus,
+    },
     riskLevel,
   };
 }
@@ -432,7 +477,14 @@ function computeIssueProgress(
   }
   visited.add(key);
 
-  const children = childrenMap.get(key) ?? [];
+  // iter 9a: tombstoned children are filtered out — they neither
+  // contribute to the parent's average nor make it look like a non-leaf
+  // when they're the only descendants left. A parent whose only loaded
+  // children are deleted reverts to leaf treatment based on its own
+  // status, which is the most honest fallback.
+  const children = (childrenMap.get(key) ?? []).filter(
+    (c) => c.deleted_at === null,
+  );
   if (children.length === 0) {
     return statusCategory === "Done" ? 100 : 0;
   }
@@ -461,6 +513,11 @@ function computeWorkstream(
     Done: 0,
   };
   const missingKeys: string[] = [];
+  // iter 9a: third bucket — keys whose row exists but `deleted_at` is
+  // set. Excluded from byCategory / overdueCount / progress, surfaced
+  // separately for the "5 issues (1 deleted)" affordance in
+  // WorkstreamCard.
+  const deletedKeys: string[] = [];
   let overdueCount = 0;
   const linked: IssuePublicData[] = [];
 
@@ -468,6 +525,10 @@ function computeWorkstream(
     const issue = issuesByKey.get(key);
     if (!issue) {
       missingKeys.push(key);
+      continue;
+    }
+    if (issue.deleted_at !== null) {
+      deletedKeys.push(key);
       continue;
     }
     linked.push(issue);
@@ -502,6 +563,7 @@ function computeWorkstream(
     totalKeys: ws.jira_issue_keys.length,
     foundIssues: linked.length,
     missingKeys,
+    deletedKeys,
     byCategory,
     progress,
     overdueCount,
@@ -549,7 +611,11 @@ function countUniqueFoundIssues(
   const seen = new Set<string>();
   for (const ws of allWorkstreams(narrative)) {
     for (const key of ws.jira_issue_keys) {
-      if (issuesByKey.has(key)) seen.add(key);
+      const issue = issuesByKey.get(key);
+      // iter 9a: deleted issues count as zero against the global
+      // "X issues" header — same standard the per-workstream
+      // foundIssues count already applies.
+      if (issue && issue.deleted_at === null) seen.add(key);
     }
   }
   return seen.size;

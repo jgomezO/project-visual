@@ -52,6 +52,7 @@
     "counts": {
       "issues": "{count, plural, one {# issue} other {# issues}}",
       "missing": "{count} not synced",
+      "deleted": "{count, plural, one {# deleted} other {# deleted}}",
       "overdue": "{count, plural, one {# overdue} other {# overdue}}",
       "noLinked": "No linked issues"
     },
@@ -67,6 +68,8 @@
   },
   "issueChip": {
     "notInSync": "Issue not found in sync.",
+    "deletedLabel": "Deleted in Jira",
+    "deletedTooltip": "Deleted in Jira on {date}",
     "assignedTo": "Assigned to {name}"
   },
   "dependencies": {
@@ -84,7 +87,8 @@
       "label": "Provider",
       "notDefined": "No provider defined",
       "progress": "Progress on provider side:",
-      "missing": "{count} not synced"
+      "missing": "{count} not synced",
+      "deleted": "{count, plural, one {# deleted} other {# deleted}}"
     },
     "dates": {
       "neededLabel": "We need it by:",
