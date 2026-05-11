@@ -3,8 +3,8 @@
 import { useEffect, useId, useState } from "react";
 import { GeistMono } from "geist/font/mono";
 import { Tooltip } from "@heroui/react";
-import { AlertTriangle, ExternalLink, Search, X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { AlertTriangle, ExternalLink, Search, Trash2, X } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { StatusChip } from "@/components/project/StatusChip";
 import type { StatusCategory } from "@/components/project/ProjectTable";
 import { getAnonSupabase } from "@/lib/supabase/anon";
@@ -13,6 +13,11 @@ interface IssueChipData {
   key: string;
   summary: string;
   status_category: StatusCategory;
+  // iter 9a: when set, the chip renders as tombstoned (gray + line-
+  // through + Trash2). Hydration still fetches deleted rows so the PM
+  // sees that an already-linked key has died upstream; the autocomplete
+  // search filters them out at the DB so they never suggest.
+  deleted_at: string | null;
 }
 
 // Module-level cache so navigating between workstreams in the same session
@@ -110,9 +115,14 @@ export function JiraIssueKeysInput({
     let cancelled = false;
     const supabase = getAnonSupabase();
     void (async () => {
+      // Hydration intentionally does NOT filter deleted issues — if a
+      // key the workstream linked to has been tombstoned upstream, the
+      // PM needs to see that state on the chip (and decide whether to
+      // remove or replace it). Filtering here would render it as
+      // "not found in sync" which is misleading.
       const { data, error } = await supabase
         .from("issues")
-        .select("key, summary, status_category")
+        .select("key, summary, status_category, deleted_at")
         .eq("project_id", scopeId)
         .in("key", missing);
       if (cancelled) return;
@@ -128,6 +138,7 @@ export function JiraIssueKeysInput({
           key: row.key,
           summary: row.summary,
           status_category: row.status_category as StatusCategory,
+          deleted_at: row.deleted_at,
         });
         found.add(row.key);
       }
@@ -155,10 +166,16 @@ export function JiraIssueKeysInput({
     const handle = setTimeout(async () => {
       const supabase = getAnonSupabase();
       const safe = query.replace(/[%,]/g, "");
+      // iter 9a: deleted issues never suggest. The PM shouldn't be
+      // able to link a freshly-typed key to a tombstoned issue —
+      // that's the failure mode this filter prevents. Already-linked
+      // deleted chips still render via the hydration path (which
+      // intentionally skips this filter).
       const { data, error } = await supabase
         .from("issues")
-        .select("key, summary, status_category")
+        .select("key, summary, status_category, deleted_at")
         .eq("project_id", scopeId)
+        .is("deleted_at", null)
         .or(`key.ilike.%${safe}%,summary.ilike.%${safe}%`)
         .order("key")
         .limit(10);
@@ -175,6 +192,7 @@ export function JiraIssueKeysInput({
           key: d.key,
           summary: d.summary,
           status_category: d.status_category as StatusCategory,
+          deleted_at: d.deleted_at,
         }))
         .filter((d) => !selected.has(d.key));
       // Warm the cache while we're at it.
@@ -290,6 +308,7 @@ function IssueChip({
   onRemove: () => void;
 }) {
   const t = useTranslations("narratives.inputs.jiraIssues.chip");
+  const format = useFormatter();
   const jiraBase = process.env.NEXT_PUBLIC_JIRA_BASE_URL?.replace(/\/$/, "");
   const jiraHref = jiraBase ? `${jiraBase}/browse/${issueKey}` : null;
 
@@ -317,6 +336,38 @@ function IssueChip({
         </span>
         <Tooltip.Content>
           <p className="text-xs">{t("notFoundTooltip")}</p>
+        </Tooltip.Content>
+      </Tooltip>
+    );
+  }
+
+  // iter 9a: deleted variant — gray tone, line-through summary, Trash2
+  // marker, status chip preserved (last known state). The Jira link is
+  // intentionally dropped because the page upstream no longer exists.
+  // The remove button stays so the PM can resolve the dead reference.
+  if (data.deleted_at !== null) {
+    const dateLabel = format.dateTime(new Date(data.deleted_at), {
+      dateStyle: "medium",
+      timeZone: "UTC",
+    });
+    return (
+      <Tooltip delay={150}>
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-warm-100 px-2.5 py-1 text-xs text-text-muted opacity-80">
+          <Trash2
+            className="size-3 shrink-0"
+            aria-label={t("deletedLabel")}
+          />
+          <span className={`${GeistMono.className} line-through`}>
+            {issueKey}
+          </span>
+          <span className="max-w-[14rem] truncate line-through">
+            {data.summary}
+          </span>
+          <StatusChip category={data.status_category} />
+          <ChipRemoveButton onClick={onRemove} />
+        </span>
+        <Tooltip.Content>
+          <p className="text-xs">{t("deletedTooltip", { date: dateLabel })}</p>
         </Tooltip.Content>
       </Tooltip>
     );

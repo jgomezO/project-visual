@@ -275,7 +275,9 @@
       "chip": {
         "removeAria": "Remove issue",
         "openAria": "Open {key} in Jira",
-        "notFoundTooltip": "Issue not found in sync. Verify the key or run a sync."
+        "notFoundTooltip": "Issue not found in sync. Verify the key or run a sync.",
+        "deletedLabel": "Deleted in Jira",
+        "deletedTooltip": "Deleted in Jira on {date}. The link below was kept so you can decide whether to remove or replace it."
       }
     },
     "pod": {
