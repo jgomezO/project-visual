@@ -40,10 +40,14 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
+  // iter 9a: `deleted_at` is included in the SELECT (not filtered server-side)
+  // because the "Show deleted" toggle in ProjectTable needs the rows
+  // available client-side to flip in/out of view without a round-trip.
+  // The default render still hides them — see ProjectTable's filter logic.
   const { data: issueRows, error: issuesError } = await supabase
     .from("issues")
     .select(
-      "id, key, summary, issue_type, status_name, status_category, assignee_account_id, assignee_display_name, priority, parent_id, due_date, start_date, updated_at_jira",
+      "id, key, summary, issue_type, status_name, status_category, assignee_account_id, assignee_display_name, priority, parent_id, due_date, start_date, updated_at_jira, deleted_at",
     )
     .eq("project_id", dashboard.project_id)
     .not("issue_type", "ilike", "%Sub-task%")

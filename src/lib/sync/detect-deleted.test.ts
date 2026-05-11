@@ -36,7 +36,10 @@ function createFakeSupabase(initialIssues: IssueRow[]) {
         throw new Error(`unexpected table: ${table}`);
       }
       return {
-        select: (_cols: string) => ({
+        // The production helper passes "id, key, deleted_at" as the
+        // column list; we ignore it because the in-memory store has
+        // every field on every row.
+        select: () => ({
           eq: (col: string, value: string) => {
             if (col !== "project_id") {
               throw new Error(`unexpected select.eq column: ${col}`);

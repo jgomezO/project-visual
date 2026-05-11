@@ -26,7 +26,12 @@
   "list": {
     "filters": {
       "onlyActive": "Solo activas",
-      "onlyWithDueDate": "Solo con due date"
+      "onlyWithDueDate": "Solo con due date",
+      "showDeleted": "Mostrar borradas"
+    },
+    "deleted": {
+      "iconAria": "Borrada en Jira",
+      "tooltip": "Borrada en Jira el {date}"
     },
     "headers": {
       "summary": "Summary",

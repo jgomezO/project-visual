@@ -201,17 +201,26 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
   };
 
   const today = todayUTC();
-  const allEpics = useMemo(
-    () => rows.filter((r) => r.issue_type === "Epic"),
+  // iter 9a: the roadmap never shows deleted issues — there's no toggle
+  // here (divergence F from the original plan, accepted: roadmap is a
+  // planning surface, deleted work has no planning value). Filtering at
+  // the entry point keeps every downstream `useMemo` agreement on what
+  // counts as a live epic without threading the predicate through each.
+  const activeRows = useMemo(
+    () => rows.filter((r) => r.deleted_at === null),
     [rows],
+  );
+  const allEpics = useMemo(
+    () => activeRows.filter((r) => r.issue_type === "Epic"),
+    [activeRows],
   );
   const allPlanned = useMemo(
-    () => buildPlannedEpics(rows, today, showCompleted),
-    [rows, today, showCompleted],
+    () => buildPlannedEpics(activeRows, today, showCompleted),
+    [activeRows, today, showCompleted],
   );
   const unplannedCount = useMemo(
-    () => buildUnplanned(rows).length,
-    [rows],
+    () => buildUnplanned(activeRows).length,
+    [activeRows],
   );
   const visible = useMemo(
     () => allPlanned.filter((e) => isInVisibleRange(e, range.from, range.to)),
@@ -358,7 +367,7 @@ export function ProjectRoadmap({ rows }: { rows: IssueRow[] }) {
       </Card>
 
       <UnplannedSection
-        rows={rows}
+        rows={activeRows}
         onSelect={(issue) => setSelectedIssue(issue)}
       />
     </div>

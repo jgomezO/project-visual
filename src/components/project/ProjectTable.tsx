@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { GeistMono } from "geist/font/mono";
-import { CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { CheckCircle2, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { Card, Toggle } from "@/components/ui";
 import { AssigneeCell } from "./AssigneeCell";
 import { DueDateCell } from "./DueDateCell";
@@ -27,6 +27,10 @@ export interface IssueRow {
   due_date: string | null;
   start_date: string | null;
   updated_at_jira: string | null;
+  // iter 9a: ISO timestamp set by `detectDeletedIssues` after a full
+  // sync no longer returned this key. Default null → still active in
+  // Jira. Auto-restored to null when the key reappears.
+  deleted_at: string | null;
 }
 
 interface Buckets {
@@ -39,15 +43,30 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
   const t = useTranslations("projectDetail.list");
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [onlyWithDueDate, setOnlyWithDueDate] = useState(false);
+  // iter 9a: deleted issues are hidden by default. Toggle only appears
+  // when the project actually has at least one tombstoned row — mirrors
+  // the SyncStatusBadge "absence is the information" approach so the
+  // common case (no deletions) keeps the filter strip clean.
+  const [showDeleted, setShowDeleted] = useState(false);
   const [overrides, setOverrides] = useState<Map<string, boolean>>(
     () => new Map(),
   );
   const [selectedIssue, setSelectedIssue] = useState<IssueRow | null>(null);
 
+  const hasDeletedIssues = useMemo(
+    () => rows.some((r) => r.deleted_at !== null),
+    [rows],
+  );
+
   const buckets = useMemo(() => bucketize(rows), [rows]);
   const filtered = useMemo(
-    () => filterBuckets(buckets, { showOnlyActive, onlyWithDueDate }),
-    [buckets, showOnlyActive, onlyWithDueDate],
+    () =>
+      filterBuckets(buckets, {
+        showOnlyActive,
+        onlyWithDueDate,
+        showDeleted,
+      }),
+    [buckets, showOnlyActive, onlyWithDueDate, showDeleted],
   );
 
   const isExpanded = (epicId: string, def: boolean): boolean =>
@@ -90,6 +109,13 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
           onChange={setOnlyWithDueDate}
           label={t("filters.onlyWithDueDate")}
         />
+        {hasDeletedIssues ? (
+          <Toggle
+            checked={showDeleted}
+            onChange={setShowDeleted}
+            label={t("filters.showDeleted")}
+          />
+        ) : null}
       </div>
 
       {isEmptyAfterFilter ? (
@@ -97,6 +123,7 @@ export function ProjectTable({ rows }: { rows: IssueRow[] }) {
           onClear={() => {
             setShowOnlyActive(false);
             setOnlyWithDueDate(false);
+            setShowDeleted(false);
           }}
         />
       ) : (
@@ -159,6 +186,7 @@ function EpicGroup({
   const t = useTranslations("projectDetail.list");
   const tType = useTranslations("common.issueType");
   const isDone = epic.status_category === "Done";
+  const isDeleted = epic.deleted_at !== null;
   const Chevron = expanded ? ChevronDown : ChevronRight;
   const showEmptyEpicBadge = !expanded && kids.length === 0;
   const meta = getIssueTypeMeta(epic.issue_type);
@@ -167,7 +195,9 @@ function EpicGroup({
   return (
     <>
       <tr
-        className="cursor-pointer border-b border-border transition-colors hover:bg-warm-50"
+        className={`cursor-pointer border-b border-border transition-colors hover:bg-warm-50${
+          isDeleted ? " opacity-60" : ""
+        }`}
         onClick={() => onSelect(epic)}
       >
         <td className="px-4 py-3">
@@ -190,10 +220,15 @@ function EpicGroup({
             <span title={typeLabel} className="sr-only">
               {typeLabel}
             </span>
+            {isDeleted ? <DeletedIcon deletedAt={epic.deleted_at!} /> : null}
             <span className={`${GeistMono.className} text-xs text-text-muted`}>
               {epic.key}
             </span>
-            <span className="font-semibold text-text-primary">
+            <span
+              className={`font-semibold text-text-primary${
+                isDeleted ? " line-through" : ""
+              }`}
+            >
               {epic.summary}
             </span>
             {isDone ? (
@@ -283,11 +318,14 @@ function ChildRow({
 }) {
   const tType = useTranslations("common.issueType");
   const isDone = issue.status_category === "Done";
+  const isDeleted = issue.deleted_at !== null;
   const meta = getIssueTypeMeta(issue.issue_type);
   const typeLabel = tType(meta.key);
   return (
     <tr
-      className="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-warm-50"
+      className={`cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-warm-50${
+        isDeleted ? " opacity-60" : ""
+      }`}
       onClick={() => onSelect(issue)}
     >
       <td className={`px-4 py-2.5 ${indented ? "pl-12" : ""}`}>
@@ -299,10 +337,15 @@ function ChildRow({
           <span title={typeLabel} className="sr-only">
             {typeLabel}
           </span>
+          {isDeleted ? <DeletedIcon deletedAt={issue.deleted_at!} /> : null}
           <span className={`${GeistMono.className} text-xs text-text-muted`}>
             {issue.key}
           </span>
-          <span className="text-text-primary">{issue.summary}</span>
+          <span
+            className={`text-text-primary${isDeleted ? " line-through" : ""}`}
+          >
+            {issue.summary}
+          </span>
         </div>
       </td>
       <td className="px-4 py-2.5">
@@ -318,6 +361,33 @@ function ChildRow({
         <DueDateCell date={issue.due_date} isDone={isDone} />
       </td>
     </tr>
+  );
+}
+
+// iter 9a: shared "tombstone" visual cue rendered next to the issue
+// type icon on deleted rows. The status chip is intentionally
+// preserved (last known status from before deletion) so the reader
+// keeps a sense of where the work was when it disappeared upstream.
+// Wrapping in <span> rather than passing `title` to Trash2 directly
+// because Lucide's icon components don't surface `title` as a prop;
+// the wrapper carries the native browser tooltip on hover.
+function DeletedIcon({ deletedAt }: { deletedAt: string }) {
+  const t = useTranslations("projectDetail.list.deleted");
+  const format = useFormatter();
+  const dateLabel = format.dateTime(new Date(deletedAt), {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  });
+  return (
+    <span
+      className="inline-flex shrink-0"
+      title={t("tooltip", { date: dateLabel })}
+    >
+      <Trash2
+        className="size-4 text-text-muted"
+        aria-label={t("iconAria")}
+      />
+    </span>
   );
 }
 
@@ -369,9 +439,15 @@ function bucketize(rows: IssueRow[]): Buckets {
 
 function filterBuckets(
   buckets: Buckets,
-  opts: { showOnlyActive: boolean; onlyWithDueDate: boolean },
+  opts: {
+    showOnlyActive: boolean;
+    onlyWithDueDate: boolean;
+    showDeleted: boolean;
+  },
 ): Buckets {
   const passes = (r: IssueRow) => {
+    // iter 9a: deleted rows only show when the explicit toggle is on.
+    if (!opts.showDeleted && r.deleted_at !== null) return false;
     if (opts.showOnlyActive && r.status_category === "Done") return false;
     if (opts.onlyWithDueDate && !r.due_date) return false;
     return true;
