@@ -38,6 +38,8 @@ Internal Veevart dashboard that connects to Jira Cloud and surfaces project stat
 
 After R4 the multi-round Prism rollout is complete: every internal surface (`/projects`, `/projects/[key]`, narrative editor, public preview) consumes Prism primitives directly. Subsequent visual work should be feature-driven, not round-driven.
 
+**Iteration 9 (soft-delete detection + user docs):** Two sub-iters bundled. **9a (detection)** adds a `deleted_at TIMESTAMPTZ DEFAULT NULL` column to `issues` (migration `20260508221954_add_deleted_at_to_issues.sql`) with a partial index `WHERE deleted_at IS NOT NULL` — the common active-only path keeps using `project_id`/`key` indexes and the minority "show deleted" path now has dedicated index support without bloating the dominant case. Detection lives in `src/lib/sync/detect-deleted.ts` — `detectDeletedIssues(projectId, freshKeys, supabase)` compares the keys returned by Jira against what's in the DB and runs two batched UPDATEs: keys in DB but not in `freshKeys` get `deleted_at = NOW()`, previously-tombstoned keys that reappear get `deleted_at = NULL` (auto-restore). No threshold, no rollback — bad-data windows self-heal because tombstones can be restored. The helper is invoked from `syncIssuesForProject` AFTER the parent + link backfills and BEFORE the `last_synced_at` stamp, **gated to `isFull` only**: incremental syncs return just the slice updated since the watermark, so absence ≠ deletion there. Any earlier exception in the pipeline propagates before detection runs, so `deleted_at` is only ever mutated on a clean full sync. `SyncIssuesResult` and `RunSyncResult` gain `issuesMarkedDeleted` / `issuesRestoredFromDeleted`; `sync_runs.issues_deleted` (column present since iter 1, never written) now persists the marked count on every return path. A second migration `20260511153148_filter_deleted_from_aggregations.sql` updates the `project_dashboard()` RPC and the `project_stats` VIEW to filter `deleted_at IS NULL` (FILTER clauses on COUNTs, plus the issue_stats / blocked_stats CTEs in the RPC) — without this, the KPI header would have kept counting tombstoned rows while the table hid them, breaking coherence. UI surfaces: (1) `ProjectTable` gains a third filter Toggle "Show deleted" (default OFF, **only rendered when `rows.some(r => r.deleted_at !== null)`** — absence is the information), with deleted rows rendering opacity-60 + line-through on the summary + a Trash2 icon wrapped in `<span title>` (Lucide icons don't surface `title` as a prop) between the type icon and the key; the status chip is intentionally preserved as the last-known state. (2) `ProjectRoadmap` filters tombstones at an entry-point `activeRows` useMemo so every downstream computation (`allEpics`, `allPlanned`, `unplannedCount`, `UnplannedSection`) agrees — divergence F from the original spec accepted, the roadmap is a planning surface where deleted work has no place and no toggle was added. (3) `narrative-public/IssueChip` gains a third variant (after "found" and "missing-from-sync"): opacity-70 row + line-through key + line-through summary + Trash2 next to type icon + tooltip "Deleted in Jira on {date}". Status chip preserved, **Jira link intentionally dropped** because the page upstream no longer exists. (4) `WorkstreamCard`'s CountsRow appends "N deleted" between "issues" and "overdue" when `deletedKeys.length > 0`. (5) `DependencyCard`'s ProviderBlock surfaces "N deleted" alongside the existing "N not synced" counter in neutral text-muted tone. (6) `JiraIssueKeysInput` adds `.is("deleted_at", null)` to the autocomplete query so deleted issues never suggest; the hydration path **intentionally skips this filter** so already-linked deleted chips render with the new tombstoned variant (gray + Trash2 + line-through + tooltip + remove-X preserved) — the PM has to decide whether to remove or replace the dead reference. Derived layer in `src/lib/narratives/derived.ts`: `IssuePublicData` + internal `ChildIssue` gain `deleted_at`; `WorkstreamDerived` gains `deletedKeys: string[]` (disjoint from `missingKeys` — deleted ≠ never-synced); `ProviderIssuesData` gains a third `deleted: IssuePublicData[]` bucket; `computeWorkstream` treats deleted as a third bucket (excluded from `byCategory` / `overdueCount` / `linked` / `progress`); `computeIssueProgress` filters deleted children before recursing — a parent whose only loaded children are tombstoned reverts to leaf treatment based on its own status (most honest fallback when the descendant graph dies); `countUniqueFoundIssues` skips deleted from the global header total. Test coverage extends to 74 tests: `detect-deleted.test.ts` (8 cases — empty inputs, steady state, mark, restore, mixed, no-op on already-deleted, project_id scoping, all-active-deleted) with a hand-rolled in-memory fake of the supabase-js fluent builder (the helper takes supabase by parameter for injection, no vi.mock needed); 5 new cases in `derived.test.ts` under "soft-deleted issues (iter 9a)" cover surfaces-in-deletedKeys, excluded-from-progress-denominator, all-deleted-workstream, deleted-child-filtered-from-recursive-walk, totalIssues-excludes-deleted. The 20 pre-existing derived tests pass unchanged because `makeIssue` gained an optional `deletedAt` param (default null); a new `makeChild` helper replaces two inline `Array<{ key, status_category }>` ad-hoc types. New i18n: 7 strings total across `projectDetail.list.filters.showDeleted`, `projectDetail.list.deleted.{iconAria,tooltip}`, `preview.workstream.counts.deleted`, `preview.issueChip.{deletedLabel,deletedTooltip}`, `preview.dependency.provider.deleted`, `narratives.inputs.jiraIssues.chip.{deletedLabel,deletedTooltip}` — voseo + preserved-terms ES ("borrada en Jira el {date}") consistent with iter 5 conventions. **9b (user docs)** ships `/docs/` — seven markdown files for the Veevart PM audience in Spanish: README index, `01-introduccion.md` with a 16-entry glossary using explicit `<a id="glosario-X"></a>` anchors so cross-refs resolve in every renderer, `02-empezar.md`, `03-narrativas.md` (the longest doc — primary PM workflow), `04-vista-publica.md` (with explicit `<a id="quien-puede-ver"></a>` ASCII anchor on the accented heading targeted cross-doc), `05-ai-assist.md`, `06-faq.md` (canonical home of the "what happens if an issue is deleted in Jira" explainer; other docs link here). Anti-duplication discipline: glossary defined once in 01, external-audience sharing options only in 04, AI assist details only in 05, login/domain mechanics only in 02. Four sites carry `[completar con canal de soporte]` with adjacent HTML TODO comments — single grep-and-replace pivot when the support channel is named.
+
 **Iteration 8 (testing + CI gate):** First test surface lands. Vitest 4 with co-located `*.test.ts(x)` files; `environment: "node"` (no jsdom — iter 8 covers pure libs only). 61 tests across 5 files, ~250ms run: `formatActor` smoke (10), `runSync` decision tree per the iter 6 contract (8), `computeDerived` recursive progress + `deriveRiskLevel` precedence (20), pricing math (7), and `workstream-description` prompt builders + SYSTEM_PROMPT contract guards (16, with inline snapshots for the structural format). Mock strategy: replace helper modules at the import boundary (`vi.mock('./runs')`, `vi.mock('./projects')`, `vi.mock('./issues')`, `vi.mock('@/lib/jira/client')`) instead of mocking Supabase / Jira directly — iter 8 tests are about decision trees and pure computation, not the inner library wiring. `test-utils/server-only.ts` stub aliased via `vitest.config.ts → resolve.alias` so server-only modules under test don't crash at import (Node environment, not RSC). New scripts: `test`, `test:watch`, `test:ui`, `typecheck` (split out from lint so CI can stage them as separate steps). GitHub Actions workflow at `.github/workflows/ci.yml` triggers on push to main + pull_request to main, runs lint + typecheck + tests with pnpm cache via `setup-node@v4`'s `cache: pnpm`. Concurrency group cancels superseded runs; install uses `--frozen-lockfile` to fail on lockfile drift. No secrets needed — every test mocks at the module boundary. **Pre-iter-8 fix**: a real `react-hooks/rules-of-hooks` violation in `ProjectRoadmap.tsx` (early return before two `useMemo` calls) was caught by `pnpm lint` during commit-6 verification and fixed in its own commit before iter 8 proceeded; React 19 strict mode would have crashed on the "0 epics → N epics" transition. Nine remaining `react-hooks/set-state-in-effect` + `react-hooks/refs` lint findings are intentionally suppressed per-site with `eslint-disable-next-line` + a per-site reason + a TODO post-iter-8 (option δ from the iter 8 plan: keeps strictness for new code, co-locates the deuda with the pattern, supports incremental cleanup as we refactor each file).
 
 **Iteration 7 (AI assist — workstream descriptions):** First AI capability shipped. Two operations on the workstream description field in the narrative editor: `'generate'` (button when description is empty) streams Claude Haiku 4.5 output directly into the field; `'refine'` (button when description has content) opens an `AIRefineModal` with split-view (your original ↔ AI refined) and three actions (Keep original / Refine again / Use refined version). Wire format is SSE (`text/event-stream`) over POST `/api/ai/workstream-description`, consumed by `useWorkstreamDescriptionAI` hook with `fetch + ReadableStream + AbortController`. New table `ai_usage` (migration `20260507194722_add_ai_usage_table.sql`) is the immutable audit log: per-user RLS read-only, service-role writes only, columns for input JSONB / output / token counts / cost_usd DECIMAL(10,6) / duration / status (`success | error | cancelled`) / `triggered_by`-style `operation` (`generate_workstream_description | refine_workstream_description`). Three error surfaces classified end-to-end: (a) HTTP errors from our route (401 unauthorized / 404 issuesNotFound / 429 rateLimited / 5xx serviceUnavailable) mapped via `mapHttpStatus` in the hook; (b) in-stream Anthropic SDK errors classified into `AIErrorCode` (`config | rate | service | timeout | generic`) by `classifyAnthropicError` in the route handler and surfaced via SSE error frames with an `errorCode` field; (c) stream-closed-early (likely Vercel function timeout) detected after the reader exits without seeing a terminal frame, surfaced as `timeout`. Anthropic SDK pinned to `claude-haiku-4-5-20251001` (snapshotted, NOT the alias — alias drift would silently change prompt behavior). Pricing constants in `src/lib/ai/usage/pricing.ts` verified against anthropic.com/pricing on 2026-05-07. New env var `ANTHROPIC_API_KEY` (server-only). Middleware allow-lists `/api/ai/*` alongside `/api/sync` and `/api/cron/*`. i18n strings under `narratives.ai.*` (en + es); Spanish preserves "AI" + "issues" terms per CLAUDE.md preserved-terms list. Spend limit on the Anthropic Console is the only safety net — no per-user app-layer rate limiting today.
@@ -265,10 +267,11 @@ src/
     │   ├── anon.ts                 getAnonSupabase() — anon key, browser-side autocompletes only
     │   └── types.ts                GENERATED by `pnpm gen:types`
     ├── sync/
-    │   ├── index.ts                runSync({type?, projectKey?}); describeError() handles PostgrestError
+    │   ├── index.ts                runSync({type?, projectKey?, triggeredBy?}); describeError() handles PostgrestError
     │   ├── projects.ts             syncProjects()
-    │   ├── issues.ts               syncIssuesForProject() — parent_id 2nd pass + link backfill
-    │   └── runs.ts                 sync_run lifecycle (open / succeed / fail)
+    │   ├── issues.ts               syncIssuesForProject() — parent_id 2nd pass + link backfill + isFull-gated detectDeletedIssues call (iter 9a)
+    │   ├── detect-deleted.ts       (iter 9a) detectDeletedIssues(projectId, freshKeys, supabase): two-way tombstone reconcile, supabase injected for testability
+    │   └── runs.ts                 sync_run lifecycle (open / succeed / fail / partial)
     └── narratives/
         ├── types.ts                Re-exports + NarrativeWithChildren composite (phases, orphans, dependencies, risks)
         ├── queries.ts              getNarrativesByProject / getNarrativeById / getPublishedNarrative / getDependenciesByNarrative / getRisksByNarrative — uses getServerSupabase
@@ -296,9 +299,20 @@ supabase/
     ├── 20260505195313_tighten_narratives_rls_to_authenticated.sql            (iter 4f Migration B)
     ├── 20260505213418_add_narratives_count_to_project_stats.sql              (iter 4g Migration C)
     ├── 20260507165439_extend_sync_runs_for_cron.sql                          (iter 6 — triggered_by + 'partial' status + failed_projects JSONB)
-    └── 20260507194722_add_ai_usage_table.sql                                 (iter 7 — AI assist audit log)
+    ├── 20260507194722_add_ai_usage_table.sql                                 (iter 7 — AI assist audit log)
+    ├── 20260508221954_add_deleted_at_to_issues.sql                           (iter 9a — soft-delete tombstone column + partial index)
+    └── 20260511153148_filter_deleted_from_aggregations.sql                   (iter 9a — exclude deleted_at IS NOT NULL from project_dashboard RPC + project_stats view)
 
 vercel.json                                  (iter 6 — declares the daily cron entry; root of repo, alongside next.config.ts)
+
+docs/                                        (iter 9b — Spanish user guide for PMs)
+├── README.md                                (index + cross-ref conventions)
+├── 01-introduccion.md                       (what Prism is + 16-entry glossary with explicit anchors)
+├── 02-empezar.md                            (login, three tabs, language switch, manual resync)
+├── 03-narrativas.md                         (primary PM workflow — longest doc)
+├── 04-vista-publica.md                      (preview surface, presentation mode, print, sharing constraints)
+├── 05-ai-assist.md                          (workstream description generate/refine)
+└── 06-faq.md                                (frequency-ordered; canonical home of "what happens if an issue is deleted")
 ```
 
 Plus inside `src/`:
@@ -1244,14 +1258,14 @@ was UserMenu data).
 3. For each project: `syncIssuesForProject(jira, key)` **wrapped in its own try/catch** (iter 6):
    - On success: stats accumulate, `successCount++`.
    - On failure: `{ projectKey, error }` lands in `failedProjects[]` and the loop **continues** with the next key. One project's Jira hiccup no longer aborts the whole run.
-   - Per-project work itself: watermark = `projects.last_synced_at - 1 day` (date-only, JQL TZ buffer), stream pages via `searchIssuesPaginated` (cursor: `nextPageToken`; legacy `/rest/api/3/search` was removed by Atlassian May 2025), upsert issues with `parent_id=null` then backfill `parent_id` in a second pass (avoids self-FK violations when parent+child arrive in the same upsert batch), upsert `issue_links` by `(source_issue_id, target_issue_key, link_type)` with nullable `target_issue_id` for cross-project links, update `projects.last_synced_at`.
+   - Per-project work itself: watermark = `projects.last_synced_at - 1 day` (date-only, JQL TZ buffer), stream pages via `searchIssuesPaginated` (cursor: `nextPageToken`; legacy `/rest/api/3/search` was removed by Atlassian May 2025), upsert issues with `parent_id=null` then backfill `parent_id` in a second pass (avoids self-FK violations when parent+child arrive in the same upsert batch), upsert `issue_links` by `(source_issue_id, target_issue_key, link_type)` with nullable `target_issue_id` for cross-project links, run `detectDeletedIssues(project.id, syncedKeys, supabase)` **only when `isFull === true`** (iter 9a — the incremental path can't observe absence safely), update `projects.last_synced_at`.
 4. **Aggregate status decision** (iter 6):
    - `failedProjects.length === 0` → `'success'` → `succeedRun()` → HTTP 200.
    - `successCount === 0 && failedProjects.length > 0` → `'failed'` → `failRun()` with summary message + per-project detail → HTTP 500.
    - Otherwise (mixed) → `'partial'` → `partialRun()` writes summary + `failed_projects` JSONB → HTTP 200.
    - Top-level catch (`syncProjects` failed, `JiraClient` ctor failed, etc.) → `'failed'` with `failed_projects = NULL` (the loop never ran).
-5. Aggregated stats (`issuesCreated`, `issuesUpdated`, `linksSkipped`) reflect ONLY successful projects. A partial run's stats are the truthful subset, not the wished-for total.
-6. Structured logs throughout: `[sync] runId=N triggeredBy=cron type=incremental projects=5`, `[sync] runId=N project=NOXSCRUM ok created=12 updated=3`, `[sync] runId=N project=REN failed error="..."`, `[sync] runId=N done status=partial success=4 failed=1 durationMs=23456`. Greppable in Vercel logs.
+5. Aggregated stats (`issuesCreated`, `issuesUpdated`, `linksSkipped`, plus `issuesMarkedDeleted` / `issuesRestoredFromDeleted` from iter 9a) reflect ONLY successful projects. A partial run's stats are the truthful subset, not the wished-for total. `issuesMarkedDeleted` is also persisted to `sync_runs.issues_deleted` (column existed since iter 1, only started being written in iter 9a).
+6. Structured logs throughout: `[sync] runId=N triggeredBy=cron type=incremental projects=5`, `[sync] runId=N project=NOXSCRUM ok created=12 updated=3`, `[sync] runId=N project=REN failed error="..."`, `[sync] runId=N done status=partial success=4 failed=1 durationMs=23456`. The per-project `ok` line and the final `done` line append ` markedDeleted=X restoredFromDeleted=Y` when non-zero (iter 9a — suffix omitted on incremental runs and on full runs with no deletion events, so incremental logs stay tidy). Greppable in Vercel logs.
 
 ### Cron sync (iter 6)
 
@@ -1468,6 +1482,92 @@ Nine sites carry `eslint-disable-next-line` (or block) for `react-hooks/set-stat
 
 Cleanup is incremental — when refactoring any of these files for product reasons, take the cleanup path at the same time and remove the disable. **Do not batch a "fix all 9" iter** without a concrete React 19 strict-mode reason. The disables are safe; the rules are aspirational best-practice, not bug catches (the one real bug — `rules-of-hooks` in `ProjectRoadmap.tsx` — was fixed pre-iter-8 in its own commit).
 
+### Soft delete (iter 9a)
+
+Tombstone-based detection of issues deleted in Jira upstream. `issues.deleted_at TIMESTAMPTZ DEFAULT NULL` plus a partial index on `(deleted_at) WHERE deleted_at IS NOT NULL`. The schema is non-cascading by design — deleting an issue in Jira marks it but doesn't propagate destructive actions in Prism (workstreams, dependencies, narratives keep their references; the UI surfaces the stale state instead of silently rewiring data).
+
+#### Detection contract
+
+`detectDeletedIssues(projectId, freshKeys, supabase)` lives in `src/lib/sync/detect-deleted.ts`. Pure function (well, two batched `UPDATE`s) that:
+
+1. SELECTs `id, key, deleted_at` for every issue in `project_id`.
+2. Walks the result. Keys in DB but missing from `freshKeys` AND not already tombstoned → batch 1 (`UPDATE issues SET deleted_at = NOW() WHERE id IN (...)`). Keys present in both AND currently tombstoned → batch 2 (`UPDATE issues SET deleted_at = NULL WHERE id IN (...)`).
+3. Returns `{ markedDeleted: number, restoredFromDeleted: number }`.
+
+No threshold or rollback. Bad-data windows (truncated Jira fetch the operator didn't notice, etc.) self-heal on the next successful full sync because tombstones are reversible.
+
+The supabase client is passed as a parameter, not instantiated inside. This is the testability injection point — tests pass an in-memory fake of the fluent builder, production passes the admin client already in scope from `syncIssuesForProject`.
+
+#### Ordering inside `syncIssuesForProject`
+
+The call to `detectDeletedIssues` sits AFTER the page loop + parent backfill + link backfill, and BEFORE the `last_synced_at` stamp. Two reasons:
+
+- **Post-upsert ordering**: a thrown error anywhere earlier in the per-project pipeline propagates before detection runs, so `deleted_at` is only ever mutated on a clean full sync. If Jira returned partial pages and the loop crashed mid-page, the issues that DID arrive are upserted but no key is yet marked deleted — the run lands in `partial` or `failed` state and the next attempt re-tries cleanly.
+- **Pre-stamp ordering**: `last_synced_at` is the watermark. We only advance it after the full pipeline (including detection) succeeds.
+
+#### The `isFull` gate
+
+Detection runs ONLY when `isFull === true`:
+
+```ts
+if (isFull) {
+  const result = await detectDeletedIssues(project.id, syncedKeys, supabase);
+  issuesMarkedDeleted = result.markedDeleted;
+  issuesRestoredFromDeleted = result.restoredFromDeleted;
+}
+```
+
+The contract is load-bearing. Incremental syncs use the JQL filter `updated >= watermark`, so `syncedKeys` is just the slice that changed — absence does NOT imply deletion. Running detection there would tombstone every untouched-but-still-active issue, which the daily cron would then unmark, producing churn and incorrect `deleted_at` timestamps. **Never invoke `detectDeletedIssues` from an incremental code path.** If a future incremental optimization needs deletion awareness, the right move is to add a separate "is-this-key-still-in-Jira?" probe scoped to a tiny set — not to repurpose `detectDeletedIssues`.
+
+#### Aggregation coherence
+
+A second migration (`20260511153148_filter_deleted_from_aggregations.sql`) updates the two operational aggregation surfaces so tombstones don't inflate counts:
+
+- **`project_dashboard()` RPC** — `AND deleted_at IS NULL` in `issue_stats` CTE (drives total / todo / in_progress / done / overdue counts) and `blocked_stats` CTE (drives blocked count).
+- **`project_stats` view** — `COUNT(i.id) FILTER (WHERE i.deleted_at IS NULL)` for `total_issues`, same filter PLUS `status_category = 'Done'` for `done_issues`. FILTER over the JOIN rather than moving the predicate into the ON clause so projects with ONLY deleted issues still appear as a row (with `total_issues = 0`).
+
+Both surfaces share the issue table and the dashboard read; without this migration the KPI header would have shown "Total: 813" while ProjectTable rendered 810 active rows, breaking the trust we built in the "is this project on time?" framing.
+
+#### UI surfaces and visual contract
+
+- **`ProjectTable`** (`/projects/[key]?view=list`): third filter Toggle "Show deleted" / "Mostrar borradas", default OFF, **only rendered when `rows.some(r => r.deleted_at !== null)`** (absence is the information). Deleted rows render `opacity-60` on the `<tr>` + `line-through` on the summary span + a `Trash2` icon between the issue type icon and the key, wrapped in a `<span title>` because Lucide icons don't surface `title` as a prop. The `StatusChip` is intentionally preserved — it shows the last-known status before deletion, which is more useful than wiping it.
+
+- **`ProjectRoadmap`** (`/projects/[key]?view=roadmap`): no toggle. Tombstones are filtered at the entry-point `activeRows` useMemo so every downstream computation (`allEpics`, `allPlanned`, `unplannedCount`, `UnplannedSection`) agrees that the roadmap is a planning surface where deleted work has no place. Divergence F from the original iter-9 spec, accepted: a deleted epic on a roadmap is misleading, and adding a toggle wouldn't have a real use case.
+
+- **`narrative-public/IssueChip`**: third variant after "found" and "missing-from-sync". `opacity-70` row + `line-through` on key + `line-through` on summary + `Trash2` next to type icon + tooltip "Deleted in Jira on {date}". Status chip preserved, **Jira link intentionally dropped** — the page upstream no longer exists, so a hyperlink would lead to a 404.
+
+- **`WorkstreamCard.CountsRow`** (public): appends "N deleted" to the inline `parts` array when `deletedKeys.length > 0`. Sits between "issues" and "overdue", surfacing the intent that "this workstream listed 5 keys, but 1 was deleted upstream".
+
+- **`DependencyCard.ProviderBlock`** (public): surfaces "N deleted" alongside the existing "N not synced" counter in neutral `text-muted` tone. The dependency's `aggregateProgress` excludes deleted from the denominator — a tombstoned provider issue can't distort the risk picture.
+
+- **`JiraIssueKeysInput`** (editor): autocomplete query gains `.is("deleted_at", null)` so deleted issues never appear as suggestions. The hydration query **intentionally skips this filter** so already-linked deleted chips render with the tombstone variant (Trash2 + line-through + tooltip with the deletion date). The remove (X) button stays so the PM can clear the dead reference; the Jira link is dropped.
+
+#### Derived computation (3-bucket pattern)
+
+`src/lib/narratives/derived.ts` treats deleted as a third bucket parallel to found / missing:
+
+- **`WorkstreamDerived`** gains `deletedKeys: string[]` — disjoint from `missingKeys`. Deleted ≠ never-synced; the UI surfaces them differently.
+- **`ProviderIssuesData`** gains `deleted: IssuePublicData[]` — also disjoint from `missing: string[]` (just keys) and `found: IssuePublicData[]`.
+- **`computeWorkstream`** classifies into 3 buckets in one pass. Only the "active" bucket contributes to `byCategory`, `overdueCount`, `linked`, and `progress`. Missing keys go to `missingKeys`; tombstoned ones go to `deletedKeys`.
+- **`computeIssueProgress`** filters deleted children before recursing. A parent whose only loaded children are tombstoned reverts to leaf treatment based on its own status — the most honest fallback when the descendant graph dies upstream.
+- **`countUniqueFoundIssues`** (global header total) skips deleted from the unique-keys union across workstreams.
+
+When extending the derived layer (new aggregations, new bucket types), keep the 3-bucket discipline: never collapse "deleted" into "missing" — they're informationally distinct and the UI conventions depend on the split.
+
+#### Restoration semantics
+
+If a Jira admin restores an issue upstream (uses Jira's "undelete" or otherwise the key reappears in a fetch), Prism auto-restores `deleted_at` to NULL on the next successful full sync. The tombstone is fully reversible at the data layer.
+
+**Restoration does NOT propagate to derived state** — workstreams / dependencies that referenced the issue when it was tombstoned keep their references (they never dropped them). The next render simply observes `deleted_at IS NULL` and treats the key as active again. From the PM's perspective: the chip flips from "tombstoned" back to "active" automatically; counters re-include the issue; progress recomputes.
+
+#### Limitations / TODO
+
+- **No manual purge UI.** Tombstoned issues live in the DB forever. Acceptable while issue counts are low (NOXSCRUM is ~813); when a project's tombstones become a meaningful portion of the row count, consider either (a) a periodic vacuum that hard-deletes rows tombstoned > N days, or (b) an admin "purge" Server Action. Not implemented today.
+- **No tombstone history.** `deleted_at` only records the latest detection event. If an issue gets deleted, restored, deleted again, all we have is the latest `deleted_at` value (NULL or the second deletion). A `deleted_history` audit table would surface the flapping; not needed yet.
+- **`issue_links` keep pointing at tombstoned `source_issue_id` / `target_issue_id`.** The links table doesn't cascade or filter on deleted_at; consumers (drawer, blocked_stats CTE) filter at query time. Acceptable because the drawer already lazily fetches and surfaces missing-from-sync; if a future surface needs cleaner data, filter at the read.
+- **Cross-project dependencies referencing deleted provider issues.** `narrative_dependencies.provider_jira_issue_keys` is TEXT[], no FK. A deleted provider issue surfaces correctly via the 3-bucket pattern, but the PM has no automatic prompt to update the dependency. Manual review remains the workflow.
+- **`Set` ordering for `deletedKeys`** is insertion order from the iteration over `ws.jira_issue_keys`, which matches the order the PM typed them. Stable, but if a future UI needs alphabetical order or "newest first" surfacing, sort at render.
+
 ### `/projects` list view
 
 - **`project_stats` SQL view** (in
@@ -1586,7 +1686,7 @@ Schemas spread across the `supabase/migrations/` timeline. Tables:
 **Jira sync (init migration `20260501113500_init_jira_dashboard_schema.sql`)**
 
 - `projects` — PK = Jira project id (TEXT), unique `key`, lead, `raw` jsonb, `last_synced_at`.
-- `issues` — PK = Jira issue id (TEXT), unique `key`, `project_id` FK CASCADE, `status_category` CHECK ('To Do' | 'In Progress' | 'Done'), `parent_id` self-FK SET NULL, `due_date`, `start_date`, jira+local timestamps, `raw` jsonb.
+- `issues` — PK = Jira issue id (TEXT), unique `key`, `project_id` FK CASCADE, `status_category` CHECK ('To Do' | 'In Progress' | 'Done'), `parent_id` self-FK SET NULL, `due_date`, `start_date`, jira+local timestamps, `raw` jsonb, `deleted_at` TIMESTAMPTZ NULL (iter 9a — tombstone set by `detectDeletedIssues` on full syncs when a key is no longer returned by Jira; auto-restored to NULL when the key reappears). Partial index `issues_deleted_at_idx ON issues(deleted_at) WHERE deleted_at IS NOT NULL`.
 - `issue_links` — BIGINT identity PK, `source_issue_id` FK, `target_issue_id` nullable FK, `target_issue_key` NOT NULL, unique on `(source, target_key, link_type)`.
 - `sync_runs` — `status` running/success/failed/**partial** (extended iter 6), `sync_type` full/incremental, `project_key` (NULL = all), `triggered_by` ('manual' | 'cron') (iter 6), `failed_projects` JSONB (iter 6: array of `{projectKey, error}`, NULL on clean success), stats counters, `jql_used`, `error_message`.
 
@@ -1679,10 +1779,9 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **i18n (post-iter 5)**: every UI string goes through `useTranslations` / `getTranslations`; never hardcode a Spanish or English literal in a component. Date / relative-time formatting routes through `useFormatter` / `getFormatter`; `Intl.DateTimeFormat("es-AR")` is forbidden. Internal navigation uses `Link` / `useRouter` from `@/i18n/navigation`, NOT `next/link` / `next/navigation` — the locale prefix MUST follow the user. New copy follows the gated workflow: English JSON proposal → user review → Spanish together → only THEN apply to components. See "Internationalization (iter 5)" for the full contract.
 - **Testing (post-iter 8)**: tests live co-located with source as `*.test.ts(x)`. Mock at the helper-module boundary (`vi.mock('./helper')`), NOT deep at Supabase / Jira. Run `pnpm test` before pushing — CI enforces. Inline snapshots for structural drift (prompt format, etc.); update intentional changes via `pnpm test -u` and review the diff in PR. New code that touches `src/lib/sync/*`, `src/lib/narratives/derived.ts`, `src/lib/ai/*` should land with corresponding tests; UI / mutation / E2E surfaces are deliberately out of scope until a regression motivates them. See "Testing (iter 8)" for the full contract.
 - **AI assist (post-iter 7)**: every AI operation logs a row in `ai_usage` (immutable audit log). `src/lib/ai/` is server-only — never import its client / pricing / log helpers from a client component. The route handler at `/api/ai/<operation>` is the SSE endpoint pattern; the client hook is the SSE consumer pattern. Both follow the iter 7 conventions: classify Anthropic SDK errors via `AIErrorCode`, surface via SSE error frames with `errorCode`, map to localized i18n strings under `narratives.ai.errors.*` (or operation-specific siblings). Pricing constants in `src/lib/ai/usage/pricing.ts` get a `verified-on YYYY-MM-DD` comment; updating means re-checking anthropic.com/pricing + bumping the date. Cancellations DO incur partial costs — design UX accordingly.
+- **Soft-delete (post-iter 9a)**: deleted issues are tombstoned (`issues.deleted_at`), not hard-deleted. Filter `deleted_at IS NULL` whenever the surface is "active operational state" (KPI counts, roadmap, autocomplete suggestions); keep tombstones visible when the surface is "what the PM said" (workstream chips, dependency provider, the optional ProjectTable filter). In the derived layer follow the **3-bucket pattern**: missing (never synced), deleted (tombstoned), found (active) are informationally distinct — never collapse deleted into missing. `detectDeletedIssues` runs ONLY in the full-sync branch of `syncIssuesForProject`; never invoke it from an incremental code path. See "Soft delete (iter 9a)" for the full contract.
 
 ## Known tech debt
-
-- **Issue deletion is not detected.** Jira doesn't expose a "what was deleted since X" endpoint cheaply. When it matters: periodic full sync that lists all current ids and diffs.
 - **Watermark uses a 1-day buffer (date-only)** to dodge JQL TZ ambiguity. Refine to a TZ-aware timestamp (using the token user's `/myself.timeZone`) when volume justifies it.
 - **Stuck `running` rows in `sync_runs`.** When the dev server restarts (HMR, file save) mid-sync, the `runSync` `try/catch` never fires and the row stays `running` forever. Run `pnpm diag:runs:reap` to mark rows older than 5min as `failed`. Long-term fix: a periodic reaper or a NOTIFY-based heartbeat. Acceptable today as a manual recovery step.
 - **`/projects/[key]` issues table is not virtualized.** Fine for the current scale (NOXSCRUM has ~813 issues, render is snappy). At ~2000+ rows, switch to a virtualized renderer or paginate server-side. The bucketize/filter passes are O(n); the cost is in the DOM.
@@ -1701,6 +1800,10 @@ In dev mode, `notFound()` from a route handler returns HTTP 200 with the not-fou
 - **AI cost classification is coarse (iter 7).** `classifyAnthropicError` doesn't distinguish 'rate limit' from 'spend limit reached' (both surface as 429 from Anthropic). The `errors.spendLimitReached` i18n string exists in the dictionary but isn't wired — needs Anthropic SDK error inspection for the specific quota signal. Document deferred until a PM hits the spend limit and asks for a clearer message.
 - **AI summary truncation may degrade output for verbose Jira teams (iter 7).** Summaries truncated to 200 chars in prompt builder. Today NOXSCRUM summaries fit comfortably. If a future Jira instance has 300+ char summaries by convention, the truncation cuts mid-thought and the model loses context. Lever: extend to 400 chars OR start extracting `description` from `issues.raw` jsonb. Do NOT extend to 1000+ without re-evaluating cost.
 - **`ai_usage` rows leak access patterns post-membership (iter 7).** Today every authenticated user reads every issue, so `summaries` JSONB cached in `ai_usage.input` discloses nothing new. When per-project membership lands (CLAUDE.md TODO under iter 4f), a user who loses access to a project still has historical `ai_usage` rows referencing those summaries. Decide cascade-delete vs re-validate-on-render at that point.
+- **No manual purge UI for tombstones (iter 9a).** Issues marked `deleted_at` live in the DB forever. Acceptable while issue counts are low (NOXSCRUM ~813 rows); when a project accumulates a meaningful fraction of tombstones consider either a periodic vacuum that hard-deletes rows tombstoned > N days, or an admin "purge" Server Action with confirmation. Not implemented today.
+- **No tombstone history (iter 9a).** `issues.deleted_at` only carries the most recent detection event. If a key is deleted, restored, deleted again, all we keep is the latest value. A separate `issue_deletion_history` audit table would surface flapping; not built because the current detection is daily and idempotent.
+- **`issue_links` keep pointing at tombstoned source/target (iter 9a).** The links table doesn't cascade or filter on `deleted_at`; consumers filter at query time (blocked_stats CTE adds `i.deleted_at IS NULL`, the drawer already lazy-fetches missing data). If a new surface needs cleaner data, push the filter into the read rather than mutate the links table on tombstone.
+- **Cross-project provider dependencies don't auto-prompt on deletion (iter 9a).** `narrative_dependencies.provider_jira_issue_keys` is TEXT[], no FK. When a referenced provider issue gets tombstoned the UI shows the 3rd-bucket "deleted" counter on `DependencyCard.ProviderBlock` but the PM has no notification. Manual review at narrative-edit time remains the workflow until a digest / alert surface exists.
 
 ## Dev tools
 
