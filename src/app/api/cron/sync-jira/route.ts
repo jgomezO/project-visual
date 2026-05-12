@@ -57,7 +57,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // runSync owns its own try/catch, sync_run row lifecycle, and per-
   // project resilience. We only need to map its terminal status to
   // an HTTP status code for the cron caller (Vercel logs).
-  const result = await runSync({ triggeredBy: "cron" });
+  //
+  // type='full' on the cron path (iter 9c follow-up): the iter 9a
+  // tombstone detection is gated to full syncs in syncIssuesForProject
+  // because incremental returns only the watermark slice (absence ≠
+  // deletion). Without forcing full here, the daily cron — the only
+  // automated trigger — could never detect a deletion. The manual Hero
+  // "Resincronizar" button still runs incremental for speed; PMs who
+  // know they deleted something can wait for tomorrow's cron, or hit
+  // /api/sync with {"type":"full","projectKey":"..."} as a curl
+  // workaround. Cost trade-off: a full sync re-fetches every issue per
+  // project, not just the slice updated since the watermark. Today
+  // (~5 projects × ~hundreds of issues each) lands ~25-40s, well
+  // within the 60s Hobby budget. Revisit if a tenant grows past that.
+  const result = await runSync({ triggeredBy: "cron", type: "full" });
 
   const durationMs = Date.now() - startedAt;
   console.log(

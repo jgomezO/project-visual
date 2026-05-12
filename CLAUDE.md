@@ -316,7 +316,7 @@ docs/                                        (iter 9b — Spanish user guide for
 ```
 
 Plus inside `src/`:
-- `src/app/api/cron/sync-jira/route.ts` (iter 6) — GET handler invoked by Vercel Cron once per day. Verifies `Authorization: Bearer ${CRON_SECRET}`, calls `runSync({ triggeredBy: 'cron' })` directly. `maxDuration = 60`.
+- `src/app/api/cron/sync-jira/route.ts` (iter 6) — GET handler invoked by Vercel Cron once per day. Verifies `Authorization: Bearer ${CRON_SECRET}`, calls `runSync({ triggeredBy: 'cron', type: 'full' })` directly (iter 9c — `type: 'full'` was added so tombstone detection can fire). `maxDuration = 60`.
 - `src/components/projects/SyncStatusBadge.tsx` (iter 6) — Client. Chip + HeroUI Popover surfacing a partial/failed last run on the `/projects` Hero.
 - `src/app/api/ai/workstream-description/route.ts` (iter 7) — POST + SSE for AI assist. `maxDuration = 60`. See "AI assist (iter 7)" section.
 - `src/lib/ai/` (iter 7) — `client.ts` (lazy + cached Anthropic SDK), `prompts/workstream-description.ts` (pure prompt builders), `actions/workstream-description.ts` (non-streaming runner — kept for symmetry, not currently wired), `usage/pricing.ts` (cost helper, verified-date stamped), `usage/log.ts` (admin-client INSERT into ai_usage), `error-codes.ts` (shared `AIErrorCode` union).
@@ -1274,7 +1274,7 @@ Daily automated Jira sync via Vercel Cron on the Hobby plan. Manual sync via the
 #### Architecture
 
 - **`vercel.json`** at repo root declares one cron entry hitting `GET /api/cron/sync-jira` at `0 6 * * *` (06:00 UTC). Hobby plan caps cron entries at 2; we use 1, leaving room for one future scheduled job.
-- **`/api/cron/sync-jira/route.ts`** — GET handler invoked by Vercel Cron. Verifies `Authorization: Bearer ${CRON_SECRET}` (Vercel attaches the bearer header automatically on cron-driven calls) using `timingSafeEqual` from `node:crypto`. Calls `runSync({ triggeredBy: 'cron' })` directly — NOT a self-fetch to `/api/sync`. Reasons: one serverless function counts against budgets (not two stacked); the 60s Hobby budget is one budget, not two; no network round-trip / DNS / TLS for a same-process call; no need for `SYNC_SECRET` in the cron path. `maxDuration = 60` (Hobby cap; sync currently lands ~25-40s for ~5 projects, leaving 20s+ headroom).
+- **`/api/cron/sync-jira/route.ts`** — GET handler invoked by Vercel Cron. Verifies `Authorization: Bearer ${CRON_SECRET}` (Vercel attaches the bearer header automatically on cron-driven calls) using `timingSafeEqual` from `node:crypto`. Calls `runSync({ triggeredBy: 'cron', type: 'full' })` directly — NOT a self-fetch to `/api/sync`. Reasons: one serverless function counts against budgets (not two stacked); the 60s Hobby budget is one budget, not two; no network round-trip / DNS / TLS for a same-process call; no need for `SYNC_SECRET` in the cron path. **`type: 'full'` is iter-9c-load-bearing**: iter 9a's tombstone detection in `syncIssuesForProject` gates to `isFull === true` because incremental returns the watermark slice and can't observe absence. Without forcing full here the daily cron — the only automated trigger — could never detect a Jira-side deletion, and the manual Hero button is also incremental. `maxDuration = 60` (Hobby cap; full sync today lands ~25-40s for ~5 projects, leaving 20s+ headroom; revisit if a tenant grows past that).
 - **Status code mapping** (cron route + `/api/sync`): `'success'` or `'partial'` → 200, `'failed'` → 500. Vercel logs reflect HTTP status, so a partial run shows green in the dashboard but the `SyncStatusBadge` still surfaces it on `/projects`.
 - **Middleware allow-list**: `src/middleware.ts` step 1 already bypasses `/api/cron/*` from auth gating, so the cron route doesn't need a Supabase session.
 
@@ -1306,9 +1306,9 @@ If `syncProjects()` itself fails (Jira auth, network):
 
 #### Manual vs cron distinction
 
-- Hero `SyncButton` → Server Action `triggerSync()` → `runSync({ triggeredBy: 'manual' })`. Stays working exactly as before from the user's perspective.
-- `POST /api/sync` (curl / ops) → hardcodes `triggeredBy: 'manual'`. The body now accepts only `{ type, projectKey }`; `triggeredBy` is not user-overridable from HTTP.
-- `GET /api/cron/sync-jira` → `runSync({ triggeredBy: 'cron' })`.
+- Hero `SyncButton` → Server Action `triggerSync()` → `runSync({ triggeredBy: 'manual' })`. **No `type` passed**, so it defaults to incremental — the manual button stays fast (PMs are watching it spin) but does NOT detect Jira-side deletions. The 06:00 UTC cron is what catches deletions; PMs who can't wait can `curl` with `{"type":"full","projectKey":"X"}`.
+- `POST /api/sync` (curl / ops) → hardcodes `triggeredBy: 'manual'`. The body now accepts only `{ type, projectKey }`; `triggeredBy` is not user-overridable from HTTP. Power-user workaround for "I just deleted in Jira, surface it now": pass `{"type":"full","projectKey":"<KEY>"}` to trigger full sync of one project and fire the tombstone detector.
+- `GET /api/cron/sync-jira` → `runSync({ triggeredBy: 'cron', type: 'full' })` (iter 9c — full is required so the tombstone detector can run; see route handler comment for the contract).
 
 `sync_runs.triggered_by` defaults to `'manual'` so all historical rows from before iter 6 keep the right truth (manual was the only path).
 
